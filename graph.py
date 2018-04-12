@@ -14,8 +14,8 @@ class Data(object):  # parent class than handles PCA / import of data
         if ndim > 0 and ndim < data.shape[1]:
             pca = PCA(ndim, svd_solver='randomized', random_state=random_state)
             self.data_nu = pca.fit_transform(data)
-            self.U = pca.components
-            self.S = pca.singular_values
+            self.U = pca.components_
+            self.S = pca.singular_values_
         else:
             self.data_nu = data
 
