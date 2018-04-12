@@ -23,7 +23,7 @@ class Data(object):  # parent class than handles PCA / import of data
 
 
 # all graphs should possess these matrices
-class ParentGraph(object, metaclass=abc.ABCMeta):
+class BaseGraph(object, metaclass=abc.ABCMeta):
 
     def __init__(self):
         self.lap_type = "combinatorial"
@@ -81,7 +81,7 @@ class ParentGraph(object, metaclass=abc.ABCMeta):
         return K
 
 
-class kNNGraph(ParentGraph, Data):  # build a kNN graph
+class kNNGraph(BaseGraph, Data):  # build a kNN graph
 
     def __init__(self, data, ndim=None, random_state=None,
                  knn=5, decay=0, distance='euclidean',
@@ -94,7 +94,7 @@ class kNNGraph(ParentGraph, Data):  # build a kNN graph
 
         Data.__init__(self, data, ndim=ndim,
                       random_state=random_state)
-        ParentGraph.__init__(self)
+        BaseGraph.__init__(self)
 
     @property
     def knn_tree(self):
@@ -159,7 +159,7 @@ class kNNGraph(ParentGraph, Data):  # build a kNN graph
         return K
 
 
-class TraditionalGraph(ParentGraph, Data):
+class TraditionalGraph(BaseGraph, Data):
 
     def __init__(self, data, ndim=None, random_state=None,
                  knn=5, decay=10,  distance='euclidean',
@@ -174,7 +174,7 @@ class TraditionalGraph(ParentGraph, Data):
 
         Data.__init__(self, data, ndim=ndim,
                       random_state=random_state)
-        ParentGraph.__init__(self)
+        BaseGraph.__init__(self)
 
     def build_K(self):
         if self.precomputed is not None:
@@ -197,7 +197,7 @@ class TraditionalGraph(ParentGraph, Data):
         return K
 
 
-class MNNGraph(ParentGraph, Data):
+class MNNGraph(BaseGraph, Data):
 
     def __init__(self, data, ndim=None, random_state=None,
                  knn=5, decay=0, distance='euclidean',
@@ -213,7 +213,7 @@ class MNNGraph(ParentGraph, Data):
 
         Data.__init__(self, data, ndim=ndim,
                       random_state=random_state)
-        ParentGraph.__init__(self)
+        BaseGraph.__init__(self)
 
     def build_K(self):
         graphs = []
