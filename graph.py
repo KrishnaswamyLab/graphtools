@@ -1,17 +1,19 @@
 import numpy as np
-from sklearn.neighbors import kneighbors_graph
+import abc
+from sklearn.neighbors import NearestNeighbors, kneighbors_graph
 from sklearn.decomposition import PCA
 from scipy.spatial.distance import pdist
 from scipy.spatial.distance import squareform
 from sklearn.utils.extmath import randomized_svd
+from sklearn.preprocessing import normalize
 from scipy import sparse
 
 
 class Data(object):  # parent class than handles PCA / import of data
 
-    def __init__(self, data, ndim, random_state):
+    def __init__(self, data, ndim=None, random_state=None):
         self.data = data
-        if ndim > 0 and ndim < data.shape[1]:
+        if ndim is not None and ndim < data.shape[1]:
             pca = PCA(ndim, svd_solver='randomized', random_state=random_state)
             self.data_nu = pca.fit_transform(data)
             self.U = pca.components
@@ -20,36 +22,45 @@ class Data(object):  # parent class than handles PCA / import of data
             self.data_nu = data
 
 
-class ParentGraph(object):  # all graphs should possess these matrices
+# all graphs should possess these matrices
+class ParentGraph(object, metaclass=abc.ABCMeta):
 
-    def __init__(self, *args):
-        self.K = None
-        self.build_K(*args)
-        self._A = None
-        self._d = None
-        self._diffop = None
-        self._L = None
+    def __init__(self):
         self.lap_type = "combinatorial"
 
     @property
+    def K(self):
+        try:
+            return self._K
+        except AttributeError:
+            self._K = self.build_K()
+            return self._K
+
+    @property
     def A(self):
-        if not self._A:
+        try:
+            return self._A
+        except AttributeError:
             self._A = (self.K + self.K.T) / 2
-        if self._A[1, 1] > 0:
-            self._A = np.fill_diagonal(self._A, 0)
-        return self._A
+            if self._A[1, 1] > 0:
+                self._A = np.fill_diagonal(self._A, 0)
+            return self._A
 
     @property
     def D(self):
-        if not self._d:
-            self._d = self.A.sum(axis=1)[:, None]
-        return self._d
+        try:
+            return self._D
+        except AttributeError:
+            self._D = self.A.sum(axis=1)[:, None]
+            return self._D
 
     @property
     def diffop(self):
-        if not self._diffop:
-            self._diffop = self.K / self.D
-        return self._diffop
+        try:
+            return self._diffop
+        except AttributeError:
+            self._diffop = normalize(self.K, 'l1', axis=1)
+            return self._diffop
 
     @property
     def L(self, lap_type="combinatorial"):
@@ -61,57 +72,172 @@ class ParentGraph(object):  # all graphs should possess these matrices
                     5 * self.A * np.diag(self.D) ^ -.5
             elif lap_type is "randomwalk":
                 self._L = np.eye(self.A.shape[0]) - self.diffop
+            self.lap_type = lap_type
         return self._L
+
+    @abc.abstractmethod
+    def build_K(self):
+        raise NotImplementedError
+        return K
 
 
 class kNNGraph(ParentGraph, Data):  # build a kNN graph
 
-    def __init__(self, data, ndim=0, knn=5, decay=0,  thresh=1e-5, random_state=None, distance='Euclidean'):
-        Data.__init__(self, data, ndim, random_state)
-        ParentGraph.__init__(self, k, decay, thresh, distance)
+    def __init__(self, data, ndim=None, random_state=None,
+                 knn=5, decay=0, distance='euclidean',
+                 thresh=1e-5, n_jobs=-1):
+        self.knn = knn
+        self.decay = decay
+        self.distance = distance
+        self.thresh = thresh
+        self.n_jobs = n_jobs
 
-    def build_K(self, knn, decay, thresh, distance):
-        if decay == 0:
-            self.K = kneighbors_graph(self.data_nu, knn, mode='connectivity',
-                                      include_self=True, metric=distance)
+        Data.__init__(self, data, ndim=ndim,
+                      random_state=random_state)
+        ParentGraph.__init__(self)
+
+    @property
+    def knn_tree(self):
+        try:
+            return self._knn_tree
+        except AttributeError:
+            self._knn_tree = NearestNeighbors(
+                n_neighbors=self.knn,
+                metric=self.distance,
+                n_jobs=self.n_jobs).fit(self.data_nu)
+            return self._knn_tree
+
+    def build_K(self):
+        if self.decay == 0:
+            K = kneighbors_graph(self.knn_tree,
+                                 n_neighbors=self.knn,
+                                 metric=self.distance,
+                                 mode='connectivity',
+                                 include_self=True)
         else:
-            kalpha = knn
-            tmp = kneighbors_graph(self.data_nu, kalpha,
-                                   mode='distance', include_self=False,
-                                   metric=distance)
+            knn = self.knn
+            tmp = kneighbors_graph(self.knn_tree,
+                                   n_neighbors=knn,
+                                   metric=self.distance,
+                                   mode='distance',
+                                   include_self=False)
             bandwidth = sparse.diags(1 / np.max(tmp, 1).A.ravel())
-            ktmp = np.exp(-1 * (tmp * bandwidth)**decay)
-            while (np.min(ktmp[np.nonzero(ktmp)]) > thresh):
+            ktmp = np.exp(-1 * (tmp * bandwidth)**self.decay)
+            while (np.min(ktmp[np.nonzero(ktmp)]) > self.thresh):
                 knn += 5
-                tmp = kneighbors_graph(self.data_nu, knn, mode='distance',
-                                       include_self=False, metric=distance)
-                ktmp = np.exp(-1 * (tmp * bandwidth)**decay)
-            self.K = ktmp
+                tmp = kneighbors_graph(self.knn_tree,
+                                       n_neighbors=knn,
+                                       metric=self.distance,
+                                       mode='distance',
+                                       include_self=False)
+                ktmp = np.exp(-1 * (tmp * bandwidth)**self.decay)
+            K = ktmp
+        K = K + K.T
+        return K
+
+    def build_kernel_to_data(self, Y):
+
+        if self.decay == 0:
+            K = self.knn_tree.kneighbors_graph(
+                Y, n_neighbors=self.knn,
+                mode='connectivity')
+        else:
+            knn = self.knn
+            tmp = self.knn_tree.kneighbors_graph(
+                Y, n_neighbors=knn,
+                mode='distance')
+            bandwidth = sparse.diags(1 / np.max(tmp, 1).A.ravel())
+            ktmp = np.exp(-1 * (tmp * bandwidth)**self.decay)
+            while (np.min(ktmp[np.nonzero(ktmp)]) > self.thresh):
+                knn += 5
+                tmp = self.knn_tree.kneighbors_graph(
+                    Y, n_neighbors=knn,
+                    mode='distance')
+                ktmp = np.exp(-1 * (tmp * bandwidth)**self.decay)
+            K = ktmp
+
+        return K
 
 
 class TraditionalGraph(ParentGraph, Data):
 
-    def __init__(self, data, ndim, decay=10, knn=5, precomputed=None,
-                 thresh=None, random_state=None, distance='Euclidean'):
+    def __init__(self, data, ndim=None, random_state=None,
+                 knn=5, decay=10,  distance='euclidean',
+                 precomputed=None):
         if precomputed is None:
-            ndim = 0
-        Data.__init__(self, data, ndim, random_state)
-        ParentGraph.__init__(self, decay, knn, precomputed, distance)
+            # the data itself is a matrix of distances / affinities
+            ndim = None
+        self.knn = knn
+        self.decay = decay
+        self.distance = distance
+        self.precomputed = precomputed
 
-    def build_K(self, decay, k, precomputed, distance):
-        if precomputed is "distance":
+        Data.__init__(self, data, ndim=ndim,
+                      random_state=random_state)
+        ParentGraph.__init__(self)
+
+    def build_K(self):
+        if self.precomputed is not None:
+            if self.precomputed not in ["distance", "affinity"]:
+                raise ValueError("Precomputed value {} not recognised. "
+                                 "Choose from ['distance', 'affinity']")
+        if self.precomputed is "distance":
             pdx = self.data_nu
-        if precomputed is None:
-            pdx = squareform(pdist(self.data, metric=distance))
-        if precomputed is not "affinity":
-            knn_dist = np.partition(pdx, k, axis=1)[:, :k]
+        if self.precomputed is None:
+            pdx = squareform(pdist(self.data, metric=self.distance))
+        if self.precomputed is not "affinity":
+            knn_dist = np.partition(pdx, self.knn, axis=1)[:, :self.knn]
             epsilon = np.max(knn_dist, axis=1)
             pdx = (pdx / epsilon).T
-            self.K = np.exp(-1 * pdx**decay)
+            K = np.exp(-1 * pdx**self.decay)
         else:
-            self.K = self.data_nu
+            K = self.data_nu
 
-        self.K = self.K + self.K.T
+        K = K + K.T
+        return K
+
+
+class MNNGraph(ParentGraph, Data):
+
+    def __init__(self, data, ndim=None, random_state=None,
+                 knn=5, decay=0, distance='euclidean',
+                 thresh=1e-5, beta=0, gamma=0.5,
+                 sample_idx=None):
+        self.knn = knn
+        self.decay = decay
+        self.distance = distance
+        self.thresh = thresh
+        self.beta = beta
+        self.gamma = gamma
+        self.sample_idx = sample_idx
+
+        Data.__init__(self, data, ndim=ndim,
+                      random_state=random_state)
+        ParentGraph.__init__(self)
+
+    def build_K(self):
+        graphs = []
+        for idx in np.unique(self.sample_idx):
+            data = self.data_nu[self.sample_idx == idx]
+            graph = kNNGraph(
+                data, ndim=None,
+                knn=self.knn, decay=self.decay,
+                distance=self.distance, thresh=self.thresh)
+            graphs.append(graph)
+        kernels = []
+        for i, X in enumerate(graphs):
+            kernels.append([])
+            for j, Y in enumerate(graphs):
+                Kij = X.build_kernel_to_data(Y.data_nu)
+                if i == j:
+                    Kij = Kij * self.beta
+                kernels[-1].append(Kij)
+
+        K = sparse.hstack([sparse.vstack(
+            kernels[i]) for i in range(len(kernels))])
+        K = self.gamma * K.minimum(K.T) + \
+            (1 - self.gamma) * K.maximum(K.T)
+        return K
 
 
 def Graph(graphtype, data, *args, **kwargs):
