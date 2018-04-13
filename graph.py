@@ -34,6 +34,8 @@ class BaseGraph(object, metaclass=abc.ABCMeta):
             return self._K
         except AttributeError:
             self._K = self.build_K()
+            if (self._K - self._K.T).max() > 1e-5:
+                raise RuntimeWarning("K should be symmetric")
             return self._K
 
     @property
@@ -41,9 +43,7 @@ class BaseGraph(object, metaclass=abc.ABCMeta):
         try:
             return self._A
         except AttributeError:
-            self._A = (self.K + self.K.T) / 2
-            if self._A[1, 1] > 0:
-                self._A = np.fill_diagonal(self._A, 0)
+            self._A = np.fill_diagonal(self.K, 0)
             return self._A
 
     @property
@@ -77,7 +77,12 @@ class BaseGraph(object, metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def build_K(self):
+        """Build the kernel matrix
+
+        Must return a symmetric matrix
+        """
         raise NotImplementedError
+        K = K + K.T
         return K
 
 
