@@ -3,7 +3,7 @@ import abc
 import pygsp
 from sklearn.neighbors import NearestNeighbors, kneighbors_graph
 from sklearn.decomposition import PCA
-from scipy.spatial.distance import pdist
+from scipy.spatial.distance import pdist, cdist
 from scipy.spatial.distance import squareform
 from sklearn.utils.extmath import randomized_svd
 from sklearn.preprocessing import normalize
@@ -138,7 +138,7 @@ class BaseGraph(pygsp.graphs.Graph, metaclass=abc.ABCMeta):
 class kNNGraph(BaseGraph, Data):  # build a kNN graph
 
     def __init__(self, data, n_pca=None, random_state=None,
-                 knn=5, decay=0, distance='euclidean',
+                 knn=5, decay=None, distance='euclidean',
                  thresh=1e-5, n_jobs=-1,
                  verbose=False):
         self.knn = knn
@@ -197,7 +197,7 @@ class kNNGraph(BaseGraph, Data):  # build a kNN graph
             return self._knn_tree
 
     def build_kernel(self):
-        if self.decay == 0:
+        if self.decay is None:
             K = kneighbors_graph(self.knn_tree,
                                  n_neighbors=self.knn,
                                  metric=self.distance,
@@ -240,10 +240,16 @@ class kNNGraph(BaseGraph, Data):  # build a kNN graph
                     msg = "Y must be of shape (n, {})".format(
                         self.data.shape[1])
                 raise ValueError(msg)
-        if self.decay == 0:
+        if self.decay == 0 or self.thresh == 1:
             K = self.knn_tree.kneighbors_graph(
                 Y, n_neighbors=self.knn,
                 mode='connectivity')
+        elif self.thresh == 0:
+            pdx = squareform(cdist(Y, self.data, metric=self.distance))
+            knn_dist = np.partition(pdx, self.knn, axis=1)[:, :self.knn]
+            epsilon = np.max(knn_dist, axis=1)
+            pdx = (pdx / epsilon).T
+            K = np.exp(-1 * pdx**self.decay)
         else:
             radius, _ = self.knn_tree.kneighbors(Y)
             bandwidth = radius[:, -1]
