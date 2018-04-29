@@ -40,20 +40,11 @@ class Data(object):  # parent class than handles PCA / import of data
                 'random_state': self.random_state}
 
     def set_params(self, **params):
-        # update parameters
-        reset_data_nu = False
         if 'n_pca' in params and params['n_pca'] != self.n_pca:
-            self.n_pca = params['n_pca']
-            reset_data_nu = True
+            raise ValueError("Cannot update n_pca. Please create a new graph")
         if 'random_state' in params:
             self.random_state = params['random_state']
-        # reset things that changed
-        if reset_data_nu:
-            self._reset_data_nu()
         return self
-
-    def _reset_data_nu(self):
-        self.data_nu = self._reduce_data()
 
     @property
     def U(self):
@@ -112,49 +103,6 @@ class BaseGraph(pygsp.graphs.Graph, metaclass=abc.ABCMeta):
 
     def set_params(self, **params):
         return self
-
-    def _reset_kernel(self):
-        self._kernel = self._build_kernel()
-        try:
-            del self._diff_op
-        except AttributeError:
-            pass
-        self.W = self._build_weight_from_kernel()
-        # remove cached properties from pygsp
-        # TODO: can we do this? how to get around the fact the pygsp doesn't
-        # allow us to reset W?
-        try:
-            del self.A
-        except AttributeError:
-            pass
-        try:
-            del self.D
-        except AttributeError:
-            pass
-        try:
-            del self.U
-        except AttributeError:
-            pass
-        try:
-            del self.d
-        except AttributeError:
-            pass
-        try:
-            del self.dw
-        except AttributeError:
-            pass
-        try:
-            del self.e
-        except AttributeError:
-            pass
-        try:
-            del self.lmax
-        except AttributeError:
-            pass
-        try:
-            del self.mu
-        except AttributeError:
-            pass
 
     @property
     def P(self):
@@ -218,24 +166,15 @@ class kNNGraph(BaseGraph, Data):  # build a kNN graph
         return params
 
     def set_params(self, **params):
-        # update parameters
-        reset_kernel = False
-        reset_knn_tree = False
         if 'knn' in params and params['knn'] != self.knn:
-            self.knn = params['knn']
-            reset_kernel = True
-            reset_knn_tree = True
+            raise ValueError("Cannot update knn. Please create a new graph")
         if 'decay' in params and params['decay'] != self.decay:
-            self.decay = params['decay']
-            reset_kernel = True
+            raise ValueError("Cannot update decay. Please create a new graph")
         if 'distance' in params and params['distance'] != self.distance:
-            self.distance = params['distance']
-            reset_kernel = True
-            reset_knn_tree = True
-        if 'thresh' in params and params['thresh'] != self.thresh:
-            self.thresh = params['thresh']
-            if self.decay != 0:
-                reset_kernel = True
+            raise ValueError(
+                "Cannot update distance. Please create a new graph")
+        if 'thresh' in params and params['thresh'] != self.thresh and self.decay != 0:
+            raise ValueError("Cannot update thresh. Please create a new graph")
         if 'n_jobs' in params:
             self.n_jobs = params['n_jobs']
         if 'random_state' in params:
@@ -244,23 +183,7 @@ class kNNGraph(BaseGraph, Data):  # build a kNN graph
             self.verbose = params['verbose']
         # update superclass parameters
         super().set_params(**params)
-        # reset things that changed
-        if reset_knn_tree:
-            self._reset_knn_tree()
-        if reset_kernel:
-            self._reset_kernel()
         return self
-
-    def _reset_data_nu(self):
-        super()._reset_data_nu()
-        self._reset_knn_tree()
-        self._reset_kernel()
-
-    def _reset_knn_tree(self):
-        try:
-            del self._knn_tree
-        except AttributeError:
-            pass
 
     @property
     def knn_tree(self):
@@ -280,6 +203,12 @@ class kNNGraph(BaseGraph, Data):  # build a kNN graph
                                  metric=self.distance,
                                  mode='connectivity',
                                  include_self=True)
+        elif self.thresh == 0:
+            pdx = squareform(pdist(self.data, metric=self.distance))
+            knn_dist = np.partition(pdx, self.knn, axis=1)[:, :self.knn]
+            epsilon = np.max(knn_dist, axis=1)
+            pdx = (pdx / epsilon).T
+            K = np.exp(-1 * pdx**self.decay)
         else:
             radius, _ = self.knn_tree.kneighbors(self.data_nu)
             bandwidth = radius[:, -1]
@@ -379,10 +308,6 @@ class LandmarkGraph(kNNGraph):
             self._reset_landmarks()
         return self
 
-    def _reset_kernel(self):
-        self._reset_landmarks()
-        super()._reset_kernel()
-
     def _reset_landmarks(self):
         try:
             del self._landmark_op
@@ -470,6 +395,8 @@ class TraditionalGraph(BaseGraph, Data):
         if precomputed is None:
             # the data itself is a matrix of distances / affinities
             n_pca = None
+            print("Warning: n_pca cannot be given on a precomputed graph."
+                  "Setting n_pca=None")
         self.knn = knn
         self.decay = decay
         self.distance = distance
@@ -491,21 +418,20 @@ class TraditionalGraph(BaseGraph, Data):
     def set_params(self, **params):
         # update parameters
         reset_kernel = False
-        if 'precomputed' in params and params['precomputed'] != self.precomputed:
-            self.precomputed = params['precomputed']
-            reset_kernel = True
-        if 'distance' in params and params['distance'] != self.distance:
-            self.distance = params['distance']
-            if self.precomputed is not None:
-                reset_kernel = True
-        if 'knn' in params and params['knn'] != self.knn:
-            self.knn = params['knn']
-            if self.precomputed is not None:
-                reset_kernel = True
-        if 'decay' in params and params['decay'] != self.decay:
-            self.decay = params['decay']
-            if self.precomputed is not None:
-                reset_kernel = True
+        if 'precomputed' in params and \
+                params['precomputed'] != self.precomputed:
+            raise ValueError("Cannot update precomputed. "
+                             "Please create a new graph")
+        if 'distance' in params and params['distance'] != self.distance and \
+                self.precomputed is not None:
+            raise ValueError("Cannot update distance. "
+                             "Please create a new graph")
+        if 'knn' in params and params['knn'] != self.knn and \
+                self.precomputed is not None:
+            raise ValueError("Cannot update knn. Please create a new graph")
+        if 'decay' in params and params['decay'] != self.decay and \
+                self.precomputed is not None:
+            raise ValueError("Cannot update decay. Please create a new graph")
         # update superclass parameters
         super().set_params(**params)
         # reset things that changed
@@ -519,18 +445,9 @@ class TraditionalGraph(BaseGraph, Data):
 
     def build_kernel(self):
         if self.precomputed is not None:
-            if self.precomputed not in ["auto", "distance", "affinity"]:
-                raise ValueError("Precomputed value {} not recognised. "
+            if self.precomputed not in ["distance", "affinity"]:
+                raise ValueError("Precomputed value {} not recognized. "
                                  "Choose from ['distance', 'affinity']")
-            if self.precomputed == "auto":
-                if np.all(np.diagonal(self.data_nu) == 0):
-                    self.precomputed = 'distance'
-                elif np.all(np.diagonal(self.data_nu) > 0):
-                    self.precomputed = 'affinity'
-                else:
-                    raise ValueError("Diagonal should either be all zeros "
-                                     "(distance matrix) or all > 0 (affinity "
-                                     "matrix).")
         if self.precomputed is "affinity":
             K = self.data_nu
         else:
@@ -570,35 +487,24 @@ class MNNGraph(BaseGraph, Data):
         return params
 
     def set_params(self, **params):
-        # update parameters
-        reset_kernel = False
         if 'beta' in params and params['beta'] != self.beta:
-            self.beta = params['beta']
-            reset_kernel = True
+            raise ValueError("Cannot update beta. Please create a new graph")
         if 'gamma' in params and params['gamma'] != self.gamma:
-            self.gamma = params['gamma']
-            reset_kernel = True
-        if 'knn' in params and ('knn' not in self.knn_args or
-                                params['knn'] != self.knn_args['knn']):
-            self.knn_args['knn'] = params['knn']
-            reset_kernel = True
+            raise ValueError("Cannot update gamma. Please create a new graph")
 
         knn_kernel_args = ['knn', 'decay', 'distance', 'thresh']
         knn_other_args = ['n_jobs', 'random_state', 'verbose']
         for arg in knn_kernel_args:
             if arg in params and (arg not in self.knn_args or
                                   params[arg] != self.knn_args[arg]):
-                self.knn_args[arg] = params[arg]
-                reset_kernel = True
+                raise ValueError("Cannot update {}. "
+                                 "Please create a new graph".format(arg))
         for arg in knn_other_args:
             if arg in params:
                 self.knn_args[arg] = params[arg]
 
         # update superclass parameters
         super().set_params(**params)
-        # reset things that changed
-        if reset_kernel:
-            self._reset_kernel()
         return self
 
     def build_kernel(self):
