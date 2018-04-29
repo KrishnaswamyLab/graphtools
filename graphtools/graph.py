@@ -197,7 +197,7 @@ class kNNGraph(BaseGraph, Data):  # build a kNN graph
             return self._knn_tree
 
     def build_kernel(self):
-        if self.decay is None:
+        if self.decay is None or self.thresh == 1:
             K = kneighbors_graph(self.knn_tree,
                                  n_neighbors=self.knn,
                                  metric=self.distance,
@@ -240,7 +240,7 @@ class kNNGraph(BaseGraph, Data):  # build a kNN graph
                     msg = "Y must be of shape (n, {})".format(
                         self.data.shape[1])
                 raise ValueError(msg)
-        if self.decay == 0 or self.thresh == 1:
+        if self.decay is None or self.thresh == 1:
             K = self.knn_tree.kneighbors_graph(
                 Y, n_neighbors=self.knn,
                 mode='connectivity')
