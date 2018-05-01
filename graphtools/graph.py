@@ -18,6 +18,7 @@ class Data(object):  # parent class than handles PCA / import of data
         self.data = data
         self.n_pca = n_pca
         self.data_nu = self._reduce_data()
+        super().__init__()
 
     def _reduce_data(self):
         if self.n_pca is not None and self.n_pca < self.data.shape[1]:
@@ -135,20 +136,13 @@ class BaseGraph(pygsp.graphs.Graph, metaclass=abc.ABCMeta):
         return K
 
 
-class kNNGraph(BaseGraph, Data):  # build a kNN graph
+class DataGraph(BaseGraph, Data, metaclass=abc.ABCMeta):
 
     def __init__(self, data, n_pca=None, random_state=None,
-                 knn=5, decay=None, distance='euclidean',
-                 thresh=1e-5, n_jobs=-1,
-                 verbose=False):
-        self.knn = knn
-        self.decay = decay
-        self.distance = distance
-        self.thresh = thresh
+                 verbose=True, n_jobs=1, **kwargs):
         self.n_jobs = n_jobs
         self.random_state = random_state
         self.verbose = verbose
-
         Data.__init__(self, data, n_pca=n_pca,
                       random_state=random_state)
         BaseGraph.__init__(self)
@@ -156,6 +150,70 @@ class kNNGraph(BaseGraph, Data):  # build a kNN graph
     def get_params(self):
         params = Data.get_params(self)
         params.update(BaseGraph.get_params(self))
+        return params
+
+    @abc.abstractmethod
+    def build_kernel_to_data(self, Y):
+        """Build a kernel from new input data Y to the Graph data
+
+        Parameters
+        ----------
+
+        Y : array-like, [n_samples_y, n_dimensions]
+            new data for which an affinity matrix is calculated
+            to the existing data. n_dimensions must match
+            either the ambient or PCA dimensions
+
+        Returns
+        -------
+
+        K_yx : array-like, [n_samples_y, n_samples]
+
+        Raises
+        ------
+
+        ValueError : if this Graph is not capable of extension
+        """
+        raise NotImplementedError
+
+    def _check_extension_shape(self, Y):
+        if not Y.shape[1] == self.data_nu.shape[1]:
+            if Y.shape[1] == self.data.shape[1]:
+                Y = self.transform(Y)
+            else:
+                if self.data.shape[1] != self.data.shape[1]:
+                    msg = "Y must be of shape either (n, {}) or (n, {})".format(
+                        self.data.shape[1], self.data_nu.shape[1])
+                else:
+                    msg = "Y must be of shape (n, {})".format(
+                        self.data.shape[1])
+                raise ValueError(msg)
+        return Y
+
+    def extend_to_data(self, Y):
+        Y = self._check_extension_shape(Y)
+        kernel = self.build_kernel_to_data(Y)
+        transitions = normalize(kernel, norm='l1', axis=1)
+        return transitions
+
+    def interpolate(self, data, transitions):
+        return transitions.dot(data)
+
+
+class kNNGraph(DataGraph):  # build a kNN graph
+
+    def __init__(self, data, knn=5, decay=None,
+                 distance='euclidean',
+                 thresh=1e-5, **kwargs):
+        self.knn = knn
+        self.decay = decay
+        self.distance = distance
+        self.thresh = thresh
+
+        super().__init__(data, **kwargs)
+
+    def get_params(self):
+        params = super().get_params(self)
         params.update({'knn': self.knn,
                        'decay': self.decay,
                        'distance': self.distance,
@@ -171,8 +229,8 @@ class kNNGraph(BaseGraph, Data):  # build a kNN graph
         if 'decay' in params and params['decay'] != self.decay:
             raise ValueError("Cannot update decay. Please create a new graph")
         if 'distance' in params and params['distance'] != self.distance:
-            raise ValueError(
-                "Cannot update distance. Please create a new graph")
+            raise ValueError("Cannot update distance. "
+                             "Please create a new graph")
         if 'thresh' in params and params['thresh'] != self.thresh and self.decay != 0:
             raise ValueError("Cannot update thresh. Please create a new graph")
         if 'n_jobs' in params:
@@ -229,23 +287,13 @@ class kNNGraph(BaseGraph, Data):  # build a kNN graph
         return K
 
     def build_kernel_to_data(self, Y):
-        if not Y.shape[1] == self.data_nu.shape[1]:
-            if Y.shape[1] == self.data.shape[1]:
-                Y = self.transform(Y)
-            else:
-                if self.data.shape[1] != self.data.shape[1]:
-                    msg = "Y must be of shape either (n, {}) or (n, {})".format(
-                        self.data.shape[1], self.data_nu.shape[1])
-                else:
-                    msg = "Y must be of shape (n, {})".format(
-                        self.data.shape[1])
-                raise ValueError(msg)
+        Y = self._check_extension_shape(Y)
         if self.decay is None or self.thresh == 1:
             K = self.knn_tree.kneighbors_graph(
                 Y, n_neighbors=self.knn,
                 mode='connectivity')
         elif self.thresh == 0:
-            pdx = squareform(cdist(Y, self.data, metric=self.distance))
+            pdx = cdist(Y, self.data, metric=self.distance)
             knn_dist = np.partition(pdx, self.knn, axis=1)[:, :self.knn]
             epsilon = np.max(knn_dist, axis=1)
             pdx = (pdx / epsilon).T
@@ -268,16 +316,8 @@ class kNNGraph(BaseGraph, Data):  # build a kNN graph
             K = sparse.vstack(distances)
         return K
 
-    def extend_to_data(self, data):
-        kernel = self.build_kernel_to_data(data)
-        transitions = normalize(kernel, norm='l1', axis=1)
-        return transitions
 
-    def interpolate(self, data, transitions):
-        return transitions.dot(data)
-
-
-class LandmarkGraph(kNNGraph):
+class LandmarkGraph(DataGraph):
 
     def __init__(self, data, n_landmark=2000, n_svd=100, **kwargs):
         if n_landmark >= data.shape[0]:
@@ -330,18 +370,13 @@ class LandmarkGraph(kNNGraph):
             self.build_landmark_op()
             return self._landmark_op
 
-    def extend_to_data(self, data):
-        kernel = self.build_kernel_to_data(data)
-        if sparse.issparse(kernel):
-            pnm = sparse.hstack(
-                [sparse.csr_matrix(kernel[:, self._clusters == i].sum(
-                    axis=1)) for i in np.unique(self._clusters)])
-        else:
-            pnm = np.array([np.sum(
-                kernel[:, self._clusters == i],
-                axis=1).T for i in np.unique(self._clusters)]).transpose()
-        pnm = normalize(pnm, norm='l1', axis=1)
-        return pnm
+    @property
+    def transitions(self):
+        try:
+            return self._transitions
+        except AttributeError:
+            self.build_landmark_op()
+            return self._transitions
 
     def build_landmark_op(self):
         is_sparse = sparse.issparse(self.kernel)
@@ -387,18 +422,31 @@ class LandmarkGraph(kNNGraph):
         self._landmark_op = np.array(diff_op)
         self._transitions = pnm
 
+    def extend_to_data(self, data):
+        kernel = self.build_kernel_to_data(data)
+        if sparse.issparse(kernel):
+            pnm = sparse.hstack(
+                [sparse.csr_matrix(kernel[:, self._clusters == i].sum(
+                    axis=1)) for i in np.unique(self._clusters)])
+        else:
+            pnm = np.array([np.sum(
+                kernel[:, self._clusters == i],
+                axis=1).T for i in np.unique(self._clusters)]).transpose()
+        pnm = normalize(pnm, norm='l1', axis=1)
+        return pnm
+
     def interpolate(self, data, transitions=None):
         if transitions is None:
-            transitions = self._transitions
-        return transitions.dot(data)
+            transitions = self.transitions
+        return super().interpolate(data, transitions)
 
 
-class TraditionalGraph(BaseGraph, Data):
+class TraditionalGraph(DataGraph):
 
-    def __init__(self, data, n_pca=None, random_state=None,
-                 knn=5, decay=10,  distance='euclidean',
-                 precomputed=None):
-        if precomputed is None:
+    def __init__(self, data, knn=5, decay=10,
+                 distance='euclidean', n_pca=None,
+                 precomputed=None, **kwargs):
+        if precomputed is not None:
             # the data itself is a matrix of distances / affinities
             n_pca = None
             print("Warning: n_pca cannot be given on a precomputed graph."
@@ -408,13 +456,11 @@ class TraditionalGraph(BaseGraph, Data):
         self.distance = distance
         self.precomputed = precomputed
 
-        Data.__init__(self, data, n_pca=n_pca,
-                      random_state=random_state)
-        BaseGraph.__init__(self)
+        super().__init__(data, n_pca=n_pca,
+                         **kwargs)
 
     def get_params(self):
-        params = Data.get_params(self)
-        params.update(BaseGraph.get_params(self))
+        params = super().get_params(self)
         params.update({'knn': self.knn,
                        'decay': self.decay,
                        'distance': self.distance,
@@ -422,8 +468,6 @@ class TraditionalGraph(BaseGraph, Data):
         return params
 
     def set_params(self, **params):
-        # update parameters
-        reset_kernel = False
         if 'precomputed' in params and \
                 params['precomputed'] != self.precomputed:
             raise ValueError("Cannot update precomputed. "
@@ -440,22 +484,21 @@ class TraditionalGraph(BaseGraph, Data):
             raise ValueError("Cannot update decay. Please create a new graph")
         # update superclass parameters
         super().set_params(**params)
-        # reset things that changed
-        if reset_kernel:
-            self._reset_kernel()
         return self
-
-    def _reset_data_nu(self):
-        super()._reset_data_nu()
-        self._reset_kernel()
 
     def build_kernel(self):
         if self.precomputed is not None:
-            if self.precomputed not in ["distance", "affinity"]:
+            if self.precomputed not in ["distance", "affinity", "adjacency"]:
                 raise ValueError("Precomputed value {} not recognized. "
-                                 "Choose from ['distance', 'affinity']")
+                                 "Choose from ['distance', 'affinity', 'adjacency']")
         if self.precomputed is "affinity":
             K = self.data_nu
+        elif self.precomputed is "adjacency":
+            K = self.data_nu
+            if sparse.issparse(K):
+                K.setdiag(1)
+            else:
+                np.fill_diagonal(K, 1)
         else:
             if self.precomputed is "distance":
                 pdx = self.data_nu
@@ -468,25 +511,32 @@ class TraditionalGraph(BaseGraph, Data):
         K = K + K.T
         return K
 
+    def build_kernel_to_data(self, Y):
+        if self.precomputed is not None:
+            raise ValueError("Cannot extend kernel on precomputed graph")
+        else:
+            Y = self._check_extension_shape(Y)
+            pdx = cdist(Y, self.data, metric=self.distance)
+            knn_dist = np.partition(pdx, self.knn, axis=1)[:, :self.knn]
+            epsilon = np.max(knn_dist, axis=1)
+            pdx = (pdx / epsilon).T
+            K = np.exp(-1 * pdx**self.decay)
+        return K
 
-class MNNGraph(BaseGraph, Data):
 
-    def __init__(self, data, n_pca=None, random_state=None,
-                 beta=0, gamma=0.5, sample_idx=None,
-                 **knn_args):
+class MNNGraph(DataGraph):
+
+    def __init__(self, data, beta=0, gamma=0.5, n_pca=None,
+                 sample_idx=None, **kwargs):
         self.beta = beta
         self.gamma = gamma
         self.sample_idx = sample_idx
-        knn_args['random_state'] = random_state
-        self.knn_args = knn_args
+        self.knn_args = kwargs
 
-        Data.__init__(self, data, n_pca=n_pca,
-                      random_state=random_state)
-        BaseGraph.__init__(self)
+        super().__init__(data, n_pca=n_pca, **kwargs)
 
     def get_params(self):
-        params = Data.get_params(self)
-        params.update(BaseGraph.get_params(self))
+        params = super().get_params(self)
         params.update({'beta': self.beta,
                        'gamma': self.gamma})
         params.update(self.knn_args)
@@ -514,16 +564,16 @@ class MNNGraph(BaseGraph, Data):
         return self
 
     def build_kernel(self):
-        graphs = []
+        self.subgraphs = []
         for idx in np.unique(self.sample_idx):
             data = self.data_nu[self.sample_idx == idx]
             graph = kNNGraph(
                 data, n_pca=None, **(self.knn_args))
-            graphs.append(graph)
+            self.subgraphs.append(graph)
         kernels = []
-        for i, X in enumerate(graphs):
+        for i, X in enumerate(self.subgraphs):
             kernels.append([])
-            for j, Y in enumerate(graphs):
+            for j, Y in enumerate(self.subgraphs):
                 if i == j:
                     Kij = X.kernel
                     Kij = Kij * self.beta
@@ -537,16 +587,95 @@ class MNNGraph(BaseGraph, Data):
             (1 - self.gamma) * K.maximum(K.T)
         return K
 
+    def build_kernel_to_data(self, Y):
+        Y = self._check_extension_shape(Y)
+        kernel_xy = []
+        kernel_yx = []
+        Y_graph = kNNGraph(
+            Y, n_pca=None, **(self.knn_args))
+        for i, X in enumerate(self.subgraphs):
+            kernel_xy.append(X.build_kernel_to_data(Y))
+            kernel_yx.append(Y_graph.build_kernel_to_data(X.data_nu))
+        kernel_xy = sparse.hstack(kernel_xy)
+        kernel_yx = sparse.vstack(kernel_yx)
+        K = self.gamma * kernel_xy.minimum(kernel_yx.T) + \
+            (1 - self.gamma) * kernel_xy.maximum(kernel_yx.T)
+        return K
 
-def Graph(graphtype, data, *args, **kwargs):
+
+def Graph(data,
+          n_pca=None,
+          sample_idx=None,
+          precomputed=None,
+          knn=5,
+          decay=None,
+          distance='euclidean',
+          thresh=1e-5,
+          n_landmark=None,
+          n_svd=100,
+          beta=0,
+          gamma=0.5,
+          n_jobs=-1,
+          verbose=False,
+          random_state=None,
+          graphtype='auto'):
+    base = []
+    if graphtype == 'auto':
+        if sample_idx is not None:
+            graphtype = "mnn"
+        elif precomputed is None and (decay is None or thresh > 0):
+            graphtype = "knn"
+        else:
+            graphtype = "exact"
+    base = []
     if graphtype == "knn":
         base = kNNGraph
+        if precomputed is not None:
+            raise ValueError("kNNGraph does not support precomputed "
+                             "values. Use `graphtype='exact'` or "
+                             "`precomputed=None`")
+        if sample_idx is not None:
+            raise ValueError("kNNGraph does not support batch "
+                             "correction. Use `graphtype='mnn'` or "
+                             "`sample_idx=None`")
+
+    elif graphtype == "mnn":
+        base = MNNGraph
+        if precomputed is not None:
+            raise ValueError("MNNGraph does not support precomputed "
+                             "values. Use `graphtype='exact'` and "
+                             "`sample_idx=None` or `precomputed=None`")
     elif graphtype == "exact":
         base = TraditionalGraph
+        if sample_idx is not None:
+            raise ValueError("TraditionalGraph does not support batch "
+                             "correction. Use `graphtype='mnn'` or "
+                             "`sample_idx=None`")
+    else:
+        raise ValueError("graphtype '{}' not recognized. Choose from "
+                         "['knn', 'mnn', 'exact', 'auto']")
+    if n_landmark is not None:
+        class Graph(base, LandmarkGraph):
 
-    class Graph(base):
+            def __init__(self, *args, **kwargs):
+                base.__init__(self, *args, **kwargs)
+                LandmarkGraph.__init__(self, *args, **kwargs)
+    else:
+        class Graph(base):
+            pass
 
-        def __init__(self, data, *args, **kwargs):
-            base.__init__(self, data, *args, **kwargs)
-
-    return Graph(data, *args, **kwargs)
+    return Graph(data,
+                 n_pca=n_pca,
+                 sample_idx=sample_idx,
+                 precomputed=precomputed,
+                 knn=knn,
+                 decay=decay,
+                 distance=distance,
+                 thresh=thresh,
+                 n_landmark=n_landmark,
+                 n_svd=n_svd,
+                 beta=beta,
+                 gamma=gamma,
+                 n_jobs=n_jobs,
+                 verbose=verbose,
+                 random_state=random_state)
