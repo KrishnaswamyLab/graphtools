@@ -72,17 +72,18 @@ class Data(object):  # parent class than handles PCA / import of data
         try:
             return self.pca.transform(data)
         except AttributeError:
-            return data.dot(self._right_singular_vectors)
-        except AttributeError:
-            return data
+            try:
+                return data.dot(self._right_singular_vectors)
+            except AttributeError:
+                return data
 
 
 # all graphs should possess these matrices
 class BaseGraph(pygsp.graphs.Graph, metaclass=abc.ABCMeta):
 
     def __init__(self, **kwargs):
-        self._kernel = self._build_kernel()
-        W = self._build_weight_from_kernel()
+        kernel = self._build_kernel()
+        W = self._build_weight_from_kernel(kernel)
         super().__init__(W, **kwargs)
 
     def _build_kernel(self):
@@ -91,8 +92,8 @@ class BaseGraph(pygsp.graphs.Graph, metaclass=abc.ABCMeta):
             raise RuntimeWarning("K should be symmetric")
         return kernel
 
-    def _build_weight_from_kernel(self):
-        weight = self._kernel.copy()
+    def _build_weight_from_kernel(self, kernel):
+        weight = kernel
         if sparse.issparse(weight):
             weight.setdiag(0)
         else:
@@ -119,7 +120,12 @@ class BaseGraph(pygsp.graphs.Graph, metaclass=abc.ABCMeta):
 
     @property
     def K(self):
-        return self._kernel
+        kernel = self.W.copy()
+        if sparse.issparse(kernel):
+            kernel.setdiag(1)
+        else:
+            np.fill_diagonal(kernel, 1)
+        return kernel
 
     @property
     def kernel(self):
@@ -132,7 +138,7 @@ class BaseGraph(pygsp.graphs.Graph, metaclass=abc.ABCMeta):
         Must return a symmetric matrix
         """
         raise NotImplementedError
-        K = K + K.T
+        K = (K + K.T) / 2
         return K
 
 
@@ -283,7 +289,7 @@ class kNNGraph(DataGraph):  # build a kNN graph
                     -1 * ((row_distances.data / bandwidth[i]) ** self.decay))
                 distances[i] = row_distances
             K = sparse.vstack(distances)
-        K = K + K.T
+        K = (K + K.T) / 2
         return K
 
     def build_kernel_to_data(self, Y):
@@ -503,12 +509,12 @@ class TraditionalGraph(DataGraph):
             if self.precomputed is "distance":
                 pdx = self.data_nu
             elif self.precomputed is None:
-                pdx = squareform(pdist(self.data, metric=self.distance))
+                pdx = squareform(pdist(self.data_nu, metric=self.distance))
             knn_dist = np.partition(pdx, self.knn, axis=1)[:, :self.knn]
             epsilon = np.max(knn_dist, axis=1)
             pdx = (pdx / epsilon).T
             K = np.exp(-1 * pdx**self.decay)
-        K = K + K.T
+        K = (K + K.T) / 2
         return K
 
     def build_kernel_to_data(self, Y):
@@ -516,7 +522,7 @@ class TraditionalGraph(DataGraph):
             raise ValueError("Cannot extend kernel on precomputed graph")
         else:
             Y = self._check_extension_shape(Y)
-            pdx = cdist(Y, self.data, metric=self.distance)
+            pdx = cdist(Y, self.data_nu, metric=self.distance)
             knn_dist = np.partition(pdx, self.knn, axis=1)[:, :self.knn]
             epsilon = np.max(knn_dist, axis=1)
             pdx = (pdx / epsilon).T
