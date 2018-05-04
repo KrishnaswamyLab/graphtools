@@ -32,7 +32,8 @@ class Data(object):  # parent class than handles PCA / import of data
                 self.pca = PCA(self.n_pca,
                                svd_solver='randomized',
                                random_state=self.random_state)
-                return self.pca.fit_transform(self.data)
+                self.pca.fit(self.data)
+                return self.pca.transform(self.data)
         else:
             return self.data
 
@@ -75,6 +76,10 @@ class Data(object):  # parent class than handles PCA / import of data
             try:
                 return data.dot(self._right_singular_vectors)
             except AttributeError:
+                if data.shape[1] != self.data.shape[1]:
+                    raise ValueError("data of shape {} cannot be transformed"
+                                     " to graph built on data of shape {}".format(
+                                         data.shape, self.data.shape))
                 return data
 
 
