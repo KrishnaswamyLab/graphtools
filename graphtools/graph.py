@@ -539,6 +539,21 @@ class MNNGraph(DataGraph):
 
     def __init__(self, data, beta=0, gamma=0.5, n_pca=None,
                  sample_idx=None, **kwargs):
+        """MNN Kernel
+
+        Parameters
+        ----------
+        beta : float, optional (default: 0)
+            Multiply within-batch connections by (1-beta)
+
+        gamma : float or {'+', '*'} (default: 0.5)
+            Symmetrization method. If '+', use `(K + K.T) / 2`,
+            if '*', use `K * K.T`, if a float, use
+            `gamma * min(K, K.T) + (1-gamma) * max(K, K.T)`
+
+        sample_idx : array-like
+            Batch index
+        """
         self.beta = beta
         self.gamma = gamma
         self.sample_idx = sample_idx
@@ -594,8 +609,13 @@ class MNNGraph(DataGraph):
 
         K = sparse.hstack([sparse.vstack(
             kernels[i]) for i in range(len(kernels))])
-        K = self.gamma * K.minimum(K.T) + \
-            (1 - self.gamma) * K.maximum(K.T)
+        if self.gamma = "+":
+            K = (K + K.T) / 2
+        elif self.gamma = "*":
+            K = X.multiply(X.T)
+        else:
+            K = self.gamma * K.minimum(K.T) + \
+                (1 - self.gamma) * K.maximum(K.T)
         return K
 
     def build_kernel_to_data(self, Y):
