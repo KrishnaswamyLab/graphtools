@@ -609,9 +609,9 @@ class MNNGraph(DataGraph):
 
         K = sparse.hstack([sparse.vstack(
             kernels[i]) for i in range(len(kernels))])
-        if self.gamma = "+":
+        if self.gamma == "+":
             K = (K + K.T) / 2
-        elif self.gamma = "*":
+        elif self.gamma == "*":
             K = X.multiply(X.T)
         else:
             K = self.gamma * K.minimum(K.T) + \
