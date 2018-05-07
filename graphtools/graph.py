@@ -537,8 +537,8 @@ class TraditionalGraph(DataGraph):
 
 class MNNGraph(DataGraph):
 
-    def __init__(self, data, beta=0, gamma=0.5, n_pca=None,
-                 sample_idx=None, adaptive_k=True, **kwargs):
+    def __init__(self, data, knn=5, beta=0, gamma=0.5, n_pca=None,
+                 sample_idx=None, adaptive_k=True, scaling='min', **kwargs):
         """MNN Kernel
 
         Parameters
@@ -560,6 +560,7 @@ class MNNGraph(DataGraph):
         self.beta = beta
         self.gamma = gamma
         self.sample_idx = sample_idx
+        self.knn = knn
         self.knn_args = kwargs
 
         super().__init__(data, n_pca=n_pca, **kwargs)
@@ -593,17 +594,29 @@ class MNNGraph(DataGraph):
         return self
 
     def build_kernel(self):
+        samples = np.unique(self.sample_idx)
+
         if adaptive_k:
-            n_cells = np.array([len(self.data_nu[self.sample_idx == idx]) for idx in np.unique(self.sample_idx)])
-            n_cells_weight = n_cells / np.min(n_cells)
+            n_cells = np.array([len(self.data_nu[self.sample_idx == idx]) for idx in samples])
+            if scaling == 'min': # the smallest sample has k
+                n_cells_weight = n_cells / np.min(n_cells)
+            elif scaling == 'mean': # the average sample has k
+                n_cells_weight = n_cells / np.mean(n_cells)
+            elif scaling == 'sqrt': # the  samples are sqrt'd first, then smallest has k
+                n_cells_weight = np.sqrt(n_cells) / np.min(np.sqrt(n_cells))
+
             knn_weight = self.knn * np.vstack([n_cells_weight for _ in range(len(n_cells_weight))])
-            knn_weight = knn_weight.round() # this function weights K by n_cells
+            knn_weight = knn_weight.around() # this function weights K by n_cells
 
         self.subgraphs = []
-        for i, idx in enumerate(np.unique(self.sample_idx)): # iterating through sample ids
+        for i, idx in enumerate(samples): # iterating through sample ids
             data = self.data_nu[self.sample_idx == idx] # select data for sample
-            graph = kNNGraph(
-                data, n_pca=None, knn=knn_weight[i], **(self.knn_args)) # build a kNN graph for cells within sample
+            if adaptive_k:
+                graph = kNNGraph(
+                    data, n_pca=None, knn=knn_weight[i, i], **(self.knn_args)) # build a kNN graph for cells within sample
+            else:
+                graph = kNNGraph(
+                    data, n_pca=None, knn=self.knn, **(self.knn_args)) # build a kNN graph for cells within sample
             self.subgraphs.append(graph) # append to list of subgraphs
         kernels = []
         for i, X in enumerate(self.subgraphs):
@@ -613,7 +626,10 @@ class MNNGraph(DataGraph):
                     Kij = X.kernel
                     Kij = Kij * self.beta
                 else:
-                    Kij = X.build_kernel_to_data(Y.data_nu)
+                    if adaptive_k:
+                        Kij = X.build_kernel_to_data(Y.data_nu, knn=(knn_weight[i,j], knn_wight[j,i]))
+                    else:
+                        Kij = X.build_kernel_to_data(Y.data_nu)
                 kernels[-1].append(Kij)
 
         K = sparse.hstack([sparse.vstack(
@@ -627,15 +643,18 @@ class MNNGraph(DataGraph):
                 (1 - self.gamma) * K.maximum(K.T)
         return K
 
-    def build_kernel_to_data(self, Y):
+    def build_kernel_to_data(self, Y, knn=self.knn):
         Y = self._check_extension_shape(Y)
         kernel_xy = []
         kernel_yx = []
-        Y_graph = kNNGraph(
-            Y, n_pca=None, **(self.knn_args))
+        Y_graph = kNNGraph(Y, n_pca=None, knn, **(self.knn_args))
         for i, X in enumerate(self.subgraphs):
-            kernel_xy.append(X.build_kernel_to_data(Y))
-            kernel_yx.append(Y_graph.build_kernel_to_data(X.data_nu))
+            if adaptive_k:
+                kernel_xy.append(X.build_kernel_to_data(Y, knn[0]))
+                kernel_yx.append(Y_graph.build_kernel_to_data(X.data_nu, knn[1]))
+            else:
+                kernel_xy.append(X.build_kernel_to_data(Y))
+                kernel_yx.append(Y_graph.build_kernel_to_data(X.data_nu))
         kernel_xy = sparse.hstack(kernel_xy)
         kernel_yx = sparse.vstack(kernel_yx)
         K = self.gamma * kernel_xy.minimum(kernel_yx.T) + \
