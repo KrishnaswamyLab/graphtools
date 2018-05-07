@@ -538,7 +538,7 @@ class TraditionalGraph(DataGraph):
 class MNNGraph(DataGraph):
 
     def __init__(self, data, beta=0, gamma=0.5, n_pca=None,
-                 sample_idx=None, **kwargs):
+                 sample_idx=None, adaptive_k=True, **kwargs):
         """MNN Kernel
 
         Parameters
@@ -553,6 +553,9 @@ class MNNGraph(DataGraph):
 
         sample_idx : array-like
             Batch index
+        adaptive_k : boolean (default: True)
+            If true, weights MNN kernel adaptively using the number of cells in
+            each sample
         """
         self.beta = beta
         self.gamma = gamma
@@ -590,12 +593,18 @@ class MNNGraph(DataGraph):
         return self
 
     def build_kernel(self):
+        if adaptive_k:
+            n_cells = np.array([len(self.data_nu[self.sample_idx == idx]) for idx in np.unique(self.sample_idx)])
+            n_cells_weight = n_cells / np.min(n_cells)
+            knn_weight = self.knn * np.vstack([n_cells_weight for _ in range(len(n_cells_weight))])
+            knn_weight = knn_weight.round() # this function weights K by n_cells
+
         self.subgraphs = []
-        for idx in np.unique(self.sample_idx):
-            data = self.data_nu[self.sample_idx == idx]
+        for i, idx in enumerate(np.unique(self.sample_idx)): # iterating through sample ids
+            data = self.data_nu[self.sample_idx == idx] # select data for sample
             graph = kNNGraph(
-                data, n_pca=None, **(self.knn_args))
-            self.subgraphs.append(graph)
+                data, n_pca=None, knn=knn_weight[i], **(self.knn_args)) # build a kNN graph for cells within sample
+            self.subgraphs.append(graph) # append to list of subgraphs
         kernels = []
         for i, X in enumerate(self.subgraphs):
             kernels.append([])
