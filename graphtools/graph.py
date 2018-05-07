@@ -644,14 +644,18 @@ class MNNGraph(DataGraph):
         return K
 
     def build_kernel_to_data(self, Y, knn=self.knn):
+        '''
+        If adaptive-k, expecting knn to be a tuple of (k_ij, k_ji),
+        otherwise should be a single value
+        '''
         Y = self._check_extension_shape(Y)
         kernel_xy = []
         kernel_yx = []
-        Y_graph = kNNGraph(Y, n_pca=None, knn, **(self.knn_args))
+        Y_graph = kNNGraph(Y, n_pca=None, knn=knn, **(self.knn_args))
         for i, X in enumerate(self.subgraphs):
             if adaptive_k:
-                kernel_xy.append(X.build_kernel_to_data(Y, knn[0]))
-                kernel_yx.append(Y_graph.build_kernel_to_data(X.data_nu, knn[1]))
+                kernel_xy.append(X.build_kernel_to_data(Y, knn=knn[0]))
+                kernel_yx.append(Y_graph.build_kernel_to_data(X.data_nu, knn=knn[1]))
             else:
                 kernel_xy.append(X.build_kernel_to_data(Y))
                 kernel_yx.append(Y_graph.build_kernel_to_data(X.data_nu))
