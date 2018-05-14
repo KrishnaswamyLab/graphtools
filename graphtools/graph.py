@@ -560,6 +560,8 @@ class MNNGraph(DataGraph):
         self.beta = beta
         self.gamma = gamma
         self.sample_idx = sample_idx
+        self.adaptive_k = adaptive_k
+        self.scaling = scaling
         self.knn = knn
         self.knn_args = kwargs
 
@@ -595,14 +597,13 @@ class MNNGraph(DataGraph):
 
     def build_kernel(self):
         samples = np.unique(self.sample_idx)
-
-        if adaptive_k:
+        if self.adaptive_k:
             n_cells = np.array([len(self.data_nu[self.sample_idx == idx]) for idx in samples])
-            if scaling == 'min': # the smallest sample has k
+            if self.scaling == 'min': # the smallest sample has k
                 n_cells_weight = n_cells / np.min(n_cells)
-            elif scaling == 'mean': # the average sample has k
+            elif self.scaling == 'mean': # the average sample has k
                 n_cells_weight = n_cells / np.mean(n_cells)
-            elif scaling == 'sqrt': # the  samples are sqrt'd first, then smallest has k
+            elif self.scaling == 'sqrt': # the  samples are sqrt'd first, then smallest has k
                 n_cells_weight = np.sqrt(n_cells) / np.min(np.sqrt(n_cells))
 
             knn_weight = self.knn * np.vstack([n_cells_weight for _ in range(len(n_cells_weight))])
@@ -611,7 +612,7 @@ class MNNGraph(DataGraph):
         self.subgraphs = []
         for i, idx in enumerate(samples): # iterating through sample ids
             data = self.data_nu[self.sample_idx == idx] # select data for sample
-            if adaptive_k:
+            if self.adaptive_k:
                 graph = kNNGraph(
                     data, n_pca=None, knn=knn_weight[i, i], **(self.knn_args)) # build a kNN graph for cells within sample
             else:
@@ -626,8 +627,8 @@ class MNNGraph(DataGraph):
                     Kij = X.kernel
                     Kij = Kij * self.beta
                 else:
-                    if adaptive_k:
-                        Kij = X.build_kernel_to_data(Y.data_nu, knn=(knn_weight[i,j], knn_wight[j,i]))
+                    if self.adaptive_k:
+                        Kij = X.build_kernel_to_data(Y.data_nu, knn=(knn_weight[j,j], knn_weight[i,j], knn_wight[j,i]))
                     else:
                         Kij = X.build_kernel_to_data(Y.data_nu)
                 kernels[-1].append(Kij)
@@ -643,19 +644,26 @@ class MNNGraph(DataGraph):
                 (1 - self.gamma) * K.maximum(K.T)
         return K
 
-    def build_kernel_to_data(self, Y, knn=self.knn):
+    def build_kernel_to_data(self, Y, knn=None):
         '''
-        If adaptive-k, expecting knn to be a tuple of (k_ij, k_ji),
+        If adaptive-k, expecting knn to be a tuple of (k_jj, k_ij, k_ji),
         otherwise should be a single value
         '''
+        if len(knn) == 3:
+            adaptive_k = True
+        else:
+            adaptive_k = False
         Y = self._check_extension_shape(Y)
         kernel_xy = []
         kernel_yx = []
-        Y_graph = kNNGraph(Y, n_pca=None, knn=knn, **(self.knn_args))
+        if adaptive_k:
+            Y_graph = kNNGraph(Y, n_pca=None, knn=knn[0], **(self.knn_args)) # kernel Y -> Y
+        else:
+            Y_graph = kNNGraph(Y, n_pca=None, knn=self.knn, **(self.knn_args))
         for i, X in enumerate(self.subgraphs):
-            if adaptive_k:
-                kernel_xy.append(X.build_kernel_to_data(Y, knn=knn[0]))
-                kernel_yx.append(Y_graph.build_kernel_to_data(X.data_nu, knn=knn[1]))
+            if len(knn) > 1:
+                kernel_xy.append(X.build_kernel_to_data(Y, knn=knn[1])) # kernel X -> Y
+                kernel_yx.append(Y_graph.build_kernel_to_data(X.data_nu, knn=knn[2])) # kernel Y -> X
             else:
                 kernel_xy.append(X.build_kernel_to_data(Y))
                 kernel_yx.append(Y_graph.build_kernel_to_data(X.data_nu))
