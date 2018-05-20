@@ -10,6 +10,7 @@ from sklearn.preprocessing import normalize
 from sklearn.cluster import MiniBatchKMeans
 from scipy import sparse
 import time
+import numbers
 
 
 class Data(object):
@@ -213,6 +214,12 @@ class BaseGraph(pygsp.graphs.Graph, metaclass=abc.ABCMeta):
     TODO: should we only optionally inherit from pygsp?
     There is a lot of overhead involved in having both a weight and
     kernel matrix
+    
+    Parameters
+    ----------
+
+    initialize : `bool`, optional (default : `True`)
+        if false, don't create the kernel matrix.
 
     Attributes
     ----------
@@ -228,11 +235,15 @@ class BaseGraph(pygsp.graphs.Graph, metaclass=abc.ABCMeta):
 
     diff_op : synonym for `P`
     """
-
-    def __init__(self, **kwargs):
-        kernel = self._build_kernel()
-        W = self._build_weight_from_kernel(kernel)
-        super().__init__(W, **kwargs)
+    def __init__(self, initialize=True, pygsp_kws=None, **kwargs):
+        if initialize:
+            kernel = self._build_kernel()
+            W = self._build_weight_from_kernel(kernel)
+        else:
+            W = np.array([[0]])
+        if pygsp_kws is None:
+            pygsp_kws = {}
+        super().__init__(W, **pygsp_kws)
 
     def _build_kernel(self):
         """Private method to build kernel matrix
@@ -405,7 +416,7 @@ class DataGraph(BaseGraph, Data, metaclass=abc.ABCMeta):
         self.verbose = verbose
         Data.__init__(self, data, n_pca=n_pca,
                       random_state=random_state)
-        BaseGraph.__init__(self)
+        BaseGraph.__init__(self, **kwargs)
 
     def get_params(self):
         """Get parameters from this object
@@ -591,6 +602,10 @@ class kNNGraph(DataGraph):
         self.distance = distance
         self.thresh = thresh
 
+        if decay is not None and thresh <= 0:
+            raise ValueError("Cannot instantiate a kNNGraph with `decay=None` "
+                             "and `thresh=0`. Use a TraditionalGraph instead.")
+
         super().__init__(data, **kwargs)
 
     def get_params(self):
@@ -690,15 +705,6 @@ class kNNGraph(DataGraph):
                                  metric=self.distance,
                                  mode='connectivity',
                                  include_self=True)
-        elif self.thresh == 0:
-            # full alpha decay kernel
-            # no point doing anything fancy, we need to brute force calculate
-            # pairwise distances
-            pdx = squareform(pdist(self.data, metric=self.distance))
-            knn_dist = np.partition(pdx, self.knn, axis=1)[:, :self.knn]
-            epsilon = np.max(knn_dist, axis=1)
-            pdx = (pdx / epsilon).T
-            K = np.exp(-1 * pdx**self.decay)
         else:
             # sparse fast alpha decay
             print("Warning: sparse alpha decay is not tested.")
@@ -721,7 +727,7 @@ class kNNGraph(DataGraph):
         K = (K + K.T) / 2
         return K
 
-    def build_kernel_to_data(self, Y):
+    def build_kernel_to_data(self, Y, knn=None):
         """Build a kernel from new input data `Y` to the `self.data`
 
         Parameters
@@ -731,6 +737,9 @@ class kNNGraph(DataGraph):
             new data for which an affinity matrix is calculated
             to the existing data. `n_features` must match
             either the ambient or PCA dimensions
+
+        knn : `int` or `None`, optional (default: `None`)
+            If `None`, defaults to `self.knn`
 
         Returns
         -------
@@ -744,23 +753,18 @@ class kNNGraph(DataGraph):
 
         ValueError: if the supplied data is the wrong shape
         """
+        if knn is None:
+            knn = self.knn
         Y = self._check_extension_shape(Y)
         if self.decay is None or self.thresh == 1:
             # binary connectivity matrix
             K = self.knn_tree.kneighbors_graph(
-                Y, n_neighbors=self.knn,
+                Y, n_neighbors=knn,
                 mode='connectivity')
-        elif self.thresh == 0:
-            # brute force full alpha decay
-            pdx = cdist(Y, self.data, metric=self.distance)
-            knn_dist = np.partition(pdx, self.knn, axis=1)[:, :self.knn]
-            epsilon = np.max(knn_dist, axis=1)
-            pdx = (pdx / epsilon).T
-            K = np.exp(-1 * pdx**self.decay)
         else:
             # sparse fast alpha decay
             print("Warning: sparse alpha decay is not tested.")
-            radius, _ = self.knn_tree.kneighbors(Y)
+            radius, _ = self.knn_tree.kneighbors(Y, n_neighbors=knn)
             bandwidth = radius[:, -1]
             radius = bandwidth * np.power(-1 * np.log(self.thresh),
                                           1 / self.decay)
@@ -975,7 +979,7 @@ class LandmarkGraph(DataGraph):
         self._landmark_op = np.array(diff_op)
         self._transitions = pnm
 
-    def extend_to_data(self, data):
+    def extend_to_data(self, data, **kwargs):
         """Build transition matrix from new data to the graph
 
         Creates a transition matrix such that `Y` can be approximated by
@@ -999,7 +1003,7 @@ class LandmarkGraph(DataGraph):
         transitions : array-like, [n_samples_y, self.data.shape[0]]
             Transition matrix from `Y` to `self.data`
         """
-        kernel = self.build_kernel_to_data(data)
+        kernel = self.build_kernel_to_data(data, **kwargs)
         if sparse.issparse(kernel):
             pnm = sparse.hstack(
                 [sparse.csr_matrix(kernel[:, self._clusters == i].sum(
@@ -1183,7 +1187,7 @@ class TraditionalGraph(DataGraph):
                 pdx = squareform(pdist(self.data_nu, metric=self.distance))
             knn_dist = np.partition(pdx, self.knn, axis=1)[:, :self.knn]
             epsilon = np.max(knn_dist, axis=1)
-            pdx = (pdx / epsilon).T
+            pdx = pdx.T / epsilon[:, None]
             K = np.exp(-1 * pdx**self.decay)
         # symmetrize
         K = (K + K.T) / 2
@@ -1226,7 +1230,7 @@ class TraditionalGraph(DataGraph):
             pdx = cdist(Y, self.data_nu, metric=self.distance)
             knn_dist = np.partition(pdx, self.knn, axis=1)[:, :self.knn]
             epsilon = np.max(knn_dist, axis=1)
-            pdx = (pdx / epsilon).T
+            pdx = pdx.T / epsilon[:, None]
             K = np.exp(-1 * pdx**self.decay)
         return K
 
@@ -1241,7 +1245,7 @@ class MNNGraph(DataGraph):
     Parameters
     ----------
     beta: `float`, optional (default: 1)
-        Multiply within-batch connections by beta
+        Downweight within-batch affinities by beta
 
     gamma: `float` or {'+', '*'} (default: 0.99)
         Symmetrization method.
@@ -1253,20 +1257,68 @@ class MNNGraph(DataGraph):
     sample_idx: array-like, shape=[n_samples]
         Batch index
 
+    adaptive_k : `{'min', 'mean', 'sqrt', 'none'}` (default: 'sqrt')
+        Weights MNN kernel adaptively using the number of cells in
+        each sample according to the selected method.
+
     Attributes
     ----------
     subgraphs : list of `kNNGraph`s
         Graphs representing each batch separately
     """
 
-    def __init__(self, data, beta=1, gamma=0.99, n_pca=None,
-                 sample_idx=None, **kwargs):
+    def __init__(self, data, knn=5, beta=1, gamma=0.99, n_pca=None,
+                 sample_idx=None, adaptive_k='sqrt', **kwargs):
         self.beta = beta
         self.gamma = gamma
         self.sample_idx = sample_idx
+        self.samples, self.n_cells = np.unique(
+            self.sample_idx, return_counts=True)
+        self.adaptive_k = adaptive_k
+        self.knn = knn
+        self.weighted_knn = self._weight_knn()
         self.knn_args = kwargs
 
+        if sample_idx is not None and len(sample_idx) != len(data):
+            raise ValueError("sample_idx ({}) must be the same length as "
+                             "data ({})".format(len(sample_idx), len(data)))
+
         super().__init__(data, n_pca=n_pca, **kwargs)
+
+    def _weight_knn(self, sample_size=None):
+        """Select adaptive values of knn
+
+        Parameters
+        ----------
+
+        sample_size : `int` or `None`
+            Number of cells in the sample in question. Used only for
+            out-of-sample extension. If `None`, calculates within-sample
+            knn values.
+
+        Returns
+        -------
+
+        knn : array-like or `int`, weighted knn values
+        """
+        if sample_size is None:
+            # calculate within sample knn values
+            sample_size = self.n_cells
+        if self.adaptive_k == 'min':
+            # the smallest sample has k
+            knn_weight = self.n_cells / np.min(self.n_cells)
+        elif self.adaptive_k == 'mean':
+            # the average sample has k
+            knn_weight = self.n_cells / np.mean(self.n_cells)
+        elif self.adaptive_k == 'sqrt':
+            # the samples are sqrt'd first, then smallest has k
+            knn_weight = np.sqrt(self.n_cells / np.min(self.n_cells))
+        elif self.adaptive_k == 'none':
+            knn_weight = np.repeat(1, len(self.n_cells))
+        weighted_knn = np.round(self.knn * knn_weight).astype(np.int32)
+        if len(weighted_knn) == 1:
+            weighted_knn = weighted_knn[0]
+        return weighted_knn
 
     def get_params(self):
         """Get parameters from this object
@@ -1288,6 +1340,7 @@ class MNNGraph(DataGraph):
         - verbose
         Invalid parameters: (these would require modifying the kernel matrix)
         - knn
+        - adaptive_k
         - decay
         - distance
         - thresh
@@ -1307,6 +1360,9 @@ class MNNGraph(DataGraph):
             raise ValueError("Cannot update beta. Please create a new graph")
         if 'gamma' in params and params['gamma'] != self.gamma:
             raise ValueError("Cannot update gamma. Please create a new graph")
+        if 'adaptive_k' in params and params['adaptive_k'] != self.adaptive_k:
+            raise ValueError(
+                "Cannot update adaptive_k. Please create a new graph")
 
         # knn arguments
         knn_kernel_args = ['knn', 'decay', 'distance', 'thresh']
@@ -1338,46 +1394,75 @@ class MNNGraph(DataGraph):
             symmetric matrix with ones down the diagonal
             with no non-negative entries.
         """
-        # generate a subgraph for each batch separately
         self.subgraphs = []
-        batches = np.unique(self.sample_idx)
-        for idx in batches:
-            # extract batch data
+        # iterate through sample ids
+        for i, idx in enumerate(self.samples):
+            # select data for sample
             data = self.data_nu[self.sample_idx == idx]
-            # create knngraph with n_pca=None - we have already done PCA
-            graph = kNNGraph(
-                data, n_pca=None, **(self.knn_args))
-            self.subgraphs.append(graph)
+            # build a kNN graph for cells within sample
+            graph = Graph(data, n_pca=None,
+                          knn=self.weighted_knn[i],
+                          initialize=False,
+                          **(self.knn_args))
+            self.subgraphs.append(graph)  # append to list of subgraphs
+
         # create n_batch x n_batch block kernel matrix
-        kernels = np.empty([len(batches), len(batches)],
-                           dtype='object')
+        self.kernels = np.empty([len(self.samples),
+                                 len(self.samples)],
+                                dtype='object')
         for i, X in enumerate(self.subgraphs):
             for j, Y in enumerate(self.subgraphs):
+                Kij = Y.build_kernel_to_data(
+                    X.data_nu,
+                    knn=self.weighted_knn[j])
                 if i == j:
-                    # kernel is already computed
-                    Kij = X.kernel
-                    # weaken connections by a factor of `beta`
+                    # downweight within-batch affinities by beta
                     Kij = Kij * self.beta
-                else:
-                    # build kernel from i to j
-                    Kij = Y.build_kernel_to_data(X.data_nu)
-                kernels[i, j] = Kij
+                self.kernels[i, j] = Kij
 
-        # merge into one large sparse matrix
-        K = sparse.vstack([sparse.hstack(
-            kernels[i, :]) for i in range(len(kernels))])
+        # combine block self.kernels
+        # TODO: don't do this is gamma is a matrix
+        K = sparse.csr_matrix(
+            sparse.vstack([sparse.hstack(self.kernels[i])
+                           for i in range(len(self.kernels))]))
 
         # symmetrize
         if self.gamma == "+":
             K = (K + K.T) / 2
         elif self.gamma == "*":
-            K = X.multiply(X.T)
+            K = K.multiply(K.T)
         else:
-            K = self.gamma * K.minimum(K.T) + \
-                (1 - self.gamma) * K.maximum(K.T)
+            if isinstance(self.gamma, numbers.Number):
+                K = self.gamma * K.minimum(K.T) + \
+                    (1 - self.gamma) * K.maximum(K.T)
+            else:
+                # Gamma can be a matrix with specific values transitions for
+                # each batch. This allows for technical replicates and
+                # experimental samples to be corrected simultaneously
+                if not np.shape(self.gamma)[0] == len(self.samples):
+                    raise ValueError(
+                        'Matrix gamma must have one entry per I -> J kernel')
+                # Filling out gamma (n_samples, n_samples) to G (n_cells,
+                # n_cells)
+                K_symm = np.empty_like(K)
+                for i, sample_i in enumerate(self.samples):
+                    for j, sample_j in enumerate(self.samples):
+                        Kij = self.kernels[i, j]
+                        KijT = self.kernels[j, i].T
+                        K_symm[self.sample_idx == sample_i,
+                               :][:, self.sample_idx == sample_j] = \
+                            self.gamma[i, j] * np.minimum(Kij, KijT) + \
+                            (1 - self.gamma[i, j]) * np.maximum(Kij, KijT)
+                K = K_symm
+
+        # re-order according to original data
+        # TODO: there must be a better way of doing this.
+        idx = np.argsort(np.concatenate([np.argwhere(self.sample_idx == i)
+                                         for i in self.samples]).reshape(-1))
+        K = K[idx, :][:, idx]
         return K
 
-    def build_kernel_to_data(self, Y):
+    def build_kernel_to_data(self, Y, gamma=None):
         """Build transition matrix from new data to the graph
 
         Creates a transition matrix such that `Y` can be approximated by
@@ -1392,10 +1477,14 @@ class MNNGraph(DataGraph):
         Parameters
         ----------
 
-        Y: array-like, [n_samples_y, n_dimensions]
+        Y : array-like, [n_samples_y, n_dimensions]
             new data for which an affinity matrix is calculated
             to the existing data. `n_features` must match
             either the ambient or PCA dimensions
+
+        gamma : array-like or `None`, optional (default: `None`)
+            if `self.gamma` is a matrix, gamma values must be explicitly
+            specified between `Y` and each sample in `self.data`
 
         Returns
         -------
@@ -1403,25 +1492,57 @@ class MNNGraph(DataGraph):
         transitions : array-like, [n_samples_y, self.data.shape[0]]
             Transition matrix from `Y` to `self.data`
         """
-        print("Warning: extension to a MNNGraph is not tested.")
+        if not isinstance(self.gamma, str) and \
+                not isinstance(self.gamma, numbers.Number):
+            if gamma is None:
+                raise ValueError(
+                    "self.gamma is a matrix but gamma is not provided.")
+            elif len(gamma) != len(self.samples):
+                raise ValueError(
+                    "gamma should have one value for every sample")
+
         Y = self._check_extension_shape(Y)
         kernel_xy = []
         kernel_yx = []
-        Y_graph = kNNGraph(
-            Y, n_pca=None, **(self.knn_args))
+        # don't really need within Y kernel
+        Y_graph = kNNGraph(Y, n_pca=None, knn=0, **(self.knn_args))
+        y_knn = self._weight_knn(sample_size=len(Y))
         for i, X in enumerate(self.subgraphs):
-            kernel_xy.append(X.build_kernel_to_data(Y))
-            kernel_yx.append(Y_graph.build_kernel_to_data(X.data_nu))
-        kernel_xy = sparse.hstack(kernel_xy)
-        kernel_yx = sparse.vstack(kernel_yx)
-        K = self.gamma * kernel_xy.minimum(kernel_yx.T) + \
-            (1 - self.gamma) * kernel_xy.maximum(kernel_yx.T)
+            kernel_xy.append(X.build_kernel_to_data(
+                Y, knn=self.weighted_knn[i]))  # kernel X -> Y
+            kernel_yx.append(Y_graph.build_kernel_to_data(
+                X.data_nu, knn=y_knn))  # kernel Y -> X
+        kernel_xy = sparse.hstack(kernel_xy)  # n_cells_y x n_cells_x
+        kernel_yx = sparse.vstack(kernel_yx)  # n_cells_x x n_cells_y
+
+        # symmetrize
+        if gamma is not None:
+            # Gamma can be a vector with specific values transitions for
+            # each batch. This allows for technical replicates and
+            # experimental samples to be corrected simultaneously
+            K = np.empty_like(kernel_xy)
+            for i, sample in enumerate(self.samples):
+                sample_idx = self.sample_idx == sample
+                K[:, sample_idx] = gamma[i] * \
+                    kernel_xy[:, sample_idx].minimum(
+                        kernel_yx[sample_idx, :].T) + \
+                    (1 - gamma[i]) * \
+                    kernel_xy[:, sample_idx].maximum(
+                        kernel_yx[sample_idx, :].T)
+        if self.gamma == "+":
+            K = (kernel_xy + kernel_yx.T) / 2
+        elif self.gamma == "*":
+            K = kernel_xy.multiply(kernel_yx.T)
+        else:
+            K = self.gamma * kernel_xy.minimum(kernel_yx.T) + \
+                (1 - self.gamma) * kernel_xy.maximum(kernel_yx.T)
         return K
 
 
 def Graph(data,
           n_pca=None,
           sample_idx=None,
+          adaptive_k='sqrt',
           precomputed=None,
           knn=5,
           decay=None,
@@ -1434,7 +1555,8 @@ def Graph(data,
           n_jobs=-1,
           verbose=False,
           random_state=None,
-          graphtype='auto'):
+          graphtype='auto',
+          **kwargs):
     """Create a graph built on data.
 
     Automatically selects the appropriate DataGraph subclass based on
@@ -1493,7 +1615,11 @@ def Graph(data,
         `gamma * min(K, K.T) + (1 - gamma) * max(K, K.T)`
 
     sample_idx: array-like
-        Batch index
+        Batch index for MNN kernel
+
+    adaptive_k : `{'min', 'mean', 'sqrt', 'none'}` (default: 'sqrt')
+        Weights MNN kernel adaptively using the number of cells in
+        each sample according to the selected method.
 
     n_landmark : `int`, optional (default: 2000)
         number of landmarks to use
@@ -1579,6 +1705,7 @@ def Graph(data,
     return Graph(data,
                  n_pca=n_pca,
                  sample_idx=sample_idx,
+                 adaptive_k=adaptive_k,
                  precomputed=precomputed,
                  knn=knn,
                  decay=decay,
@@ -1590,4 +1717,5 @@ def Graph(data,
                  gamma=gamma,
                  n_jobs=n_jobs,
                  verbose=verbose,
-                 random_state=random_state)
+                 random_state=random_state,
+                 **kwargs)
