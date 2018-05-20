@@ -1252,6 +1252,10 @@ class MNNGraph(DataGraph):
 
     sample_idx: array-like, shape=[n_samples]
         Batch index
+        
+    adaptive_k : `bool`, optional (default: True)
+        If true, weights MNN kernel adaptively using the number of cells in
+        each sample
 
     Attributes
     ----------
@@ -1259,11 +1263,14 @@ class MNNGraph(DataGraph):
         Graphs representing each batch separately
     """
 
-    def __init__(self, data, beta=1, gamma=0.99, n_pca=None,
-                 sample_idx=None, **kwargs):
+    def __init__(self, data, knn=5, beta=0, gamma=0.5, n_pca=None,
+                 sample_idx=None, adaptive_k=True, scaling='min', **kwargs):
         self.beta = beta
         self.gamma = gamma
         self.sample_idx = sample_idx
+        self.adaptive_k = adaptive_k
+        self.scaling = scaling
+        self.knn = knn
         self.knn_args = kwargs
 
         super().__init__(data, n_pca=n_pca, **kwargs)
@@ -1338,16 +1345,30 @@ class MNNGraph(DataGraph):
             symmetric matrix with ones down the diagonal
             with no non-negative entries.
         """
-        # generate a subgraph for each batch separately
+        samples = np.unique(self.sample_idx)
+        if self.adaptive_k:
+            n_cells = np.array([len(self.data_nu[self.sample_idx == idx]) for idx in samples])
+            if self.scaling == 'min': # the smallest sample has k
+                n_cells_weight = n_cells / np.min(n_cells)
+            elif self.scaling == 'mean': # the average sample has k
+                n_cells_weight = n_cells / np.mean(n_cells)
+            elif self.scaling == 'sqrt': # the  samples are sqrt'd first, then smallest has k
+                n_cells_weight = np.sqrt(n_cells) / np.min(np.sqrt(n_cells))
+
+            knn_weight = self.knn * np.vstack([n_cells_weight for _ in range(len(n_cells_weight))])
+            knn_weight = knn_weight.around() # this function weights K by n_cells
+
         self.subgraphs = []
-        batches = np.unique(self.sample_idx)
-        for idx in batches:
-            # extract batch data
-            data = self.data_nu[self.sample_idx == idx]
-            # create knngraph with n_pca=None - we have already done PCA
-            graph = kNNGraph(
-                data, n_pca=None, **(self.knn_args))
-            self.subgraphs.append(graph)
+        for i, idx in enumerate(samples): # iterating through sample ids
+            data = self.data_nu[self.sample_idx == idx] # select data for sample
+            if self.adaptive_k:
+                graph = kNNGraph(
+                    data, n_pca=None, knn=knn_weight[i, i], **(self.knn_args)) # build a kNN graph for cells within sample
+            else:
+                graph = kNNGraph(
+                    data, n_pca=None, knn=self.knn, **(self.knn_args)) # build a kNN graph for cells within sample
+            self.subgraphs.append(graph) # append to list of subgraphs
+
         # create n_batch x n_batch block kernel matrix
         kernels = np.empty([len(batches), len(batches)],
                            dtype='object')
@@ -1359,9 +1380,11 @@ class MNNGraph(DataGraph):
                     # weaken connections by a factor of `beta`
                     Kij = Kij * self.beta
                 else:
-                    # build kernel from i to j
-                    Kij = Y.build_kernel_to_data(X.data_nu)
-                kernels[i, j].append(Kij)
+                    if self.adaptive_k:
+                        Kij = X.build_kernel_to_data(Y.data_nu, knn=(knn_weight[j,j], knn_weight[i,j], knn_wight[j,i]))
+                    else:
+                        Kij = X.build_kernel_to_data(Y.data_nu)
+                kernels[i, j] = (Kij)
 
         # merge into one large sparse matrix
         K = sparse.vstack([sparse.hstack(
@@ -1377,7 +1400,7 @@ class MNNGraph(DataGraph):
                 (1 - self.gamma) * K.maximum(K.T)
         return K
 
-    def build_kernel_to_data(self, Y):
+    def build_kernel_to_data(self, Y, knn=None):
         """Build transition matrix from new data to the graph
 
         Creates a transition matrix such that `Y` can be approximated by
@@ -1396,6 +1419,10 @@ class MNNGraph(DataGraph):
             new data for which an affinity matrix is calculated
             to the existing data. `n_features` must match
             either the ambient or PCA dimensions
+            
+        knn: `int` or `None`, optional (default: `None`)
+            If adaptive-k, expecting knn to be a tuple of (k_jj, k_ij, k_ji),
+            otherwise should be a single value
 
         Returns
         -------
@@ -1404,14 +1431,24 @@ class MNNGraph(DataGraph):
             Transition matrix from `Y` to `self.data`
         """
         print("Warning: extension to a MNNGraph is not tested.")
+        if len(knn) == 3:
+            adaptive_k = True
+        else:
+            adaptive_k = False
         Y = self._check_extension_shape(Y)
         kernel_xy = []
         kernel_yx = []
-        Y_graph = kNNGraph(
-            Y, n_pca=None, **(self.knn_args))
+        if adaptive_k:
+            Y_graph = kNNGraph(Y, n_pca=None, knn=knn[0], **(self.knn_args)) # kernel Y -> Y
+        else:
+            Y_graph = kNNGraph(Y, n_pca=None, knn=self.knn, **(self.knn_args))
         for i, X in enumerate(self.subgraphs):
-            kernel_xy.append(X.build_kernel_to_data(Y))
-            kernel_yx.append(Y_graph.build_kernel_to_data(X.data_nu))
+            if len(knn) > 1:
+                kernel_xy.append(X.build_kernel_to_data(Y, knn=knn[1])) # kernel X -> Y
+                kernel_yx.append(Y_graph.build_kernel_to_data(X.data_nu, knn=knn[2])) # kernel Y -> X
+            else:
+                kernel_xy.append(X.build_kernel_to_data(Y))
+                kernel_yx.append(Y_graph.build_kernel_to_data(X.data_nu))
         kernel_xy = sparse.hstack(kernel_xy)
         kernel_yx = sparse.vstack(kernel_yx)
         K = self.gamma * kernel_xy.minimum(kernel_yx.T) + \
