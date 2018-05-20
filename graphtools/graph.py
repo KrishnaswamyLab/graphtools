@@ -765,7 +765,7 @@ class kNNGraph(DataGraph):
         else:
             # sparse fast alpha decay
             print("Warning: sparse alpha decay is not tested.")
-            radius, _ = self.knn_tree.kneighbors(Y)
+            radius, _ = self.knn_tree.kneighbors(Y, n_neighbors=knn)
             bandwidth = radius[:, -1]
             radius = bandwidth * np.power(-1 * np.log(self.thresh),
                                           1 / self.decay)
