@@ -721,7 +721,7 @@ class kNNGraph(DataGraph):
         K = (K + K.T) / 2
         return K
 
-    def build_kernel_to_data(self, Y):
+    def build_kernel_to_data(self, Y, knn=None):
         """Build a kernel from new input data `Y` to the `self.data`
 
         Parameters
@@ -731,6 +731,9 @@ class kNNGraph(DataGraph):
             new data for which an affinity matrix is calculated
             to the existing data. `n_features` must match
             either the ambient or PCA dimensions
+
+        knn : `int` or `None`, optional (default: `None`)
+            If `None`, defaults to `self.knn`
 
         Returns
         -------
@@ -744,6 +747,8 @@ class kNNGraph(DataGraph):
 
         ValueError: if the supplied data is the wrong shape
         """
+        if knn is None:
+            knn = self.knn
         Y = self._check_extension_shape(Y)
         if self.decay is None or self.thresh == 1:
             # binary connectivity matrix
@@ -975,7 +980,7 @@ class LandmarkGraph(DataGraph):
         self._landmark_op = np.array(diff_op)
         self._transitions = pnm
 
-    def extend_to_data(self, data):
+    def extend_to_data(self, data, knn=None):
         """Build transition matrix from new data to the graph
 
         Creates a transition matrix such that `Y` can be approximated by
@@ -1241,7 +1246,7 @@ class MNNGraph(DataGraph):
     Parameters
     ----------
     beta: `float`, optional (default: 1)
-        Multiply within-batch connections by beta
+        Downweight within-batch affinities by beta
 
     gamma: `float` or {'+', '*'} (default: 0.99)
         Symmetrization method.
@@ -1345,31 +1350,38 @@ class MNNGraph(DataGraph):
             symmetric matrix with ones down the diagonal
             with no non-negative entries.
         """
-        samples = np.unique(self.sample_idx)
+        samples, n_cells = np.unique(self.sample_idx, return_counts=True)
         if self.adaptive_k:
-            n_cells = np.array(
-                [len(self.data_nu[self.sample_idx == idx]) for idx in samples])
-            if self.scaling == 'min':  # the smallest sample has k
+            if self.scaling == 'min':
+                # the smallest sample has k
                 n_cells_weight = n_cells / np.min(n_cells)
-            elif self.scaling == 'mean':  # the average sample has k
+            elif self.scaling == 'mean':
+                # the average sample has k
                 n_cells_weight = n_cells / np.mean(n_cells)
-            elif self.scaling == 'sqrt':  # the  samples are sqrt'd first, then smallest has k
+            elif self.scaling == 'sqrt':
+                # the samples are sqrt'd first, then smallest has k
                 n_cells_weight = np.sqrt(n_cells) / np.min(np.sqrt(n_cells))
 
-            knn_weight = self.knn * \
-                np.vstack([n_cells_weight for _ in range(len(n_cells_weight))])
-            knn_weight = knn_weight.around()  # this function weights K by n_cells
+            # weight K by n_cells
+            knn_weight = self.knn * np.tile(n_cells_weight,
+                                            len(samples)).reshape(len(samples),
+                                                                  len(samples))
+            knn_weight = knn_weight.around()
 
         self.subgraphs = []
-        for i, idx in enumerate(samples):  # iterating through sample ids
+        # iterate through sample ids
+        for i, idx in enumerate(samples):
             # select data for sample
             data = self.data_nu[self.sample_idx == idx]
             if self.adaptive_k:
-                graph = kNNGraph(
-                    data, n_pca=None, knn=knn_weight[i, i], **(self.knn_args))  # build a kNN graph for cells within sample
+                # build a kNN graph for cells within sample
+                graph = kNNGraph(data, n_pca=None,
+                                 knn=knn_weight[i, i],
+                                 **(self.knn_args))
             else:
-                graph = kNNGraph(
-                    data, n_pca=None, knn=self.knn, **(self.knn_args))  # build a kNN graph for cells within sample
+                # build a kNN graph for cells within sample
+                graph = kNNGraph(data, n_pca=None,
+                                 knn=self.knn, **(self.knn_args))
             self.subgraphs.append(graph)  # append to list of subgraphs
 
         # create n_batch x n_batch block kernel matrix
@@ -1380,19 +1392,24 @@ class MNNGraph(DataGraph):
             for j, Y in enumerate(self.subgraphs):
                 if i == j:
                     Kij = X.kernel
+                    # downweight within-batch affinities by beta
                     Kij = Kij * self.beta
                 else:
                     if self.adaptive_k:
-                        Kij = X.build_kernel_to_data(Y.data_nu, knn=(knn_weight[j, j],
-                                                                     knn_weight[
-                                                                         i, j],
-                                                                     knn_weight[j, i]))
+                        Kij = X.build_kernel_to_data(
+                            Y.data_nu,
+                            knn=(knn_weight[j, j],
+                                 knn_weight[i, j],
+                                 knn_weight[j, i]))
                     else:
                         Kij = X.build_kernel_to_data(Y.data_nu)
                 kernels[j, i] = Kij
 
+        # combine block kernels
         K = sparse.hstack([sparse.vstack(
             kernels[i]) for i in range(len(kernels))])
+
+        # symmetrize
         if self.gamma == "+":
             K = (K + K.T) / 2
         elif self.gamma == "*":
