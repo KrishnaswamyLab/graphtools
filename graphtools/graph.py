@@ -214,7 +214,7 @@ class BaseGraph(pygsp.graphs.Graph, metaclass=abc.ABCMeta):
     TODO: should we only optionally inherit from pygsp?
     There is a lot of overhead involved in having both a weight and
     kernel matrix
-
+    
     Parameters
     ----------
 
@@ -235,7 +235,6 @@ class BaseGraph(pygsp.graphs.Graph, metaclass=abc.ABCMeta):
 
     diff_op : synonym for `P`
     """
-
     def __init__(self, initialize=True, pygsp_kws=None, **kwargs):
         if initialize:
             kernel = self._build_kernel()
@@ -1268,7 +1267,7 @@ class MNNGraph(DataGraph):
         Graphs representing each batch separately
     """
 
-    def __init__(self, data, knn=5, beta=1, gamma=0.5, n_pca=None,
+    def __init__(self, data, knn=5, beta=1, gamma=0.99, n_pca=None,
                  sample_idx=None, adaptive_k='sqrt', **kwargs):
         self.beta = beta
         self.gamma = gamma
