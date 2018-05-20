@@ -753,12 +753,12 @@ class kNNGraph(DataGraph):
         if self.decay is None or self.thresh == 1:
             # binary connectivity matrix
             K = self.knn_tree.kneighbors_graph(
-                Y, n_neighbors=self.knn,
+                Y, n_neighbors=knn,
                 mode='connectivity')
         elif self.thresh == 0:
             # brute force full alpha decay
             pdx = cdist(Y, self.data, metric=self.distance)
-            knn_dist = np.partition(pdx, self.knn, axis=1)[:, :self.knn]
+            knn_dist = np.partition(pdx, knn, axis=1)[:, :knn]
             epsilon = np.max(knn_dist, axis=1)
             pdx = (pdx / epsilon).T
             K = np.exp(-1 * pdx**self.decay)
