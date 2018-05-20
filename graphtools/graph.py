@@ -10,6 +10,7 @@ from sklearn.preprocessing import normalize
 from sklearn.cluster import MiniBatchKMeans
 from scipy import sparse
 import time
+import numbers
 
 
 class Data(object):
@@ -1273,9 +1274,11 @@ class MNNGraph(DataGraph):
         self.beta = beta
         self.gamma = gamma
         self.sample_idx = sample_idx
+        self.samples, self.n_cells = np.unique(
+            self.sample_idx, return_counts=True)
         self.adaptive_k = adaptive_k
         self.knn = knn
-        self.weighted_knn = self._weight_knn(knn, data)
+        self.weighted_knn = self._weight_knn()
         self.knn_args = kwargs
 
         super().__init__(data, n_pca=n_pca, **kwargs)
@@ -1290,23 +1293,30 @@ class MNNGraph(DataGraph):
             Number of cells in the sample in question. Used only for
             out-of-sample extension. If `None`, calculates within-sample
             knn values.
+
+        Returns
+        -------
+
+        knn : array-like or `int`, weighted knn values
         """
-        _, n_cells = np.unique(self.sample_idx, return_counts=True)
         if sample_size is None:
             # calculate within sample knn values
-            sample_size = n_cells
+            sample_size = self.n_cells
         if self.adaptive_k == 'min':
             # the smallest sample has k
-            knn_weight = n_cells / np.min(n_cells)
-        elif self.scaling == 'mean':
+            knn_weight = self.n_cells / np.min(self.n_cells)
+        elif self.adaptive_k == 'mean':
             # the average sample has k
-            knn_weight = n_cells / np.mean(n_cells)
-        elif self.scaling == 'sqrt':
+            knn_weight = self.n_cells / np.mean(self.n_cells)
+        elif self.adaptive_k == 'sqrt':
             # the samples are sqrt'd first, then smallest has k
-            knn_weight = np.sqrt(n_cells / np.min(n_cells))
-        elif self.scaling == 'none':
-            knn_weight = np.repeat(1, len(n_cells))
-        return np.round(self.knn * knn_weight).astype(np.int32)
+            knn_weight = np.sqrt(self.n_cells / np.min(self.n_cells))
+        elif self.adaptive_k == 'none':
+            knn_weight = np.repeat(1, len(self.n_cells))
+        weighted_knn = np.round(self.knn * knn_weight).astype(np.int32)
+        if len(weighted_knn) == 1:
+            weighted_knn = weighted_knn[0]
+        return weighted_knn
 
     def get_params(self):
         """Get parameters from this object
@@ -1382,10 +1392,9 @@ class MNNGraph(DataGraph):
             symmetric matrix with ones down the diagonal
             with no non-negative entries.
         """
-        samples = np.unique(self.sample_idx)
         self.subgraphs = []
         # iterate through sample ids
-        for i, idx in enumerate(samples):
+        for i, idx in enumerate(self.samples):
             # select data for sample
             data = self.data_nu[self.sample_idx == idx]
             # build a kNN graph for cells within sample
@@ -1395,7 +1404,8 @@ class MNNGraph(DataGraph):
             self.subgraphs.append(graph)  # append to list of subgraphs
 
         # create n_batch x n_batch block kernel matrix
-        kernels = np.empty([len(samples), len(samples)],
+        kernels = np.empty([len(self.samples),
+                            len(self.samples)],
                            dtype='object')
         for i, X in enumerate(self.subgraphs):
             for j, Y in enumerate(self.subgraphs):
@@ -1419,6 +1429,7 @@ class MNNGraph(DataGraph):
         elif self.gamma == "*":
             K = K.multiply(K.T)
         else:
+
             K = self.gamma * K.minimum(K.T) + \
                 (1 - self.gamma) * K.maximum(K.T)
         return K
@@ -1469,8 +1480,26 @@ class MNNGraph(DataGraph):
         elif self.gamma == "*":
             K = kernel_xy.multiply(kernel_yx.T)
         else:
-            K = self.gamma * kernel_xy.minimum(kernel_yx.T) + \
-                (1 - self.gamma) * kernel_xy.maximum(kernel_yx.T)
+            if isinstance(self.gamma, numbers.Number):
+                K = self.gamma * kernel_xy.minimum(kernel_yx.T) + \
+                    (1 - self.gamma) * kernel_xy.maximum(kernel_yx.T)
+            else:
+                # Gamma can be a matrix with specific values transitions for
+                # each batch. This allows for technical replicates and
+                # experimental samples to be corrected simultaneously
+                if not np.shape(self.gamma)[0] == len(self.samples):
+                    raise ValueError(
+                        'Matrix gamma must have one entry per I -> J kernel')
+                # Filling out gamma (n_samples, n_samples) to G (n_cells,
+                # n_cells)
+                import pandas as pd
+                G = pd.DataFrame(
+                    np.zeros((len(self.sample_idx), len(self.sample_idx))))
+                for ix, si in enumerate(set(self.sample_idx)):
+                    for jx, sj in enumerate(set(self.sample_idx)):
+                        G.iloc[self.sample_idx == si,
+                               self.sample_idx == sj] = self.gamma[ix, jx]
+                K = (G * np.minimum(K, K.T)) + ((1 - G) * np.maximum(K, K.T))
         return K
 
 
