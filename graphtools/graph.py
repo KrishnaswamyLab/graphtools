@@ -1414,13 +1414,14 @@ class MNNGraph(DataGraph):
                     # downweight within-batch affinities by beta
                     Kij = Kij * self.beta
                 else:
-                    Kij = X.build_kernel_to_data(
-                        Y.data_nu,
-                        knn=self.weighted_knn[i])
-                kernels[j, i] = Kij
+                    Kij = Y.build_kernel_to_data(
+                        X.data_nu,
+                        knn=self.weighted_knn[j])
+                kernels[i, j] = Kij
 
         # combine block kernels
-        K = sparse.hstack([sparse.vstack(
+        # TODO: don't do this is gamma is a matrix
+        K = sparse.vstack([sparse.hstack(
             kernels[i]) for i in range(len(kernels))])
 
         # symmetrize
@@ -1429,12 +1430,30 @@ class MNNGraph(DataGraph):
         elif self.gamma == "*":
             K = K.multiply(K.T)
         else:
-
-            K = self.gamma * K.minimum(K.T) + \
-                (1 - self.gamma) * K.maximum(K.T)
+            if isinstance(self.gamma, numbers.Number):
+                K = self.gamma * K.minimum(K.T) + \
+                    (1 - self.gamma) * K.maximum(K.T)
+            else:
+                # Gamma can be a matrix with specific values transitions for
+                # each batch. This allows for technical replicates and
+                # experimental samples to be corrected simultaneously
+                if not np.shape(self.gamma)[0] == len(self.samples):
+                    raise ValueError(
+                        'Matrix gamma must have one entry per I -> J kernel')
+                # Filling out gamma (n_samples, n_samples) to G (n_cells,
+                # n_cells)
+                K_symm = np.empty_like(K)
+                for i, sample_i in enumerate(self.samples):
+                    for j, sample_j in enumerate(self.samples):
+                        Kij = kernels[i, j]
+                        KijT = kernels[j, i].T
+                        K_symm[self.sample_idx == sample_i,
+                               :][:, self.sample_idx == sample_j] = \
+                            self.gamma[i, j] * np.minimum(Kij, KijT) + \
+                            (1 - self.gamma[i, j]) * np.maximum(Kij, KijT)
         return K
 
-    def build_kernel_to_data(self, Y):
+    def build_kernel_to_data(self, Y, gamma=None):
         """Build transition matrix from new data to the graph
 
         Creates a transition matrix such that `Y` can be approximated by
@@ -1449,10 +1468,14 @@ class MNNGraph(DataGraph):
         Parameters
         ----------
 
-        Y: array-like, [n_samples_y, n_dimensions]
+        Y : array-like, [n_samples_y, n_dimensions]
             new data for which an affinity matrix is calculated
             to the existing data. `n_features` must match
             either the ambient or PCA dimensions
+
+        gamma : array-like or `None`, optional (default: `None`)
+            if `self.gamma` is a matrix, gamma values must be explicitly
+            specified between `Y` and each sample in `self.data`
 
         Returns
         -------
@@ -1460,6 +1483,15 @@ class MNNGraph(DataGraph):
         transitions : array-like, [n_samples_y, self.data.shape[0]]
             Transition matrix from `Y` to `self.data`
         """
+        if not isinstance(self.gamma, str) and \
+                not isinstance(self.gamma, numbers.Number):
+            if gamma is None:
+                raise ValueError(
+                    "self.gamma is a matrix but gamma is not provided.")
+            elif len(gamma) != len(self.samples):
+                raise ValueError(
+                    "gamma should have one value for every sample")
+
         Y = self._check_extension_shape(Y)
         kernel_xy = []
         kernel_yx = []
@@ -1471,35 +1503,30 @@ class MNNGraph(DataGraph):
                 Y, knn=self.weighted_knn[i]))  # kernel X -> Y
             kernel_yx.append(Y_graph.build_kernel_to_data(
                 X.data_nu, knn=y_knn))  # kernel Y -> X
-        kernel_xy = sparse.hstack(kernel_xy)
-        kernel_yx = sparse.vstack(kernel_yx)
+        kernel_xy = sparse.hstack(kernel_xy)  # n_cells_y x n_cells_x
+        kernel_yx = sparse.vstack(kernel_yx)  # n_cells_x x n_cells_y
 
         # symmetrize
+        if gamma is not None:
+            # Gamma can be a vector with specific values transitions for
+            # each batch. This allows for technical replicates and
+            # experimental samples to be corrected simultaneously
+            K = np.empty_like(kernel_xy)
+            for i, sample in enumerate(self.samples):
+                sample_idx = self.sample_idx == sample
+                K[:, sample_idx] = gamma[i] * \
+                    kernel_xy[:, sample_idx].minimum(
+                        kernel_yx[sample_idx, :].T) + \
+                    (1 - gamma[i]) * \
+                    kernel_xy[:, sample_idx].maximum(
+                        kernel_yx[sample_idx, :].T)
         if self.gamma == "+":
             K = (kernel_xy + kernel_yx.T) / 2
         elif self.gamma == "*":
             K = kernel_xy.multiply(kernel_yx.T)
         else:
-            if isinstance(self.gamma, numbers.Number):
-                K = self.gamma * kernel_xy.minimum(kernel_yx.T) + \
-                    (1 - self.gamma) * kernel_xy.maximum(kernel_yx.T)
-            else:
-                # Gamma can be a matrix with specific values transitions for
-                # each batch. This allows for technical replicates and
-                # experimental samples to be corrected simultaneously
-                if not np.shape(self.gamma)[0] == len(self.samples):
-                    raise ValueError(
-                        'Matrix gamma must have one entry per I -> J kernel')
-                # Filling out gamma (n_samples, n_samples) to G (n_cells,
-                # n_cells)
-                import pandas as pd
-                G = pd.DataFrame(
-                    np.zeros((len(self.sample_idx), len(self.sample_idx))))
-                for ix, si in enumerate(set(self.sample_idx)):
-                    for jx, sj in enumerate(set(self.sample_idx)):
-                        G.iloc[self.sample_idx == si,
-                               self.sample_idx == sj] = self.gamma[ix, jx]
-                K = (G * np.minimum(K, K.T)) + ((1 - G) * np.maximum(K, K.T))
+            K = self.gamma * kernel_xy.minimum(kernel_yx.T) + \
+                (1 - self.gamma) * kernel_xy.maximum(kernel_yx.T)
         return K
 
 
