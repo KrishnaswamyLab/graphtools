@@ -980,7 +980,7 @@ class LandmarkGraph(DataGraph):
         self._landmark_op = np.array(diff_op)
         self._transitions = pnm
 
-    def extend_to_data(self, data, knn=None):
+    def extend_to_data(self, data, **kwargs):
         """Build transition matrix from new data to the graph
 
         Creates a transition matrix such that `Y` can be approximated by
@@ -1004,7 +1004,7 @@ class LandmarkGraph(DataGraph):
         transitions : array-like, [n_samples_y, self.data.shape[0]]
             Transition matrix from `Y` to `self.data`
         """
-        kernel = self.build_kernel_to_data(data)
+        kernel = self.build_kernel_to_data(data, **kwargs)
         if sparse.issparse(kernel):
             pnm = sparse.hstack(
                 [sparse.csr_matrix(kernel[:, self._clusters == i].sum(
@@ -1258,9 +1258,9 @@ class MNNGraph(DataGraph):
     sample_idx: array-like, shape=[n_samples]
         Batch index
 
-    adaptive_k : boolean (default: True)
-        If true, weights MNN kernel adaptively using the number of cells in
-        each sample
+    adaptive_k : `{'min', 'mean', 'sqrt', 'none'}` (default: 'sqrt')
+        Weights MNN kernel adaptively using the number of cells in
+        each sample according to the selected method.
 
     Attributes
     ----------
@@ -1269,16 +1269,44 @@ class MNNGraph(DataGraph):
     """
 
     def __init__(self, data, knn=5, beta=0, gamma=0.5, n_pca=None,
-                 sample_idx=None, adaptive_k=True, scaling='min', **kwargs):
+                 sample_idx=None, adaptive_k='sqrt', **kwargs):
         self.beta = beta
         self.gamma = gamma
         self.sample_idx = sample_idx
         self.adaptive_k = adaptive_k
-        self.scaling = scaling
         self.knn = knn
+        self.weighted_knn = self._weight_knn(knn, data)
         self.knn_args = kwargs
 
         super().__init__(data, n_pca=n_pca, **kwargs)
+
+    def _weight_knn(self, sample_size=None):
+        """Select adaptive values of knn
+
+        Parameters
+        ----------
+
+        sample_size : `int` or `None`
+            Number of cells in the sample in question. Used only for
+            out-of-sample extension. If `None`, calculates within-sample
+            knn values.
+        """
+        _, n_cells = np.unique(self.sample_idx, return_counts=True)
+        if sample_size is None:
+            # calculate within sample knn values
+            sample_size = n_cells
+        if self.adaptive_k == 'min':
+            # the smallest sample has k
+            knn_weight = n_cells / np.min(n_cells)
+        elif self.scaling == 'mean':
+            # the average sample has k
+            knn_weight = n_cells / np.mean(n_cells)
+        elif self.scaling == 'sqrt':
+            # the samples are sqrt'd first, then smallest has k
+            knn_weight = np.sqrt(n_cells / np.min(n_cells))
+        elif self.scaling == 'none':
+            knn_weight = np.repeat(1, len(n_cells))
+        return np.round(self.knn * knn_weight).astype(np.int32)
 
     def get_params(self):
         """Get parameters from this object
@@ -1300,6 +1328,7 @@ class MNNGraph(DataGraph):
         - verbose
         Invalid parameters: (these would require modifying the kernel matrix)
         - knn
+        - adaptive_k
         - decay
         - distance
         - thresh
@@ -1319,6 +1348,9 @@ class MNNGraph(DataGraph):
             raise ValueError("Cannot update beta. Please create a new graph")
         if 'gamma' in params and params['gamma'] != self.gamma:
             raise ValueError("Cannot update gamma. Please create a new graph")
+        if 'adaptive_k' in params and params['adaptive_k'] != self.adaptive_k:
+            raise ValueError(
+                "Cannot update adaptive_k. Please create a new graph")
 
         # knn arguments
         knn_kernel_args = ['knn', 'decay', 'distance', 'thresh']
@@ -1350,59 +1382,31 @@ class MNNGraph(DataGraph):
             symmetric matrix with ones down the diagonal
             with no non-negative entries.
         """
-        samples, n_cells = np.unique(self.sample_idx, return_counts=True)
-        if self.adaptive_k:
-            if self.scaling == 'min':
-                # the smallest sample has k
-                n_cells_weight = n_cells / np.min(n_cells)
-            elif self.scaling == 'mean':
-                # the average sample has k
-                n_cells_weight = n_cells / np.mean(n_cells)
-            elif self.scaling == 'sqrt':
-                # the samples are sqrt'd first, then smallest has k
-                n_cells_weight = np.sqrt(n_cells) / np.min(np.sqrt(n_cells))
-
-            # weight K by n_cells
-            knn_weight = self.knn * np.tile(n_cells_weight,
-                                            len(samples)).reshape(len(samples),
-                                                                  len(samples))
-            knn_weight = knn_weight.around()
-
+        samples = np.unique(self.sample_idx)
         self.subgraphs = []
         # iterate through sample ids
         for i, idx in enumerate(samples):
             # select data for sample
             data = self.data_nu[self.sample_idx == idx]
-            if self.adaptive_k:
-                # build a kNN graph for cells within sample
-                graph = kNNGraph(data, n_pca=None,
-                                 knn=knn_weight[i, i],
-                                 **(self.knn_args))
-            else:
-                # build a kNN graph for cells within sample
-                graph = kNNGraph(data, n_pca=None,
-                                 knn=self.knn, **(self.knn_args))
+            # build a kNN graph for cells within sample
+            graph = kNNGraph(data, n_pca=None,
+                             knn=self.weighted_knn[i],
+                             **(self.knn_args))
             self.subgraphs.append(graph)  # append to list of subgraphs
 
         # create n_batch x n_batch block kernel matrix
         kernels = np.empty([len(samples), len(samples)],
                            dtype='object')
         for i, X in enumerate(self.subgraphs):
-            kernels.append([])
             for j, Y in enumerate(self.subgraphs):
                 if i == j:
                     Kij = X.kernel
                     # downweight within-batch affinities by beta
                     Kij = Kij * self.beta
                 else:
-                    if self.adaptive_k:
-                        Kij = X.build_kernel_to_data(
-                            Y.data_nu,
-                            knn=(knn_weight[j, j],
-                                 knn_weight[i, j],
-                                 knn_weight[j, i]))
-                    else:
-                        Kij = X.build_kernel_to_data(Y.data_nu)
+                    Kij = X.build_kernel_to_data(
+                        Y.data_nu,
+                        knn=self.weighted_knn[i])
                 kernels[j, i] = Kij
 
         # combine block kernels
@@ -1413,13 +1417,13 @@ class MNNGraph(DataGraph):
         if self.gamma == "+":
             K = (K + K.T) / 2
         elif self.gamma == "*":
-            K = X.multiply(X.T)
+            K = K.multiply(K.T)
         else:
             K = self.gamma * K.minimum(K.T) + \
                 (1 - self.gamma) * K.maximum(K.T)
         return K
 
-    def build_kernel_to_data(self, Y, knn=None):
+    def build_kernel_to_data(self, Y):
         """Build transition matrix from new data to the graph
 
         Creates a transition matrix such that `Y` can be approximated by
@@ -1439,41 +1443,34 @@ class MNNGraph(DataGraph):
             to the existing data. `n_features` must match
             either the ambient or PCA dimensions
 
-        knn : `int` or `None`, optional (default: `None`)
-            If adaptive-k, expecting knn to be a tuple of (k_jj, k_ij, k_ji),
-            otherwise should be a single value. `None` defaults to `self.knn`
-
         Returns
         -------
 
         transitions : array-like, [n_samples_y, self.data.shape[0]]
             Transition matrix from `Y` to `self.data`
         """
-        if len(knn) == 3:
-            adaptive_k = True
-        else:
-            adaptive_k = False
         Y = self._check_extension_shape(Y)
         kernel_xy = []
         kernel_yx = []
-        if adaptive_k:
-            Y_graph = kNNGraph(Y, n_pca=None, knn=knn[
-                               0], **(self.knn_args))  # kernel Y -> Y
-        else:
-            Y_graph = kNNGraph(Y, n_pca=None, knn=self.knn, **(self.knn_args))
+        # don't really need within Y kernel
+        Y_graph = kNNGraph(Y, n_pca=None, knn=0, **(self.knn_args))
+        y_knn = self._weight_knn(sample_size=len(Y))
         for i, X in enumerate(self.subgraphs):
-            if len(knn) > 1:
-                kernel_xy.append(X.build_kernel_to_data(
-                    Y, knn=knn[1]))  # kernel X -> Y
-                kernel_yx.append(Y_graph.build_kernel_to_data(
-                    X.data_nu, knn=knn[2]))  # kernel Y -> X
-            else:
-                kernel_xy.append(X.build_kernel_to_data(Y))
-                kernel_yx.append(Y_graph.build_kernel_to_data(X.data_nu))
+            kernel_xy.append(X.build_kernel_to_data(
+                Y, knn=self.weighted_knn[i]))  # kernel X -> Y
+            kernel_yx.append(Y_graph.build_kernel_to_data(
+                X.data_nu, knn=y_knn))  # kernel Y -> X
         kernel_xy = sparse.hstack(kernel_xy)
         kernel_yx = sparse.vstack(kernel_yx)
-        K = self.gamma * kernel_xy.minimum(kernel_yx.T) + \
-            (1 - self.gamma) * kernel_xy.maximum(kernel_yx.T)
+
+        # symmetrize
+        if self.gamma == "+":
+            K = (kernel_xy + kernel_yx.T) / 2
+        elif self.gamma == "*":
+            K = kernel_xy.multiply(kernel_yx.T)
+        else:
+            K = self.gamma * kernel_xy.minimum(kernel_yx.T) + \
+                (1 - self.gamma) * kernel_xy.maximum(kernel_yx.T)
         return K
 
 
@@ -1551,7 +1548,11 @@ def Graph(data,
         `gamma * min(K, K.T) + (1 - gamma) * max(K, K.T)`
 
     sample_idx: array-like
-        Batch index
+        Batch index for MNN kernel
+
+    adaptive_k : `{'min', 'mean', 'sqrt', 'none'}` (default: 'sqrt')
+        Weights MNN kernel adaptively using the number of cells in
+        each sample according to the selected method.
 
     n_landmark : `int`, optional (default: 2000)
         number of landmarks to use
@@ -1637,6 +1638,7 @@ def Graph(data,
     return Graph(data,
                  n_pca=n_pca,
                  sample_idx=sample_idx,
+                 adaptive_k=adaptive_k,
                  precomputed=precomputed,
                  knn=knn,
                  decay=decay,
