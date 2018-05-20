@@ -1533,6 +1533,7 @@ class MNNGraph(DataGraph):
 def Graph(data,
           n_pca=None,
           sample_idx=None,
+          adaptive_k='sqrt',
           precomputed=None,
           knn=5,
           decay=None,
