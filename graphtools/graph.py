@@ -1361,7 +1361,7 @@ class MNNGraph(DataGraph):
                 else:
                     # build kernel from i to j
                     Kij = Y.build_kernel_to_data(X.data_nu)
-                kernels[i, j].append(Kij)
+                kernels[i, j] = Kij
 
         # merge into one large sparse matrix
         K = sparse.vstack([sparse.hstack(
