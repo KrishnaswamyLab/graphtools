@@ -215,6 +215,12 @@ class BaseGraph(pygsp.graphs.Graph, metaclass=abc.ABCMeta):
     There is a lot of overhead involved in having both a weight and
     kernel matrix
 
+    Parameters
+    ----------
+
+    initialize : `bool`, optional (default : `True`)
+        if false, don't create the kernel matrix.
+
     Attributes
     ----------
     K : array-like, shape=[n_samples, n_samples]
@@ -230,10 +236,15 @@ class BaseGraph(pygsp.graphs.Graph, metaclass=abc.ABCMeta):
     diff_op : synonym for `P`
     """
 
-    def __init__(self, **kwargs):
-        kernel = self._build_kernel()
-        W = self._build_weight_from_kernel(kernel)
-        super().__init__(W, **kwargs)
+    def __init__(self, initialize=True, pygsp_kws=None, **kwargs):
+        if initialize:
+            kernel = self._build_kernel()
+            W = self._build_weight_from_kernel(kernel)
+        else:
+            W = np.array([[0]])
+        if pygsp_kws is None:
+            pygsp_kws = {}
+        super().__init__(W, **pygsp_kws)
 
     def _build_kernel(self):
         """Private method to build kernel matrix
@@ -406,7 +417,7 @@ class DataGraph(BaseGraph, Data, metaclass=abc.ABCMeta):
         self.verbose = verbose
         Data.__init__(self, data, n_pca=n_pca,
                       random_state=random_state)
-        BaseGraph.__init__(self)
+        BaseGraph.__init__(self, **kwargs)
 
     def get_params(self):
         """Get parameters from this object
@@ -592,6 +603,10 @@ class kNNGraph(DataGraph):
         self.distance = distance
         self.thresh = thresh
 
+        if decay is not None and thresh <= 0:
+            raise ValueError("Cannot instantiate a kNNGraph with `decay=None` "
+                             "and `thresh=0`. Use a TraditionalGraph instead.")
+
         super().__init__(data, **kwargs)
 
     def get_params(self):
@@ -691,15 +706,6 @@ class kNNGraph(DataGraph):
                                  metric=self.distance,
                                  mode='connectivity',
                                  include_self=True)
-        elif self.thresh == 0:
-            # full alpha decay kernel
-            # no point doing anything fancy, we need to brute force calculate
-            # pairwise distances
-            pdx = squareform(pdist(self.data, metric=self.distance))
-            knn_dist = np.partition(pdx, self.knn, axis=1)[:, :self.knn]
-            epsilon = np.max(knn_dist, axis=1)
-            pdx = (pdx / epsilon).T
-            K = np.exp(-1 * pdx**self.decay)
         else:
             # sparse fast alpha decay
             print("Warning: sparse alpha decay is not tested.")
@@ -756,13 +762,6 @@ class kNNGraph(DataGraph):
             K = self.knn_tree.kneighbors_graph(
                 Y, n_neighbors=knn,
                 mode='connectivity')
-        elif self.thresh == 0:
-            # brute force full alpha decay
-            pdx = cdist(Y, self.data, metric=self.distance)
-            knn_dist = np.partition(pdx, knn, axis=1)[:, :knn]
-            epsilon = np.max(knn_dist, axis=1)
-            pdx = (pdx / epsilon).T
-            K = np.exp(-1 * pdx**self.decay)
         else:
             # sparse fast alpha decay
             print("Warning: sparse alpha decay is not tested.")
@@ -1189,7 +1188,7 @@ class TraditionalGraph(DataGraph):
                 pdx = squareform(pdist(self.data_nu, metric=self.distance))
             knn_dist = np.partition(pdx, self.knn, axis=1)[:, :self.knn]
             epsilon = np.max(knn_dist, axis=1)
-            pdx = (pdx / epsilon).T
+            pdx = pdx.T / epsilon[:, None]
             K = np.exp(-1 * pdx**self.decay)
         # symmetrize
         K = (K + K.T) / 2
@@ -1232,7 +1231,7 @@ class TraditionalGraph(DataGraph):
             pdx = cdist(Y, self.data_nu, metric=self.distance)
             knn_dist = np.partition(pdx, self.knn, axis=1)[:, :self.knn]
             epsilon = np.max(knn_dist, axis=1)
-            pdx = (pdx / epsilon).T
+            pdx = pdx.T / epsilon[:, None]
             K = np.exp(-1 * pdx**self.decay)
         return K
 
@@ -1269,7 +1268,7 @@ class MNNGraph(DataGraph):
         Graphs representing each batch separately
     """
 
-    def __init__(self, data, knn=5, beta=0, gamma=0.5, n_pca=None,
+    def __init__(self, data, knn=5, beta=1, gamma=0.5, n_pca=None,
                  sample_idx=None, adaptive_k='sqrt', **kwargs):
         self.beta = beta
         self.gamma = gamma
@@ -1280,6 +1279,10 @@ class MNNGraph(DataGraph):
         self.knn = knn
         self.weighted_knn = self._weight_knn()
         self.knn_args = kwargs
+
+        if sample_idx is not None and len(sample_idx) != len(data):
+            raise ValueError("sample_idx ({}) must be the same length as "
+                             "data ({})".format(len(sample_idx), len(data)))
 
         super().__init__(data, n_pca=n_pca, **kwargs)
 
@@ -1398,31 +1401,31 @@ class MNNGraph(DataGraph):
             # select data for sample
             data = self.data_nu[self.sample_idx == idx]
             # build a kNN graph for cells within sample
-            graph = kNNGraph(data, n_pca=None,
-                             knn=self.weighted_knn[i],
-                             **(self.knn_args))
+            graph = Graph(data, n_pca=None,
+                          knn=self.weighted_knn[i],
+                          initialize=False,
+                          **(self.knn_args))
             self.subgraphs.append(graph)  # append to list of subgraphs
 
         # create n_batch x n_batch block kernel matrix
-        kernels = np.empty([len(self.samples),
-                            len(self.samples)],
-                           dtype='object')
+        self.kernels = np.empty([len(self.samples),
+                                 len(self.samples)],
+                                dtype='object')
         for i, X in enumerate(self.subgraphs):
             for j, Y in enumerate(self.subgraphs):
+                Kij = Y.build_kernel_to_data(
+                    X.data_nu,
+                    knn=self.weighted_knn[j])
                 if i == j:
-                    Kij = X.kernel
                     # downweight within-batch affinities by beta
                     Kij = Kij * self.beta
-                else:
-                    Kij = Y.build_kernel_to_data(
-                        X.data_nu,
-                        knn=self.weighted_knn[j])
-                kernels[i, j] = Kij
+                self.kernels[i, j] = Kij
 
-        # combine block kernels
+        # combine block self.kernels
         # TODO: don't do this is gamma is a matrix
-        K = sparse.vstack([sparse.hstack(
-            kernels[i]) for i in range(len(kernels))])
+        K = sparse.csr_matrix(
+            sparse.vstack([sparse.hstack(self.kernels[i])
+                           for i in range(len(self.kernels))]))
 
         # symmetrize
         if self.gamma == "+":
@@ -1445,12 +1448,19 @@ class MNNGraph(DataGraph):
                 K_symm = np.empty_like(K)
                 for i, sample_i in enumerate(self.samples):
                     for j, sample_j in enumerate(self.samples):
-                        Kij = kernels[i, j]
-                        KijT = kernels[j, i].T
+                        Kij = self.kernels[i, j]
+                        KijT = self.kernels[j, i].T
                         K_symm[self.sample_idx == sample_i,
                                :][:, self.sample_idx == sample_j] = \
                             self.gamma[i, j] * np.minimum(Kij, KijT) + \
                             (1 - self.gamma[i, j]) * np.maximum(Kij, KijT)
+                K = K_symm
+
+        # re-order according to original data
+        # TODO: there must be a better way of doing this.
+        idx = np.argsort(np.concatenate([np.argwhere(self.sample_idx == i)
+                                         for i in self.samples]).reshape(-1))
+        K = K[idx, :][:, idx]
         return K
 
     def build_kernel_to_data(self, Y, gamma=None):
@@ -1546,7 +1556,8 @@ def Graph(data,
           n_jobs=-1,
           verbose=False,
           random_state=None,
-          graphtype='auto'):
+          graphtype='auto',
+          **kwargs):
     """Create a graph built on data.
 
     Automatically selects the appropriate DataGraph subclass based on
@@ -1707,4 +1718,5 @@ def Graph(data,
                  gamma=gamma,
                  n_jobs=n_jobs,
                  verbose=verbose,
-                 random_state=random_state)
+                 random_state=random_state,
+                 **kwargs)
