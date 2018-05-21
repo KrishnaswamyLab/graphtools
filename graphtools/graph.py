@@ -802,6 +802,7 @@ class kNNGraph(DataGraph):
                 [[0], np.cumsum([len(d) for d in distances])])
             K = sparse.csr_matrix((data, indices, indptr))
             K.data = np.exp(-1 * np.power(K.data, self.decay))
+            # TODO: should we zero values that are below thresh?
         return K
 
 

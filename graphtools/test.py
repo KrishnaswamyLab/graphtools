@@ -329,7 +329,7 @@ def test_mnn_graph():
 
 
 def test_landmark_exact_graph():
-    n_landmark = 500
+    n_landmark = 100
     # exact graph
     G = build_graph(data, n_landmark=n_landmark,
                     thresh=0, n_pca=20,
@@ -353,7 +353,7 @@ def test_landmark_mnn_graph():
     n_landmark = 500
     # mnn graph
     G = build_graph(data, n_landmark=n_landmark,
-                    thresh=0, n_pca=20,
+                    thresh=1e-5, n_pca=20,
                     decay=10, knn=5, random_state=42,
                     sample_idx=digits['target'])
     assert(G.landmark_op.shape == (n_landmark, n_landmark))
