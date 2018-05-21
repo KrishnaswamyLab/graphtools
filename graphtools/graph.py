@@ -1507,8 +1507,8 @@ class MNNGraph(DataGraph):
                     Kij = kernels[i, j]
                     KijT = kernels[j, i].T
                     sym_kernels[i, j] = \
-                        self.gamma[i, j] * np.minimum(Kij, KijT) + \
-                        (1 - self.gamma[i, j]) * np.maximum(Kij, KijT)
+                        self.gamma[i, j] * Kij.minimum(KijT) + \
+                        (1 - self.gamma[i, j]) * Kij.maximum(KijT)
                     if not i == j:
                         sym_kernels[j, i] = sym_kernels[i, j].T
             # combine block symmetric kernels
