@@ -1502,15 +1502,23 @@ class MNNGraph(DataGraph):
             # each batch. This allows for technical replicates and
             # experimental samples to be corrected simultaneously
             sym_kernels = np.empty_like(kernels)
+            if scipy.issparse(kernels[0, 0]):
+                minimum = lambda x,y : x.minimum(y)
+            else:
+                minimum = lambda x,y : np.minimum(x,y)
+
             for i in range(len(self.samples)):
                 for j in range(i, len(self.samples)):
                     Kij = kernels[i, j]
                     KijT = kernels[j, i].T
                     sym_kernels[i, j] = \
-                        self.gamma[i, j] * Kij.minimum(KijT) + \
-                        (1 - self.gamma[i, j]) * Kij.maximum(KijT)
+                        self.gamma[i, j] * minimum(Kij, KijT) + \
+                        (1 - self.gamma[i, j]) * maximum(Kij, KijT)
                     if not i == j:
                         sym_kernels[j, i] = sym_kernels[i, j].T
+
+
+
             # combine block symmetric kernels
             K = sparse.csr_matrix(
                 sparse.vstack([sparse.hstack(sym_kernels[i])
