@@ -10,8 +10,6 @@ import warnings
 import nose
 from nose.tools import raises, assert_raises, make_decorator
 
-warnings.filterwarnings("error")
-
 global digits
 global data
 digits = datasets.load_digits()
@@ -51,7 +49,7 @@ def warns(*warns):
                 func(*arg, **kw)
             try:
                 for warn in w:
-                    raise warn
+                    raise warn.category
             except warns:
                 pass
             except:
@@ -81,7 +79,8 @@ def test_3d_data():
 
 @raises(ValueError)
 def test_sample_idx_and_precomputed():
-    build_graph(data, sample_idx=np.arange(10), precomputed='distance')
+    build_graph(data, n_pca=None, sample_idx=np.arange(10),
+                precomputed='distance')
 
 
 @raises(ValueError)
@@ -102,12 +101,12 @@ def test_sample_idx_none():
 
 @raises(ValueError)
 def test_invalid_precomputed():
-    build_graph(data, precomputed='hello world')
+    build_graph(data, n_pca=None, precomputed='hello world')
 
 
 @raises(ValueError)
 def test_precomputed_not_square():
-    build_graph(data, precomputed='distance')
+    build_graph(data, n_pca=None, precomputed='distance')
 
 
 @raises(ValueError)
@@ -117,12 +116,12 @@ def test_build_knn_with_exact_alpha():
 
 @raises(ValueError)
 def test_build_knn_with_precomputed():
-    build_graph(data, graphtype='knn', precomputed='distance')
+    build_graph(data, n_pca=None, graphtype='knn', precomputed='distance')
 
 
 @raises(ValueError)
 def test_build_mnn_with_precomputed():
-    build_graph(data, graphtype='mnn', precomputed='distance')
+    build_graph(data, n_pca=None, graphtype='mnn', precomputed='distance')
 
 
 @raises(ValueError)
@@ -152,7 +151,14 @@ def test_build_landmark_with_too_few_points():
 
 @warns(RuntimeWarning)
 def test_too_many_n_pca():
-    build_graph(data[:50], n_landmark=25, n_svd=100)
+    build_graph(data, n_pca=data.shape[1])
+
+
+@warns(RuntimeWarning)
+def test_precomputed_with_pca():
+    build_graph(squareform(pdist(data)),
+                precomputed='distance',
+                n_pca=20)
 
 
 #####################################################
@@ -190,14 +196,37 @@ def test_exact_graph():
     pdx = squareform(pdist(data_nu, metric='euclidean'))
     knn_dist = np.partition(pdx, k, axis=1)[:, :k]
     epsilon = np.max(knn_dist, axis=1)
-    pdx = (pdx.T / epsilon).T
-    K = np.exp(-1 * pdx**a)
+    weighted_pdx = (pdx.T / epsilon).T
+    K = np.exp(-1 * weighted_pdx**a)
     K = K + K.T
     W = np.divide(K, 2)
     np.fill_diagonal(W, 0)
     G = pygsp.graphs.Graph(W)
     G2 = build_graph(data, thresh=0, n_pca=n_pca,
                      decay=a, knn=k, random_state=42)
+    assert(G.N == G2.N)
+    assert(np.all(G.d == G2.d))
+    assert((G.W != G2.W).nnz == 0)
+    assert((G2.W != G.W).sum() == 0)
+    assert(isinstance(G2, graphtools.TraditionalGraph))
+    G2 = build_graph(pdx, n_pca=None, precomputed='distance',
+                     decay=a, knn=k, random_state=42)
+    assert(G.N == G2.N)
+    assert(np.all(G.d == G2.d))
+    assert((G.W != G2.W).nnz == 0)
+    assert((G2.W != G.W).sum() == 0)
+    assert(isinstance(G2, graphtools.TraditionalGraph))
+    G2 = build_graph(K / 2, n_pca=None,
+                     precomputed='affinity',
+                     random_state=42)
+    assert(G.N == G2.N)
+    assert(np.all(G.d == G2.d))
+    assert((G.W != G2.W).nnz == 0)
+    assert((G2.W != G.W).sum() == 0)
+    assert(isinstance(G2, graphtools.TraditionalGraph))
+    G2 = build_graph(W, n_pca=None,
+                     precomputed='adjacency',
+                     random_state=42)
     assert(G.N == G2.N)
     assert(np.all(G.d == G2.d))
     assert((G.W != G2.W).nnz == 0)
@@ -239,7 +268,7 @@ def test_sparse_alpha_knn_graph():
     pdx = squareform(pdist(data, metric='euclidean'))
     knn_dist = np.partition(pdx, k, axis=1)[:, :k]
     epsilon = np.max(knn_dist, axis=1)
-    pdx = (pdx / epsilon).T
+    pdx = (pdx.T / epsilon).T
     K = np.exp(-1 * pdx**a)
     K = K + K.T
     W = np.divide(K, 2)
@@ -299,7 +328,7 @@ def test_mnn_graph():
                   gamma=np.linspace(0, 1, n_sample - 1))
 
 
-def test_landmark_graph():
+def test_landmark_exact_graph():
     n_landmark = 500
     # exact graph
     G = build_graph(data, n_landmark=n_landmark,
@@ -308,12 +337,20 @@ def test_landmark_graph():
     assert(G.landmark_op.shape == (n_landmark, n_landmark))
     assert(isinstance(G, graphtools.TraditionalGraph))
     assert(isinstance(G, graphtools.LandmarkGraph))
+
+
+def test_landmark_knn_graph():
+    n_landmark = 500
     # knn graph
     G = build_graph(data, n_landmark=n_landmark, n_pca=20,
                     decay=None, knn=5, random_state=42)
     assert(G.landmark_op.shape == (n_landmark, n_landmark))
     assert(isinstance(G, graphtools.kNNGraph))
     assert(isinstance(G, graphtools.LandmarkGraph))
+
+
+def test_landmark_mnn_graph():
+    n_landmark = 500
     # mnn graph
     G = build_graph(data, n_landmark=n_landmark,
                     thresh=0, n_pca=20,
@@ -358,7 +395,8 @@ def test_interpolate():
 
 @raises(ValueError)
 def test_precomputed_interpolate():
-    G = build_graph(squareform(pdist(data)), precomputed='distance')
+    G = build_graph(squareform(pdist(data)), n_pca=None,
+                    precomputed='distance')
     G.build_kernel_to_data(data)
 
 

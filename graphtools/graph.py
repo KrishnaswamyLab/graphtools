@@ -848,6 +848,7 @@ class LandmarkGraph(DataGraph):
         RuntimeWarning : if too many SVD dimensions or
         too few landmarks are used
         """
+        print(n_landmark)
         if n_landmark >= data.shape[0]:
             raise ValueError(
                 "n_landmark ({}) >= n_samples ({}). Use "
@@ -1111,7 +1112,7 @@ class TraditionalGraph(DataGraph):
     def __init__(self, data, knn=5, decay=10,
                  distance='euclidean', n_pca=None,
                  precomputed=None, **kwargs):
-        if precomputed is not None:
+        if precomputed is not None and n_pca is not None:
             # the data itself is a matrix of distances / affinities
             n_pca = None
             warnings.warn("n_pca cannot be given on a precomputed graph."
@@ -1313,8 +1314,6 @@ class MNNGraph(DataGraph):
         self.knn = knn
         self.weighted_knn = self._weight_knn()
 
-        if 'n_landmark' in kwargs:
-            del kwargs['n_landmark']
         self.knn_args = kwargs
 
         if sample_idx is None:
@@ -1468,6 +1467,8 @@ class MNNGraph(DataGraph):
             with no non-negative entries.
         """
         self.subgraphs = []
+        if 'n_landmark' in self.knn_args:
+            del self.knn_args['n_landmark']
         # iterate through sample ids
         for i, idx in enumerate(self.samples):
             # select data for sample
@@ -1493,8 +1494,8 @@ class MNNGraph(DataGraph):
                     Kij = Kij * self.beta
                 kernels[i, j] = Kij
 
-        if not isinstance(self.gamma, str) or \
-                isinstance(self.gamma, numbers.Number):
+        if not (isinstance(self.gamma, str) or
+                isinstance(self.gamma, numbers.Number)):
             # matrix gamma
             # Gamma can be a matrix with specific values transitions for
             # each batch. This allows for technical replicates and
@@ -1776,10 +1777,7 @@ def Graph(data,
     # set add landmarks if necessary
     if n_landmark is not None:
         class Graph(base, LandmarkGraph):
-
-            def __init__(self, *args, **kwargs):
-                base.__init__(self, *args, **kwargs)
-                LandmarkGraph.__init__(self, *args, **kwargs)
+            pass
     else:
         class Graph(base):
             pass
