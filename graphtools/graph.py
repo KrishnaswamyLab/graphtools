@@ -1517,8 +1517,6 @@ class MNNGraph(DataGraph):
                     if not i == j:
                         sym_kernels[j, i] = sym_kernels[i, j].T
 
-
-
             # combine block symmetric kernels
             K = sparse.csr_matrix(
                 sparse.vstack([sparse.hstack(sym_kernels[i])
