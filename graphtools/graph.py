@@ -1502,7 +1502,7 @@ class MNNGraph(DataGraph):
             # each batch. This allows for technical replicates and
             # experimental samples to be corrected simultaneously
             sym_kernels = np.empty_like(kernels)
-            if scipy.issparse(kernels[0, 0]):
+            if sparse.issparse(kernels[0, 0]):
                 minimum = lambda x,y : x.minimum(y)
             else:
                 minimum = lambda x,y : np.minimum(x,y)
