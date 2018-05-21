@@ -1,3 +1,5 @@
+from future.utils import with_metaclass
+from builtins import super
 import numpy as np
 import abc
 import pygsp
@@ -11,6 +13,7 @@ from sklearn.cluster import MiniBatchKMeans
 from scipy import sparse
 import time
 import numbers
+import warnings
 
 
 class Data(object):
@@ -52,8 +55,19 @@ class Data(object):
     """
 
     def __init__(self, data, n_pca=None, random_state=None):
+
+        if len(data.shape) != 2:
+            raise ValueError("Expected a 2D matrix. data has shape {}".format(
+                data.shape))
+        if n_pca is not None and data.shape[1] <= n_pca:
+            warnings.warn("Cannot perform PCA to {} dimensions on "
+                          "data with {} dimensions".format(n_pca,
+                                                           data.shape[1]),
+                          RuntimeWarning)
+            n_pca = None
         self.data = data
         self.n_pca = n_pca
+
         self.data_nu = self._reduce_data()
         super().__init__()
 
@@ -205,7 +219,7 @@ class Data(object):
                                  Y.shape, self.data.shape))
 
 
-class BaseGraph(pygsp.graphs.Graph, metaclass=abc.ABCMeta):
+class BaseGraph(with_metaclass(abc.ABCMeta, pygsp.graphs.Graph)):
     """Parent graph class
 
     All graphs should possess these matrices. We inherit a lot
@@ -214,7 +228,7 @@ class BaseGraph(pygsp.graphs.Graph, metaclass=abc.ABCMeta):
     TODO: should we only optionally inherit from pygsp?
     There is a lot of overhead involved in having both a weight and
     kernel matrix
-    
+
     Parameters
     ----------
 
@@ -235,6 +249,7 @@ class BaseGraph(pygsp.graphs.Graph, metaclass=abc.ABCMeta):
 
     diff_op : synonym for `P`
     """
+
     def __init__(self, initialize=True, pygsp_kws=None, **kwargs):
         if initialize:
             kernel = self._build_kernel()
@@ -261,7 +276,9 @@ class BaseGraph(pygsp.graphs.Graph, metaclass=abc.ABCMeta):
         """
         kernel = self.build_kernel()
         if (kernel - kernel.T).max() > 1e-5:
-            raise RuntimeWarning("K should be symmetric")
+            warnings.warn("K should be symmetric", RuntimeWarning)
+        if np.any(kernel.diagonal == 0):
+            warnings.warn("K should have a non-zero diagonal", RuntimeWarning)
         return kernel
 
     def _build_weight_from_kernel(self, kernel):
@@ -376,7 +393,7 @@ class BaseGraph(pygsp.graphs.Graph, metaclass=abc.ABCMeta):
         raise NotImplementedError
 
 
-class DataGraph(BaseGraph, Data, metaclass=abc.ABCMeta):
+class DataGraph(with_metaclass(abc.ABCMeta, BaseGraph, Data)):
     """Abstract class for graphs built from a dataset
 
     Parameters
@@ -470,6 +487,9 @@ class DataGraph(BaseGraph, Data, metaclass=abc.ABCMeta):
         ValueError : if `n_features_y` is not either `self.data.shape[1]` or
         `self.n_pca`.
         """
+        if len(Y.shape) != 2:
+            raise ValueError("Expected a 2D matrix. Y has shape {}".format(
+                Y.shape))
         if not Y.shape[1] == self.data_nu.shape[1]:
             # try PCA transform
             if Y.shape[1] == self.data.shape[1]:
@@ -707,22 +727,7 @@ class kNNGraph(DataGraph):
                                  include_self=True)
         else:
             # sparse fast alpha decay
-            print("Warning: sparse alpha decay is not tested.")
-            radius, _ = self.knn_tree.kneighbors(self.data_nu)
-            bandwidth = radius[:, -1]
-            radius = bandwidth * np.power(-1 * np.log(self.thresh),
-                                          1 / self.decay)
-            distances = np.empty(shape=self.data_nu.shape[0], dtype=np.object)
-            for i in range(self.data_nu.shape[0]):
-                # this could be parallelized
-                row_distances = self.knn_tree.radius_neighbors_graph(
-                    self.data_nu[i, None, :],
-                    radius[i],
-                    mode='distance')
-                row_distances.data = np.exp(
-                    -1 * ((row_distances.data / bandwidth[i]) ** self.decay))
-                distances[i] = row_distances
-            K = sparse.vstack(distances)
+            K = self.build_kernel_to_data(self.data_nu)
         # symmetrize
         K = (K + K.T) / 2
         return K
@@ -763,22 +768,40 @@ class kNNGraph(DataGraph):
                 mode='connectivity')
         else:
             # sparse fast alpha decay
-            print("Warning: sparse alpha decay is not tested.")
-            radius, _ = self.knn_tree.kneighbors(Y, n_neighbors=knn)
-            bandwidth = radius[:, -1]
+            search_knn = min(self.knn * 10, len(self.data_nu))
+            distances, indices = self.knn_tree.kneighbors(
+                Y, n_neighbors=search_knn)
+            bandwidth = distances[:, self.knn - 1]
             radius = bandwidth * np.power(-1 * np.log(self.thresh),
                                           1 / self.decay)
-            distances = np.empty(shape=Y.shape[0], dtype=np.object)
-            for i in range(Y.shape[0]):
-                # this could be parallelized
-                row_distances = self.knn_tree.radius_neighbors_graph(
-                    Y[i, None, :],
-                    radius[i],
-                    mode='distance')
-                row_distances.data = np.exp(
-                    -1 * ((row_distances.data / bandwidth[i]) ** self.decay))
-                distances[i] = row_distances
-            K = sparse.vstack(distances)
+            update_idx = np.argwhere(
+                np.max(distances, axis=1) < radius).reshape(-1)
+            if len(update_idx) > 0 and search_knn < len(self.data_nu):
+                search_knn = min(self.knn * 100, len(self.data_nu))
+                distances = [d for d in distances]
+                indices = [i for i in indices]
+                dist_new, ind_new = self.knn_tree.kneighbors(
+                    Y[update_idx], n_neighbors=search_knn)
+                for i, idx in enumerate(update_idx):
+                    distances[idx] = dist_new[i]
+                    indices[idx] = ind_new[i]
+                update_idx = [i for i, d in enumerate(distances)
+                              if np.max(d) < radius[i]]
+
+            if len(update_idx) > 0 and search_knn < len(self.data_nu):
+                for i in update_idx:
+                    dist_new, ind_new = self.knn_tree.radius_neighbors(
+                        Y[i][None, :],
+                        radius=radius[i] * 1.01)
+                    distances[i], indices[i] = dist_new[0], ind_new[0]
+
+            data = np.concatenate([distances[i] / bandwidth[i]
+                                   for i in range(len(distances))])
+            indices = np.concatenate(indices)
+            indptr = np.concatenate(
+                [[0], np.cumsum([len(d) for d in distances])])
+            K = sparse.csr_matrix((data, indices, indptr))
+            K.data = np.exp(-1 * np.power(K.data, self.decay))
         return K
 
 
@@ -826,13 +849,14 @@ class LandmarkGraph(DataGraph):
         too few landmarks are used
         """
         if n_landmark >= data.shape[0]:
-            raise RuntimeWarning(
-                "n_landmark ({}) >= n_samples ({}). Consider "
-                "using kNNGraph instead".format(n_landmark, data.shape[0]))
+            raise ValueError(
+                "n_landmark ({}) >= n_samples ({}). Use "
+                "kNNGraph instead".format(n_landmark, data.shape[0]))
         if n_svd >= data.shape[0]:
-            raise RuntimeWarning(
-                "n_svd ({}) >= n_samples ({}) Consider "
-                "using lower n_svd".format(n_svd, data.shape[0]))
+            warnings.warn("n_svd ({}) >= n_samples ({}) Consider "
+                          "using kNNGraph or lower n_svd".format(
+                              n_svd, data.shape[0]),
+                          RuntimeWarning)
         self.n_landmark = n_landmark
         self.n_svd = n_svd
         super().__init__(data, **kwargs)
@@ -1090,8 +1114,8 @@ class TraditionalGraph(DataGraph):
         if precomputed is not None:
             # the data itself is a matrix of distances / affinities
             n_pca = None
-            print("Warning: n_pca cannot be given on a precomputed graph."
-                  "Setting n_pca=None")
+            warnings.warn("n_pca cannot be given on a precomputed graph."
+                          " Setting n_pca=None", RuntimeWarning)
         self.knn = knn
         self.decay = decay
         self.distance = distance
@@ -1170,8 +1194,14 @@ class TraditionalGraph(DataGraph):
                 raise ValueError("Precomputed value {} not recognized. "
                                  "Choose from ['distance', 'affinity', "
                                  "'adjacency']")
+            elif self.data_nu.shape[0] != self.data_nu.shape[1]:
+                raise ValueError("Precomputed {} must be a square matrix. "
+                                 "{} was given".format(self.precomputed,
+                                                       self.data_nu.shape))
         if self.precomputed is "affinity":
             # already done
+            # TODO: should we check that precomputed matrices look okay?
+            # e.g. check the diagonal
             K = self.data_nu
         elif self.precomputed is "adjacency":
             # need to set diagonal to one to make it an affinity matrix
@@ -1181,19 +1211,21 @@ class TraditionalGraph(DataGraph):
             else:
                 np.fill_diagonal(K, 1)
         else:
+            if sparse.issparse(self.data_nu):
+                self.data_nu = self.data_nu.todense()
             if self.precomputed is "distance":
                 pdx = self.data_nu
             elif self.precomputed is None:
                 pdx = squareform(pdist(self.data_nu, metric=self.distance))
             knn_dist = np.partition(pdx, self.knn, axis=1)[:, :self.knn]
             epsilon = np.max(knn_dist, axis=1)
-            pdx = pdx.T / epsilon[:, None]
-            K = np.exp(-1 * pdx**self.decay)
+            pdx = (pdx.T / epsilon).T
+            K = np.exp(-1 * np.power(pdx, self.decay))
         # symmetrize
         K = (K + K.T) / 2
         return K
 
-    def build_kernel_to_data(self, Y):
+    def build_kernel_to_data(self, Y, knn=None):
         """Build transition matrix from new data to the graph
 
         Creates a transition matrix such that `Y` can be approximated by
@@ -1223,14 +1255,16 @@ class TraditionalGraph(DataGraph):
         ValueError: if `precomputed` is not `None`, then the graph cannot
         be extended.
         """
+        if knn is None:
+            knn = self.knn
         if self.precomputed is not None:
             raise ValueError("Cannot extend kernel on precomputed graph")
         else:
             Y = self._check_extension_shape(Y)
             pdx = cdist(Y, self.data_nu, metric=self.distance)
-            knn_dist = np.partition(pdx, self.knn, axis=1)[:, :self.knn]
+            knn_dist = np.partition(pdx, knn, axis=1)[:, :knn]
             epsilon = np.max(knn_dist, axis=1)
-            pdx = pdx.T / epsilon[:, None]
+            pdx = (pdx.T / epsilon).T
             K = np.exp(-1 * pdx**self.decay)
         return K
 
@@ -1244,6 +1278,9 @@ class MNNGraph(DataGraph):
 
     Parameters
     ----------
+    sample_idx: array-like, shape=[n_samples]
+        Batch index
+
     beta: `float`, optional (default: 1)
         Downweight within-batch affinities by beta
 
@@ -1253,9 +1290,6 @@ class MNNGraph(DataGraph):
         if '*', use `K * K.T`;
         if a float, use
         `gamma * min(K, K.T) + (1 - gamma) * max(K, K.T)`
-
-    sample_idx: array-like, shape=[n_samples]
-        Batch index
 
     adaptive_k : `{'min', 'mean', 'sqrt', 'none'}` (default: 'sqrt')
         Weights MNN kernel adaptively using the number of cells in
@@ -1267,8 +1301,9 @@ class MNNGraph(DataGraph):
         Graphs representing each batch separately
     """
 
-    def __init__(self, data, knn=5, beta=1, gamma=0.99, n_pca=None,
-                 sample_idx=None, adaptive_k='sqrt', **kwargs):
+    def __init__(self, data, sample_idx,
+                 knn=5, beta=1, gamma=0.99, n_pca=None,
+                 adaptive_k='sqrt', **kwargs):
         self.beta = beta
         self.gamma = gamma
         self.sample_idx = sample_idx
@@ -1277,11 +1312,49 @@ class MNNGraph(DataGraph):
         self.adaptive_k = adaptive_k
         self.knn = knn
         self.weighted_knn = self._weight_knn()
+
+        if 'n_landmark' in kwargs:
+            del kwargs['n_landmark']
         self.knn_args = kwargs
 
-        if sample_idx is not None and len(sample_idx) != len(data):
+        if sample_idx is None:
+            raise ValueError("sample_idx must be given. For a graph without"
+                             " batch correction, use kNNGraph.")
+        elif len(sample_idx) != len(data):
             raise ValueError("sample_idx ({}) must be the same length as "
                              "data ({})".format(len(sample_idx), len(data)))
+        elif len(self.samples) == 1:
+            raise ValueError(
+                "sample_idx must contain more than one unique value")
+
+        if isinstance(gamma, str):
+            if gamma not in ['+', '*']:
+                raise ValueError(
+                    "gamma '{}' not recognized. Choose from "
+                    "'+', '*', a float between 0 and 1, "
+                    "or a matrix of floats between 0 "
+                    "and 1.".format(gamma))
+        elif isinstance(gamma, numbers.Number):
+            if (gamma < 0 or gamma > 1):
+                raise ValueError(
+                    "gamma '{}' invalid. Choose from "
+                    "'+', '*', a float between 0 and 1, "
+                    "or a matrix of floats between 0 "
+                    "and 1.".format(gamma))
+        else:
+            # matrix
+            if not np.shape(self.gamma) == (len(self.samples),
+                                            len(self.samples)):
+                raise ValueError(
+                    "Matrix gamma must be of shape "
+                    "({}), got ({})".format(
+                        (len(self.samples),
+                         len(self.samples)), gamma.shape))
+            elif np.max(gamma) > 1 or np.min(gamma) < 0:
+                raise ValueError(
+                    "Values in matrix gamma must be between"
+                    " 0 and 1, got values between {} and {}".format(
+                        np.max(gamma), np.min(gamma)))
 
         super().__init__(data, n_pca=n_pca, **kwargs)
 
@@ -1407,9 +1480,9 @@ class MNNGraph(DataGraph):
             self.subgraphs.append(graph)  # append to list of subgraphs
 
         # create n_batch x n_batch block kernel matrix
-        self.kernels = np.empty([len(self.samples),
-                                 len(self.samples)],
-                                dtype='object')
+        kernels = np.empty([len(self.samples),
+                            len(self.samples)],
+                           dtype='object')
         for i, X in enumerate(self.subgraphs):
             for j, Y in enumerate(self.subgraphs):
                 Kij = Y.build_kernel_to_data(
@@ -1418,42 +1491,46 @@ class MNNGraph(DataGraph):
                 if i == j:
                     # downweight within-batch affinities by beta
                     Kij = Kij * self.beta
-                self.kernels[i, j] = Kij
+                kernels[i, j] = Kij
 
-        # combine block self.kernels
-        # TODO: don't do this is gamma is a matrix
-        K = sparse.csr_matrix(
-            sparse.vstack([sparse.hstack(self.kernels[i])
-                           for i in range(len(self.kernels))]))
-
-        # symmetrize
-        if self.gamma == "+":
-            K = (K + K.T) / 2
-        elif self.gamma == "*":
-            K = K.multiply(K.T)
+        if not isinstance(self.gamma, str) or \
+                isinstance(self.gamma, numbers.Number):
+            # matrix gamma
+            # Gamma can be a matrix with specific values transitions for
+            # each batch. This allows for technical replicates and
+            # experimental samples to be corrected simultaneously
+            sym_kernels = np.empty_like(kernels)
+            for i in range(len(self.samples)):
+                for j in range(i, len(self.samples)):
+                    Kij = kernels[i, j]
+                    KijT = kernels[j, i].T
+                    sym_kernels[i, j] = \
+                        self.gamma[i, j] * np.minimum(Kij, KijT) + \
+                        (1 - self.gamma[i, j]) * np.maximum(Kij, KijT)
+                    if not i == j:
+                        sym_kernels[j, i] = sym_kernels[i, j].T
+            # combine block symmetric kernels
+            K = sparse.csr_matrix(
+                sparse.vstack([sparse.hstack(sym_kernels[i])
+                               for i in range(len(sym_kernels))]))
         else:
-            if isinstance(self.gamma, numbers.Number):
+            # combine block kernels
+            K = sparse.csr_matrix(
+                sparse.vstack([sparse.hstack(kernels[i])
+                               for i in range(len(kernels))]))
+
+            # symmetrize
+            if isinstance(self.gamma, str):
+                if self.gamma == "+":
+                    K = (K + K.T) / 2
+                elif self.gamma == "*":
+                    K = K.multiply(K.T)
+            elif isinstance(self.gamma, numbers.Number):
                 K = self.gamma * K.minimum(K.T) + \
                     (1 - self.gamma) * K.maximum(K.T)
             else:
-                # Gamma can be a matrix with specific values transitions for
-                # each batch. This allows for technical replicates and
-                # experimental samples to be corrected simultaneously
-                if not np.shape(self.gamma)[0] == len(self.samples):
-                    raise ValueError(
-                        'Matrix gamma must have one entry per I -> J kernel')
-                # Filling out gamma (n_samples, n_samples) to G (n_cells,
-                # n_cells)
-                K_symm = np.empty_like(K)
-                for i, sample_i in enumerate(self.samples):
-                    for j, sample_j in enumerate(self.samples):
-                        Kij = self.kernels[i, j]
-                        KijT = self.kernels[j, i].T
-                        K_symm[self.sample_idx == sample_i,
-                               :][:, self.sample_idx == sample_j] = \
-                            self.gamma[i, j] * np.minimum(Kij, KijT) + \
-                            (1 - self.gamma[i, j]) * np.maximum(Kij, KijT)
-                K = K_symm
+                # this should never happen
+                raise ValueError("invalid gamma")
 
         # re-order according to original data
         # TODO: there must be a better way of doing this.
@@ -1650,6 +1727,12 @@ def Graph(data,
     ------
     ValueError : if selected parameters are incompatible.
     """
+    if sample_idx is not None and len(np.unique(sample_idx)) == 1:
+        warnings.warn("Only one unique sample. "
+                      "Not using MNNGraph")
+        sample_idx = None
+        if graphtype == 'mnn':
+            graphtype = 'auto'
     if graphtype == 'auto':
         # automatic graph selection
         if sample_idx is not None:

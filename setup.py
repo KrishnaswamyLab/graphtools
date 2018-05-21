@@ -19,6 +19,10 @@ setup(name='graphtools',
       license='GNU General Public License Version 2',
       install_requires=['numpy>=1.10.0', 'pandas>=0.18.0', 'scipy>=0.14.0',
                         'pygsp', 'sklearn', 'future'],
+      extras_require={
+          'tests': [
+              'doctest',
+          ], },
       long_description=open('README.md').read(),
       )
 
