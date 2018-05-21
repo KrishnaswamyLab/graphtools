@@ -1504,8 +1504,10 @@ class MNNGraph(DataGraph):
             sym_kernels = np.empty_like(kernels)
             if sparse.issparse(kernels[0, 0]):
                 minimum = lambda x,y : x.minimum(y)
+                maximum = lambda x,y : x.maximum(y)
             else:
                 minimum = lambda x,y : np.minimum(x,y)
+                maximum = lambda x,y : np.maximum(x,y)
 
             for i in range(len(self.samples)):
                 for j in range(i, len(self.samples)):
