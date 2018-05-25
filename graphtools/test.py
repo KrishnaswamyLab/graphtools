@@ -7,9 +7,7 @@ import numpy as np
 import scipy.sparse as sp
 import warnings
 import pandas as pd
-import sklearn.utils
-from scipy import stats
-from mpl_toolkits.mplot3d.axes3d import Axes3D
+from mpl_toolkits.mplot3d.axes3d import Axes3D  # NOQA: F401
 
 import nose
 from nose.tools import raises, assert_raises, make_decorator
@@ -74,8 +72,6 @@ def warns(*warns):
                     raise warn.category
             except warns:
                 pass
-            except:
-                raise
             else:
                 message = "%s() did not raise %s" % (name, valid)
                 raise AssertionError(message)
