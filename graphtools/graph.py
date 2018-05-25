@@ -803,11 +803,11 @@ class kNNGraph(DataGraph):
             K = sparse.csr_matrix((data, indices, indptr))
             K.data = np.exp(-1 * np.power(K.data, self.decay))
             # TODO: should we zero values that are below thresh?
-    K = K.tolil()
-    K[K < self.thresh] = 0
-    K.eliminate_zeros()
-    K = K.tocsr()
-    return K
+            K = K.tolil()
+            K[K < self.thresh] = 0
+            K.eliminate_zeros()
+            K = K.tocsr()
+        return K
 
 
 class LandmarkGraph(DataGraph):
