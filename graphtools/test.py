@@ -13,6 +13,7 @@ from mpl_toolkits.mplot3d.axes3d import Axes3D
 
 import nose
 from nose.tools import raises, assert_raises, make_decorator
+warnings.filterwarnings("error")
 
 global digits
 global data
@@ -65,7 +66,9 @@ def warns(*warns):
 
         def newfunc(*arg, **kw):
             with warnings.catch_warnings(record=True) as w:
+                warnings.filterwarnings("default")
                 func(*arg, **kw)
+                warnings.filterwarnings("error")
             try:
                 for warn in w:
                     raise warn.category

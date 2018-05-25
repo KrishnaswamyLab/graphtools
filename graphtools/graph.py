@@ -803,8 +803,8 @@ class kNNGraph(DataGraph):
             K = sparse.csr_matrix((data, indices, indptr))
             K.data = np.exp(-1 * np.power(K.data, self.decay))
             # TODO: should we zero values that are below thresh?
-            K = K.tolil()
-            K[K < self.thresh] = 0
+            K.data[K.data < self.thresh] = 0
+            K = K.tocoo()
             K.eliminate_zeros()
             K = K.tocsr()
         return K
@@ -1356,7 +1356,7 @@ class MNNGraph(DataGraph):
                     "Values in matrix gamma must be between"
                     " 0 and 1, got values between {} and {}".format(
                         np.max(gamma), np.min(gamma)))
-            elif gamma != gamma.T:
+            elif np.any(gamma != gamma.T):
                 raise ValueError("gamma must be a symmetric matrix")
 
         super().__init__(data, n_pca=n_pca, **kwargs)
