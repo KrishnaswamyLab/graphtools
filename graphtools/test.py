@@ -1,21 +1,38 @@
 from sklearn.decomposition import PCA
 from sklearn import datasets
-from scipy.spatial.distance import pdist, squareform
+from scipy.spatial.distance import pdist, cdist, squareform
 import pygsp
 import graphtools
 import numpy as np
 import scipy.sparse as sp
 import warnings
+import pandas as pd
+import sklearn.utils
+from scipy import stats
+from mpl_toolkits.mplot3d.axes3d import Axes3D
 
 import nose
 from nose.tools import raises, assert_raises, make_decorator
-
-warnings.filterwarnings("error")
 
 global digits
 global data
 digits = datasets.load_digits()
 data = digits['data']
+
+
+def generate_swiss_roll(n_samples=3000, noise=0.5, seed=42):
+    generator = np.random.RandomState(seed)
+    t = 1.5 * np.pi * (1 + 2 * generator.rand(1, n_samples))
+    x = t * np.cos(t)
+    y = t * np.sin(t)
+    sample_idx = np.random.choice([0, 1], n_samples, replace=True)
+    z = sample_idx
+    t = np.squeeze(t)
+    X = np.concatenate((x, y))
+    X += noise * generator.randn(2, n_samples)
+    X = X.T[np.argsort(t)]
+    X = np.hstack((X, z.reshape(3000, 1)))
+    return X, sample_idx
 
 
 def build_graph(data, n_pca=20, thresh=0,
@@ -51,7 +68,7 @@ def warns(*warns):
                 func(*arg, **kw)
             try:
                 for warn in w:
-                    raise warn
+                    raise warn.category
             except warns:
                 pass
             except:
@@ -81,7 +98,8 @@ def test_3d_data():
 
 @raises(ValueError)
 def test_sample_idx_and_precomputed():
-    build_graph(data, sample_idx=np.arange(10), precomputed='distance')
+    build_graph(data, n_pca=None, sample_idx=np.arange(10),
+                precomputed='distance')
 
 
 @raises(ValueError)
@@ -102,12 +120,12 @@ def test_sample_idx_none():
 
 @raises(ValueError)
 def test_invalid_precomputed():
-    build_graph(data, precomputed='hello world')
+    build_graph(data, n_pca=None, precomputed='hello world')
 
 
 @raises(ValueError)
 def test_precomputed_not_square():
-    build_graph(data, precomputed='distance')
+    build_graph(data, n_pca=None, precomputed='distance')
 
 
 @raises(ValueError)
@@ -117,12 +135,12 @@ def test_build_knn_with_exact_alpha():
 
 @raises(ValueError)
 def test_build_knn_with_precomputed():
-    build_graph(data, graphtype='knn', precomputed='distance')
+    build_graph(data, n_pca=None, graphtype='knn', precomputed='distance')
 
 
 @raises(ValueError)
 def test_build_mnn_with_precomputed():
-    build_graph(data, graphtype='mnn', precomputed='distance')
+    build_graph(data, n_pca=None, graphtype='mnn', precomputed='distance')
 
 
 @raises(ValueError)
@@ -152,7 +170,14 @@ def test_build_landmark_with_too_few_points():
 
 @warns(RuntimeWarning)
 def test_too_many_n_pca():
-    build_graph(data[:50], n_landmark=25, n_svd=100)
+    build_graph(data, n_pca=data.shape[1])
+
+
+@warns(RuntimeWarning)
+def test_precomputed_with_pca():
+    build_graph(squareform(pdist(data)),
+                precomputed='distance',
+                n_pca=20)
 
 
 #####################################################
@@ -190,14 +215,37 @@ def test_exact_graph():
     pdx = squareform(pdist(data_nu, metric='euclidean'))
     knn_dist = np.partition(pdx, k, axis=1)[:, :k]
     epsilon = np.max(knn_dist, axis=1)
-    pdx = (pdx.T / epsilon).T
-    K = np.exp(-1 * pdx**a)
+    weighted_pdx = (pdx.T / epsilon).T
+    K = np.exp(-1 * weighted_pdx**a)
     K = K + K.T
     W = np.divide(K, 2)
     np.fill_diagonal(W, 0)
     G = pygsp.graphs.Graph(W)
     G2 = build_graph(data, thresh=0, n_pca=n_pca,
                      decay=a, knn=k, random_state=42)
+    assert(G.N == G2.N)
+    assert(np.all(G.d == G2.d))
+    assert((G.W != G2.W).nnz == 0)
+    assert((G2.W != G.W).sum() == 0)
+    assert(isinstance(G2, graphtools.TraditionalGraph))
+    G2 = build_graph(pdx, n_pca=None, precomputed='distance',
+                     decay=a, knn=k, random_state=42)
+    assert(G.N == G2.N)
+    assert(np.all(G.d == G2.d))
+    assert((G.W != G2.W).nnz == 0)
+    assert((G2.W != G.W).sum() == 0)
+    assert(isinstance(G2, graphtools.TraditionalGraph))
+    G2 = build_graph(K / 2, n_pca=None,
+                     precomputed='affinity',
+                     random_state=42)
+    assert(G.N == G2.N)
+    assert(np.all(G.d == G2.d))
+    assert((G.W != G2.W).nnz == 0)
+    assert((G2.W != G.W).sum() == 0)
+    assert(isinstance(G2, graphtools.TraditionalGraph))
+    G2 = build_graph(W, n_pca=None,
+                     precomputed='adjacency',
+                     random_state=42)
     assert(G.N == G2.N)
     assert(np.all(G.d == G2.d))
     assert((G.W != G2.W).nnz == 0)
@@ -239,7 +287,7 @@ def test_sparse_alpha_knn_graph():
     pdx = squareform(pdist(data, metric='euclidean'))
     knn_dist = np.partition(pdx, k, axis=1)[:, :k]
     epsilon = np.max(knn_dist, axis=1)
-    pdx = (pdx / epsilon).T
+    pdx = (pdx.T / epsilon).T
     K = np.exp(-1 * pdx**a)
     K = K + K.T
     W = np.divide(K, 2)
@@ -253,39 +301,102 @@ def test_sparse_alpha_knn_graph():
     assert(isinstance(G2, graphtools.kNNGraph))
 
 
-def test_mnn_graph():
-    G = build_graph(data, thresh=0, n_pca=20,
-                    decay=10, knn=5, random_state=42,
-                    sample_idx=digits['target'],
-                    gamma='+')
-    assert(isinstance(G, graphtools.MNNGraph))
-    G = build_graph(data, thresh=0, n_pca=20,
-                    decay=10, knn=5, random_state=42,
-                    sample_idx=digits['target'],
-                    gamma='*')
-    assert(isinstance(G, graphtools.MNNGraph))
-    G = build_graph(data, thresh=0, n_pca=20,
-                    decay=10, knn=5, random_state=42,
-                    sample_idx=digits['target'],
-                    gamma=1)
-    assert(isinstance(G, graphtools.MNNGraph))
-    G = build_graph(data, thresh=0, n_pca=20,
-                    decay=10, knn=5, random_state=42,
-                    sample_idx=digits['target'],
-                    gamma=0)
-    assert(isinstance(G, graphtools.MNNGraph))
-    G = build_graph(data, thresh=0, n_pca=20,
-                    decay=10, knn=5, random_state=42,
-                    sample_idx=digits['target'],
-                    gamma=0.99)
-    assert(isinstance(G, graphtools.MNNGraph))
+def test_mnn_graph_float_gamma():
+    X, sample_idx = generate_swiss_roll()
+    gamma = 0.9
+    k = 10
+    a = 20
+    metric = 'euclidean'
+    beta = 0
+    samples = np.unique(sample_idx)
+
+    K = np.zeros((len(X), len(X)))
+    K[:] = np.nan
+    K = pd.DataFrame(K)
+
+    for si in samples:
+        X_i = X[sample_idx == si]            # get observations in sample i
+        for sj in samples:
+            X_j = X[sample_idx == sj]        # get observation in sample j
+            pdx_ij = cdist(X_i, X_j, metric=metric)  # pairwise distances
+            kdx_ij = np.sort(pdx_ij, axis=1)  # get kNN
+            e_ij = kdx_ij[:, k]             # dist to kNN
+            pdxe_ij = pdx_ij / e_ij[:, np.newaxis]  # normalize
+            k_ij = np.exp(-1 * (pdxe_ij ** a))  # apply α-decaying kernel
+            if si == sj:
+                K.iloc[sample_idx == si, sample_idx == sj] = k_ij * \
+                    (1 - beta)  # fill out values in K for NN on diagnoal
+            else:
+                # fill out values in K for NN on diagnoal
+                K.iloc[sample_idx == si, sample_idx == sj] = k_ij
+
+    W = np.array((gamma * np.minimum(K, K.T)) +
+                 ((1 - gamma) * np.maximum(K, K.T)))
+    np.fill_diagonal(W, 0)
+    G = pygsp.graphs.Graph(W)
+    G2 = graphtools.Graph(X, knn=k + 1, decay=a, beta=1 - beta, gamma=gamma,
+                          distance=metric, sample_idx=sample_idx, thresh=0)
+    assert(G.N == G2.N)
+    assert(np.all(G.d == G2.d))
+    assert((G.W != G2.W).nnz == 0)
+    assert((G2.W != G.W).sum() == 0)
+    assert(isinstance(G2, graphtools.MNNGraph))
+
+
+def test_mnn_graph_matrix_gamma():
+    X, sample_idx = generate_swiss_roll()
+    bs = 0.8
+    gamma = np.array([[1, bs],  # 0
+                      [bs,  1]])  # 3
+    k = 10
+    a = 20
+    metric = 'euclidean'
+    beta = 0
+    samples = np.unique(sample_idx)
+
+    K = np.zeros((len(X), len(X)))
+    K[:] = np.nan
+    K = pd.DataFrame(K)
+
+    for si in samples:
+        X_i = X[sample_idx == si]            # get observations in sample i
+        for sj in samples:
+            X_j = X[sample_idx == sj]        # get observation in sample j
+            pdx_ij = cdist(X_i, X_j, metric=metric)  # pairwise distances
+            kdx_ij = np.sort(pdx_ij, axis=1)  # get kNN
+            e_ij = kdx_ij[:, k]             # dist to kNN
+            pdxe_ij = pdx_ij / e_ij[:, np.newaxis]  # normalize
+            k_ij = np.exp(-1 * (pdxe_ij ** a))  # apply α-decaying kernel
+            if si == sj:
+                K.iloc[sample_idx == si, sample_idx == sj] = k_ij * \
+                    (1 - beta)  # fill out values in K for NN on diagnoal
+            else:
+                # fill out values in K for NN on diagnoal
+                K.iloc[sample_idx == si, sample_idx == sj] = k_ij
+
+    K = np.array(K)
+
+    matrix_gamma = pd.DataFrame(np.zeros((len(sample_idx), len(sample_idx))))
+    for ix, si in enumerate(set(sample_idx)):
+        for jx, sj in enumerate(set(sample_idx)):
+            matrix_gamma.iloc[sample_idx == si,
+                              sample_idx == sj] = gamma[ix, jx]
+
+    W = np.array((matrix_gamma * np.minimum(K, K.T)) +
+                 ((1 - matrix_gamma) * np.maximum(K, K.T)))
+    np.fill_diagonal(W, 0)
+    G = pygsp.graphs.Graph(W)
+    G2 = graphtools.Graph(X, knn=k + 1, decay=a, beta=1 - beta, gamma=gamma,
+                          distance=metric, sample_idx=sample_idx, thresh=0)
+    assert(G.N == G2.N)
+    assert(np.all(G.d == G2.d))
+    assert((G.W != G2.W).nnz == 0)
+    assert((G2.W != G.W).sum() == 0)
+    assert(isinstance(G2, graphtools.MNNGraph))
+
+
+def test_mnn_graph_error():
     n_sample = len(np.unique(digits['target']))
-    G = build_graph(data, thresh=0, n_pca=20,
-                    decay=10, knn=5, random_state=42,
-                    sample_idx=digits['target'],
-                    gamma=np.tile(np.linspace(0, 1, n_sample),
-                                  n_sample).reshape(n_sample, n_sample))
-    assert(isinstance(G, graphtools.MNNGraph))
     assert_raises(ValueError, build_graph,
                   data, thresh=0, n_pca=20,
                   decay=10, knn=5, random_state=42,
@@ -299,8 +410,8 @@ def test_mnn_graph():
                   gamma=np.linspace(0, 1, n_sample - 1))
 
 
-def test_landmark_graph():
-    n_landmark = 500
+def test_landmark_exact_graph():
+    n_landmark = 100
     # exact graph
     G = build_graph(data, n_landmark=n_landmark,
                     thresh=0, n_pca=20,
@@ -308,15 +419,23 @@ def test_landmark_graph():
     assert(G.landmark_op.shape == (n_landmark, n_landmark))
     assert(isinstance(G, graphtools.TraditionalGraph))
     assert(isinstance(G, graphtools.LandmarkGraph))
+
+
+def test_landmark_knn_graph():
+    n_landmark = 500
     # knn graph
     G = build_graph(data, n_landmark=n_landmark, n_pca=20,
                     decay=None, knn=5, random_state=42)
     assert(G.landmark_op.shape == (n_landmark, n_landmark))
     assert(isinstance(G, graphtools.kNNGraph))
     assert(isinstance(G, graphtools.LandmarkGraph))
+
+
+def test_landmark_mnn_graph():
+    n_landmark = 500
     # mnn graph
     G = build_graph(data, n_landmark=n_landmark,
-                    thresh=0, n_pca=20,
+                    thresh=1e-5, n_pca=20,
                     decay=10, knn=5, random_state=42,
                     sample_idx=digits['target'])
     assert(G.landmark_op.shape == (n_landmark, n_landmark))
@@ -358,7 +477,8 @@ def test_interpolate():
 
 @raises(ValueError)
 def test_precomputed_interpolate():
-    G = build_graph(squareform(pdist(data)), precomputed='distance')
+    G = build_graph(squareform(pdist(data)), n_pca=None,
+                    precomputed='distance')
     G.build_kernel_to_data(data)
 
 

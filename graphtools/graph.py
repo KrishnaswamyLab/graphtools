@@ -15,6 +15,11 @@ import time
 import numbers
 import warnings
 
+from .utils import (elementwise_minimum,
+                    elementwise_maximum,
+                    set_diagonal,
+                    set_submatrix)
+
 
 class Data(object):
     """Parent class that handles the import and dimensionality reduction of data
@@ -299,10 +304,8 @@ class BaseGraph(with_metaclass(abc.ABCMeta, pygsp.graphs.Graph)):
         """
 
         weight = kernel
-        if sparse.issparse(weight):
-            weight.setdiag(0)
-        else:
-            np.fill_diagonal(weight, 0)
+        self._diagonal = weight.diagonal()
+        weight = set_diagonal(weight, 0)
         return weight
 
     def get_params(self):
@@ -365,10 +368,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, pygsp.graphs.Graph)):
             ones down the diagonal
         """
         kernel = self.W.copy()
-        if sparse.issparse(kernel):
-            kernel.setdiag(1)
-        else:
-            np.fill_diagonal(kernel, 1)
+        kernel = set_diagonal(kernel, self._diagonal)
         return kernel
 
     @property
@@ -631,7 +631,7 @@ class kNNGraph(DataGraph):
     def get_params(self):
         """Get parameters from this object
         """
-        params = super().get_params(self)
+        params = super().get_params()
         params.update({'knn': self.knn,
                        'decay': self.decay,
                        'distance': self.distance,
@@ -802,6 +802,11 @@ class kNNGraph(DataGraph):
                 [[0], np.cumsum([len(d) for d in distances])])
             K = sparse.csr_matrix((data, indices, indptr))
             K.data = np.exp(-1 * np.power(K.data, self.decay))
+            # TODO: should we zero values that are below thresh?
+            K = K.tolil()
+            K[K < self.thresh] = 0
+            K.eliminate_zeros()
+            K = K.tocsr()
         return K
 
 
@@ -864,7 +869,7 @@ class LandmarkGraph(DataGraph):
     def get_params(self):
         """Get parameters from this object
         """
-        params = super().get_params(self)
+        params = super().get_params()
         params.update({'n_landmark': self.n_landmark,
                        'n_pca': self.n_pca})
         return params
@@ -998,9 +1003,9 @@ class LandmarkGraph(DataGraph):
         diff_op = pmn.dot(pnm)  # sparsity agnostic matrix multiplication
         if is_sparse:
             # no need to have a sparse landmark operator
-            diff_op = diff_op.todense()
+            diff_op = diff_op.toarray()
         # store output
-        self._landmark_op = np.array(diff_op)
+        self._landmark_op = diff_op
         self._transitions = pnm
 
     def extend_to_data(self, data, **kwargs):
@@ -1111,7 +1116,7 @@ class TraditionalGraph(DataGraph):
     def __init__(self, data, knn=5, decay=10,
                  distance='euclidean', n_pca=None,
                  precomputed=None, **kwargs):
-        if precomputed is not None:
+        if precomputed is not None and n_pca is not None:
             # the data itself is a matrix of distances / affinities
             n_pca = None
             warnings.warn("n_pca cannot be given on a precomputed graph."
@@ -1127,7 +1132,7 @@ class TraditionalGraph(DataGraph):
     def get_params(self):
         """Get parameters from this object
         """
-        params = super().get_params(self)
+        params = super().get_params()
         params.update({'knn': self.knn,
                        'decay': self.decay,
                        'distance': self.distance,
@@ -1206,13 +1211,10 @@ class TraditionalGraph(DataGraph):
         elif self.precomputed is "adjacency":
             # need to set diagonal to one to make it an affinity matrix
             K = self.data_nu
-            if sparse.issparse(K):
-                K.setdiag(1)
-            else:
-                np.fill_diagonal(K, 1)
+            K = set_diagonal(K, 1)
         else:
             if sparse.issparse(self.data_nu):
-                self.data_nu = self.data_nu.todense()
+                self.data_nu = self.data_nu.toarray()
             if self.precomputed is "distance":
                 pdx = self.data_nu
             elif self.precomputed is None:
@@ -1313,8 +1315,6 @@ class MNNGraph(DataGraph):
         self.knn = knn
         self.weighted_knn = self._weight_knn()
 
-        if 'n_landmark' in kwargs:
-            del kwargs['n_landmark']
         self.knn_args = kwargs
 
         if sample_idx is None:
@@ -1355,6 +1355,8 @@ class MNNGraph(DataGraph):
                     "Values in matrix gamma must be between"
                     " 0 and 1, got values between {} and {}".format(
                         np.max(gamma), np.min(gamma)))
+            elif gamma != gamma.T:
+                raise ValueError("gamma must be a symmetric matrix")
 
         super().__init__(data, n_pca=n_pca, **kwargs)
 
@@ -1396,7 +1398,7 @@ class MNNGraph(DataGraph):
     def get_params(self):
         """Get parameters from this object
         """
-        params = super().get_params(self)
+        params = super().get_params()
         params.update({'beta': self.beta,
                        'gamma': self.gamma})
         params.update(self.knn_args)
@@ -1468,6 +1470,8 @@ class MNNGraph(DataGraph):
             with no non-negative entries.
         """
         self.subgraphs = []
+        if 'n_landmark' in self.knn_args:
+            del self.knn_args['n_landmark']
         # iterate through sample ids
         for i, idx in enumerate(self.samples):
             # select data for sample
@@ -1479,46 +1483,42 @@ class MNNGraph(DataGraph):
                           **(self.knn_args))
             self.subgraphs.append(graph)  # append to list of subgraphs
 
-        # create n_batch x n_batch block kernel matrix
-        kernels = np.empty([len(self.samples),
-                            len(self.samples)],
-                           dtype='object')
+        if isinstance(self.subgraphs[0], kNNGraph):
+            K = sparse.lil_matrix(
+                (self.data_nu.shape[0], self.data_nu.shape[0]))
+        else:
+            K = np.zeros([self.data_nu.shape[0], self.data_nu.shape[0]])
         for i, X in enumerate(self.subgraphs):
             for j, Y in enumerate(self.subgraphs):
                 Kij = Y.build_kernel_to_data(
                     X.data_nu,
-                    knn=self.weighted_knn[j])
+                    knn=self.weighted_knn[i])
                 if i == j:
                     # downweight within-batch affinities by beta
                     Kij = Kij * self.beta
-                kernels[i, j] = Kij
+                K = set_submatrix(K, self.sample_idx == i,
+                                  self.sample_idx == j, Kij)
 
-        if not isinstance(self.gamma, str) or \
-                isinstance(self.gamma, numbers.Number):
+        if not (isinstance(self.gamma, str) or
+                isinstance(self.gamma, numbers.Number)):
             # matrix gamma
             # Gamma can be a matrix with specific values transitions for
             # each batch. This allows for technical replicates and
             # experimental samples to be corrected simultaneously
-            sym_kernels = np.empty_like(kernels)
             for i in range(len(self.samples)):
                 for j in range(i, len(self.samples)):
-                    Kij = kernels[i, j]
-                    KijT = kernels[j, i].T
-                    sym_kernels[i, j] = \
-                        self.gamma[i, j] * np.minimum(Kij, KijT) + \
-                        (1 - self.gamma[i, j]) * np.maximum(Kij, KijT)
+                    Kij = K[self.sample_idx == i, :][:, self.sample_idx == j]
+                    Kji = K[self.sample_idx == j, :][:, self.sample_idx == i]
+                    Kij_symm = self.gamma[i, j] * \
+                        elementwise_minimum(Kij, Kji.T) + \
+                        (1 - self.gamma[i, j]) * \
+                        elementwise_maximum(Kij, Kji.T)
+                    K = set_submatrix(K, self.sample_idx == i,
+                                      self.sample_idx == j, Kij_symm)
                     if not i == j:
-                        sym_kernels[j, i] = sym_kernels[i, j].T
-            # combine block symmetric kernels
-            K = sparse.csr_matrix(
-                sparse.vstack([sparse.hstack(sym_kernels[i])
-                               for i in range(len(sym_kernels))]))
+                        K = set_submatrix(K, self.sample_idx == j,
+                                          self.sample_idx == i, Kij_symm.T)
         else:
-            # combine block kernels
-            K = sparse.csr_matrix(
-                sparse.vstack([sparse.hstack(kernels[i])
-                               for i in range(len(kernels))]))
-
             # symmetrize
             if isinstance(self.gamma, str):
                 if self.gamma == "+":
@@ -1526,17 +1526,11 @@ class MNNGraph(DataGraph):
                 elif self.gamma == "*":
                     K = K.multiply(K.T)
             elif isinstance(self.gamma, numbers.Number):
-                K = self.gamma * K.minimum(K.T) + \
-                    (1 - self.gamma) * K.maximum(K.T)
+                K = self.gamma * elementwise_minimum(K, K.T) + \
+                    (1 - self.gamma) * elementwise_maximum(K, K.T)
             else:
                 # this should never happen
                 raise ValueError("invalid gamma")
-
-        # re-order according to original data
-        # TODO: there must be a better way of doing this.
-        idx = np.argsort(np.concatenate([np.argwhere(self.sample_idx == i)
-                                         for i in self.samples]).reshape(-1))
-        K = K[idx, :][:, idx]
         return K
 
     def build_kernel_to_data(self, Y, gamma=None):
@@ -1776,10 +1770,7 @@ def Graph(data,
     # set add landmarks if necessary
     if n_landmark is not None:
         class Graph(base, LandmarkGraph):
-
-            def __init__(self, *args, **kwargs):
-                base.__init__(self, *args, **kwargs)
-                LandmarkGraph.__init__(self, *args, **kwargs)
+            pass
     else:
         class Graph(base):
             pass
