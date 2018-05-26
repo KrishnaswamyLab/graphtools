@@ -449,6 +449,9 @@ def test_landmark_mnn_graph():
 
 def _test_build_kernel_to_data(**kwargs):
     G = build_graph(data, **kwargs)
+    n = G.data.shape[0]
+    K = G.build_kernel_to_data(data[:n // 2, :])
+    assert(K.shape == (n // 2, n))
     K = G.build_kernel_to_data(G.data)
     assert(np.sum(G.kernel != (K + K.T) / 2) == 0)
     K = G.build_kernel_to_data(G.data_nu)
@@ -456,8 +459,8 @@ def _test_build_kernel_to_data(**kwargs):
 
 
 def test_build_exact_kernel_to_data(**kwargs):
-    _test_build_kernel_to_data(decay=10)
-    _test_build_kernel_to_data(decay=10, sparse=True)
+    _test_build_kernel_to_data(decay=10, thresh=0)
+    _test_build_kernel_to_data(decay=10, thresh=0, sparse=True)
 
 
 def test_build_knn_kernel_to_data():
@@ -479,6 +482,10 @@ def test_precomputed_interpolate():
     G = build_graph(squareform(pdist(data)), n_pca=None,
                     precomputed='distance')
     G.build_kernel_to_data(data)
+
+
+def test_verbose():
+    build_graph(data, verbose=True)
 
 
 if __name__ == "__main__":

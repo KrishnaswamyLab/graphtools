@@ -11,7 +11,6 @@ from sklearn.utils.extmath import randomized_svd
 from sklearn.preprocessing import normalize
 from sklearn.cluster import MiniBatchKMeans
 from scipy import sparse
-import time
 import numbers
 import warnings
 
@@ -19,6 +18,12 @@ from .utils import (elementwise_minimum,
                     elementwise_maximum,
                     set_diagonal,
                     set_submatrix)
+
+from .logging import (set_logging,
+                      log_start,
+                      log_complete,
+                      log_warning,
+                      log_debug)
 
 
 class Data(object):
@@ -88,18 +93,21 @@ class Data(object):
         Reduced data matrix
         """
         if self.n_pca is not None and self.n_pca < self.data.shape[1]:
+            log_start("PCA")
             if sparse.issparse(self.data):
                 _, _, VT = randomized_svd(self.data, self.n_pca,
                                           random_state=self.random_state)
                 V = VT.T
                 self._right_singular_vectors = V
-                return self.data.dot(V)
+                data_nu = self.data.dot(V)
             else:
                 self.pca = PCA(self.n_pca,
                                svd_solver='randomized',
                                random_state=self.random_state)
                 self.pca.fit(self.data)
-                return self.pca.transform(self.data)
+                data_nu = self.pca.transform(self.data)
+            log_complete("PCA")
+            return data_nu
         else:
             return self.data
 
@@ -304,7 +312,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, pygsp.graphs.Graph)):
         """
 
         weight = kernel
-        self._diagonal = weight.diagonal()
+        self._diagonal = weight.diagonal().copy()
         weight = set_diagonal(weight, 0)
         return weight
 
@@ -431,6 +439,8 @@ class DataGraph(with_metaclass(abc.ABCMeta, BaseGraph, Data)):
         self.n_jobs = n_jobs
         self.random_state = random_state
         self.verbose = verbose
+        set_logging(verbose)
+        log_debug("set logging to debug")
         Data.__init__(self, data, n_pca=n_pca,
                       random_state=random_state)
         BaseGraph.__init__(self, **kwargs)
@@ -699,10 +709,22 @@ class kNNGraph(DataGraph):
         try:
             return self._knn_tree
         except AttributeError:
-            self._knn_tree = NearestNeighbors(
-                n_neighbors=self.knn,
-                metric=self.distance,
-                n_jobs=self.n_jobs).fit(self.data_nu)
+            try:
+                self._knn_tree = NearestNeighbors(
+                    n_neighbors=self.knn,
+                    algorithm='ball_tree',
+                    metric=self.distance,
+                    n_jobs=self.n_jobs).fit(self.data_nu)
+            except ValueError:
+                # invalid metric
+                log_warning(
+                    "Metric {} not valid for `sklearn.neighbors.BallTree`. "
+                    "Graph instantiation may be slower than normal.")
+                self._knn_tree = NearestNeighbors(
+                    n_neighbors=self.knn,
+                    algorithm='auto',
+                    metric=self.distance,
+                    n_jobs=self.n_jobs).fit(self.data_nu)
             return self._knn_tree
 
     def build_kernel(self):
@@ -720,11 +742,13 @@ class kNNGraph(DataGraph):
         if self.decay is None or self.thresh == 1:
             # binary connectivity matrix
             # sklearn has a function for this
+            log_start("KNN search")
             K = kneighbors_graph(self.knn_tree,
                                  n_neighbors=self.knn,
                                  metric=self.distance,
                                  mode='connectivity',
                                  include_self=True)
+            log_complete("KNN search")
         else:
             # sparse fast alpha decay
             K = self.build_kernel_to_data(self.data_nu)
@@ -761,40 +785,51 @@ class kNNGraph(DataGraph):
         if knn is None:
             knn = self.knn
         Y = self._check_extension_shape(Y)
+        log_start("KNN search")
         if self.decay is None or self.thresh == 1:
             # binary connectivity matrix
             K = self.knn_tree.kneighbors_graph(
                 Y, n_neighbors=knn,
                 mode='connectivity')
+            log_complete("KNN search")
         else:
             # sparse fast alpha decay
-            search_knn = min(self.knn * 10, len(self.data_nu))
-            distances, indices = self.knn_tree.kneighbors(
+            knn_tree = self.knn_tree
+            search_knn = min(knn * 20, len(self.data_nu))
+            distances, indices = knn_tree.kneighbors(
                 Y, n_neighbors=search_knn)
-            bandwidth = distances[:, self.knn - 1]
+            log_complete("KNN search")
+            log_start("affinities")
+            bandwidth = distances[:, knn - 1]
             radius = bandwidth * np.power(-1 * np.log(self.thresh),
                                           1 / self.decay)
             update_idx = np.argwhere(
                 np.max(distances, axis=1) < radius).reshape(-1)
             if len(update_idx) > 0 and search_knn < len(self.data_nu):
-                search_knn = min(self.knn * 100, len(self.data_nu))
                 distances = [d for d in distances]
                 indices = [i for i in indices]
-                dist_new, ind_new = self.knn_tree.kneighbors(
+            while len(update_idx) > len(Y) // 10 and \
+                    search_knn < len(self.data_nu) / 2:
+                # increase the knn search
+                search_knn = min(search_knn * 20, len(self.data_nu))
+                dist_new, ind_new = knn_tree.kneighbors(
                     Y[update_idx], n_neighbors=search_knn)
                 for i, idx in enumerate(update_idx):
                     distances[idx] = dist_new[i]
                     indices[idx] = ind_new[i]
                 update_idx = [i for i, d in enumerate(distances)
                               if np.max(d) < radius[i]]
-
-            if len(update_idx) > 0 and search_knn < len(self.data_nu):
-                for i in update_idx:
-                    dist_new, ind_new = self.knn_tree.radius_neighbors(
-                        Y[i][None, :],
-                        radius=radius[i] * 1.01)
-                    distances[i], indices[i] = dist_new[0], ind_new[0]
-
+            if search_knn > len(self.data_nu) / 2:
+                knn_tree = NearestNeighbors(knn, algorithm='brute',
+                                            n_jobs=-1).fit(self.data_nu)
+            if len(update_idx) > 0:
+                # give up - radius search
+                dist_new, ind_new = knn_tree.radius_neighbors(
+                    Y[update_idx, :],
+                    radius=np.max(radius[update_idx]))
+                for i, idx in enumerate(update_idx):
+                    distances[idx] = dist_new[i]
+                    indices[idx] = ind_new[i]
             data = np.concatenate([distances[i] / bandwidth[i]
                                    for i in range(len(distances))])
             indices = np.concatenate(indices)
@@ -807,6 +842,7 @@ class kNNGraph(DataGraph):
             K = K.tocoo()
             K.eliminate_zeros()
             K = K.tocsr()
+            log_complete("affinities")
         return K
 
 
@@ -853,7 +889,6 @@ class LandmarkGraph(DataGraph):
         RuntimeWarning : if too many SVD dimensions or
         too few landmarks are used
         """
-        print(n_landmark)
         if n_landmark >= data.shape[0]:
             raise ValueError(
                 "n_landmark ({}) >= n_samples ({}). Use "
@@ -965,17 +1000,12 @@ class LandmarkGraph(DataGraph):
         """
         is_sparse = sparse.issparse(self.kernel)
         # spectral clustering
-        if self.verbose:
-            print("Calculating SVD...")
-            start = time.time()
+        log_start("SVD")
         _, _, VT = randomized_svd(self.diff_op,
                                   n_components=self.n_svd,
                                   random_state=self.random_state)
-        if self.verbose:
-            print("SVD complete in {:.2f} seconds".format(
-                time.time() - start))
-            start = time.time()
-            print("Calculating Kmeans...")
+        log_complete("SVD")
+        log_start("KMeans")
         kmeans = MiniBatchKMeans(
             self.n_landmark,
             init_size=3 * self.n_landmark,
@@ -985,9 +1015,7 @@ class LandmarkGraph(DataGraph):
             self.diff_op.dot(VT.T))
         # some clusters are not assigned
         landmarks = np.unique(self._clusters)
-        if self.verbose:
-            print("Kmeans complete in {:.2f} seconds".format(
-                time.time() - start))
+        log_complete("KMeans")
 
         # transition matrices
         if is_sparse:
@@ -1214,6 +1242,7 @@ class TraditionalGraph(DataGraph):
             K = self.data_nu
             K = set_diagonal(K, 1)
         else:
+            log_start("affinities")
             if sparse.issparse(self.data_nu):
                 self.data_nu = self.data_nu.toarray()
             if self.precomputed is "distance":
@@ -1224,6 +1253,7 @@ class TraditionalGraph(DataGraph):
             epsilon = np.max(knn_dist, axis=1)
             pdx = (pdx.T / epsilon).T
             K = np.exp(-1 * np.power(pdx, self.decay))
+            log_complete("affinities")
         # symmetrize
         K = (K + K.T) / 2
         return K
@@ -1306,7 +1336,8 @@ class MNNGraph(DataGraph):
 
     def __init__(self, data, sample_idx,
                  knn=5, beta=1, gamma=0.99, n_pca=None,
-                 adaptive_k='sqrt', **kwargs):
+                 adaptive_k='sqrt',
+                 **kwargs):
         self.beta = beta
         self.gamma = gamma
         self.sample_idx = sample_idx
@@ -1470,11 +1501,13 @@ class MNNGraph(DataGraph):
             symmetric matrix with ones down the diagonal
             with no non-negative entries.
         """
+        log_start("subgraphs")
         self.subgraphs = []
         if 'n_landmark' in self.knn_args:
             del self.knn_args['n_landmark']
         # iterate through sample ids
         for i, idx in enumerate(self.samples):
+            log_debug("subgraph {}: sample {}".format(i, idx))
             # select data for sample
             data = self.data_nu[self.sample_idx == idx]
             # build a kNN graph for cells within sample
@@ -1483,6 +1516,7 @@ class MNNGraph(DataGraph):
                           initialize=False,
                           **(self.knn_args))
             self.subgraphs.append(graph)  # append to list of subgraphs
+        log_complete("subgraphs")
 
         if isinstance(self.subgraphs[0], kNNGraph):
             K = sparse.lil_matrix(
@@ -1491,6 +1525,9 @@ class MNNGraph(DataGraph):
             K = np.zeros([self.data_nu.shape[0], self.data_nu.shape[0]])
         for i, X in enumerate(self.subgraphs):
             for j, Y in enumerate(self.subgraphs):
+                log_start(
+                    "kernel from sample {} to {}".format(self.samples[i],
+                                                         self.samples[j]))
                 Kij = Y.build_kernel_to_data(
                     X.data_nu,
                     knn=self.weighted_knn[i])
@@ -1499,6 +1536,9 @@ class MNNGraph(DataGraph):
                     Kij = Kij * self.beta
                 K = set_submatrix(K, self.sample_idx == i,
                                   self.sample_idx == j, Kij)
+                log_complete(
+                    "kernel from sample {} to {}".format(self.samples[i],
+                                                         self.samples[j]))
 
         if not (isinstance(self.gamma, str) or
                 isinstance(self.gamma, numbers.Number)):
@@ -1564,6 +1604,7 @@ class MNNGraph(DataGraph):
         transitions : array-like, [n_samples_y, self.data.shape[0]]
             Transition matrix from `Y` to `self.data`
         """
+        log_warning("building MNN kernel to gamma is experimental")
         if not isinstance(self.gamma, str) and \
                 not isinstance(self.gamma, numbers.Number):
             if gamma is None:
@@ -1770,9 +1811,13 @@ def Graph(data,
 
     # set add landmarks if necessary
     if n_landmark is not None:
+        log_debug("Building {} graph with landmarks".format(graphtype))
+
         class Graph(base, LandmarkGraph):
             pass
     else:
+        log_debug("Building {} graph".format(graphtype))
+
         class Graph(base):
             pass
 
