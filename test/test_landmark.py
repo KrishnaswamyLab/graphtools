@@ -71,7 +71,7 @@ def test_landmark_mnn_graph():
 
 
 def test_verbose():
-    build_graph(data, decay=None, n_landmark=500, verbose=True)
+    build_graph(data, decay=None, n_landmark=500, verbose=True).landmark_op
 
 
 if __name__ == "__main__":
