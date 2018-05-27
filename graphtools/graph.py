@@ -221,10 +221,14 @@ class Data(object):
                 return Y.dot(self._right_singular_vectors)
             except AttributeError:
                 # no SVD either - check if we can just return as is
-                if Y.shape[1] != self.data.shape[1]:
-                    # shape is wrong
+                try:
+                    if Y.shape[1] != self.data.shape[1]:
+                        # shape is wrong
+                        raise ValueError
+                    return Y
+                except IndexError:
+                    # len(Y.shape) < 2
                     raise ValueError
-                return Y
         except ValueError:
             # more informative error
             raise ValueError("data of shape {} cannot be transformed"
