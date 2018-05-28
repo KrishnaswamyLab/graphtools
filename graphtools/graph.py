@@ -236,6 +236,48 @@ class Data(object):
                              " to graph built on data of shape {}".format(
                                  Y.shape, self.data.shape))
 
+    def inverse_transform(self, Y):
+        """Transform input data `Y` to ambient data space defined by `self.data`
+
+        Takes data in the same reduced space as `self.data_nu` and transforms
+        it to be in the same ambient space as `self.data`.
+
+        Parameters
+        ----------
+        Y : array-like, shape=[n_samples_y, n_pca]
+            n_features must be the same as `self.data_nu`.
+
+        Returns
+        -------
+        Inverse transformed data, shape=[n_samples_y, n_features]
+
+        Raises
+        ------
+        ValueError : if Y.shape[1] != self.data_nu.shape[1]
+        """
+        try:
+            # try PCA first
+            return self.pca.inverse_transform(Y)
+        except AttributeError:
+            # no PCA - try SVD instead
+            try:
+                return self._right_singular_vectors.T.dot(Y)
+            except AttributeError:
+                # no SVD either - check if we can just return as is
+                try:
+                    if Y.shape[1] != self.data_nu.shape[1]:
+                        # shape is wrong
+                        raise ValueError
+                    return Y
+                except IndexError:
+                    # len(Y.shape) < 2
+                    raise ValueError
+        except ValueError:
+            # more informative error
+            raise ValueError("data of shape {} cannot be inverse transformed"
+                             " from graph built on data of shape {}".format(
+                                 Y.shape, self.data_nu.shape))
+
 
 class BaseGraph(with_metaclass(abc.ABCMeta, object)):
     """Parent graph class
