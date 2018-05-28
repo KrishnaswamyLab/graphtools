@@ -64,7 +64,7 @@ class Data(object):
         Right singular vectors from SVD calculation
     """
 
-    def __init__(self, data, n_pca=None, random_state=None):
+    def __init__(self, data, n_pca=None, random_state=None, **kwargs):
 
         if len(data.shape) != 2:
             raise ValueError("Expected a 2D matrix. data has shape {}".format(
@@ -77,6 +77,7 @@ class Data(object):
             n_pca = None
         self.data = data
         self.n_pca = n_pca
+        self.random_state = random_state
 
         self.data_nu = self._reduce_data()
         super().__init__()
@@ -236,15 +237,8 @@ class Data(object):
                                  Y.shape, self.data.shape))
 
 
-class BaseGraph(with_metaclass(abc.ABCMeta, pygsp.graphs.Graph)):
+class BaseGraph(with_metaclass(abc.ABCMeta, object)):
     """Parent graph class
-
-    All graphs should possess these matrices. We inherit a lot
-    of functionality from pygsp.graphs.Graph.
-
-    TODO: should we only optionally inherit from pygsp?
-    There is a lot of overhead involved in having both a weight and
-    kernel matrix
 
     Parameters
     ----------
@@ -267,15 +261,8 @@ class BaseGraph(with_metaclass(abc.ABCMeta, pygsp.graphs.Graph)):
     diff_op : synonym for `P`
     """
 
-    def __init__(self, initialize=True, pygsp_kws=None, **kwargs):
-        if initialize:
-            kernel = self._build_kernel()
-            W = self._build_weight_from_kernel(kernel)
-        else:
-            W = np.array([[0]])
-        if pygsp_kws is None:
-            pygsp_kws = {}
-        super().__init__(W, **pygsp_kws)
+    def __init__(self, **kwargs):
+        super().__init__()
 
     def _build_kernel(self):
         """Private method to build kernel matrix
@@ -297,28 +284,6 @@ class BaseGraph(with_metaclass(abc.ABCMeta, pygsp.graphs.Graph)):
         if np.any(kernel.diagonal == 0):
             warnings.warn("K should have a non-zero diagonal", RuntimeWarning)
         return kernel
-
-    def _build_weight_from_kernel(self, kernel):
-        """Private method to build an adjacency matrix from
-        a kernel matrix
-
-        Just puts zeroes down the diagonal in-place, since the
-        kernel matrix is ultimately not stored.
-
-        Parameters
-        ----------
-        kernel : array-like, shape=[n_samples, n_samples]
-            Kernel matrix.
-
-        Returns
-        -------
-        Adjacency matrix, shape=[n_samples, n_samples]
-        """
-
-        weight = kernel
-        self._diagonal = weight.diagonal().copy()
-        weight = set_diagonal(weight, 0)
-        return weight
 
     def get_params(self):
         """Get parameters from this object
@@ -371,17 +336,17 @@ class BaseGraph(with_metaclass(abc.ABCMeta, pygsp.graphs.Graph)):
     def K(self):
         """Kernel matrix
 
-        TODO: set W as a lil / dok matrix to avoid sparsity changes
-
         Returns
         -------
         K : array-like, shape=[n_samples, n_samples]
             kernel matrix defined as the adjacency matrix with
             ones down the diagonal
         """
-        kernel = self.W.copy()
-        kernel = set_diagonal(kernel, self._diagonal)
-        return kernel
+        try:
+            return self._kernel
+        except AttributeError:
+            self._kernel = self._build_kernel()
+            return self._kernel
 
     @property
     def kernel(self):
@@ -405,7 +370,57 @@ class BaseGraph(with_metaclass(abc.ABCMeta, pygsp.graphs.Graph)):
         raise NotImplementedError
 
 
-class DataGraph(with_metaclass(abc.ABCMeta, BaseGraph, Data)):
+class PyGSPGraph(with_metaclass(abc.ABCMeta, pygsp.graphs.Graph)):
+    """Interface between BaseGraph and PyGSP.
+
+    All graphs should possess these matrices. We inherit a lot
+    of functionality from pygsp.graphs.Graph.
+
+    There is a lot of overhead involved in having both a weight and
+    kernel matrix
+    """
+
+    def __init__(self, **kwargs):
+        W = self._build_weight_from_kernel(self.K)
+        super().__init__(W=W, **kwargs)
+
+    @property
+    @abc.abstractmethod
+    def K():
+        """Kernel matrix
+
+        Returns
+        -------
+        K : array-like, shape=[n_samples, n_samples]
+            kernel matrix defined as the adjacency matrix with
+            ones down the diagonal
+        """
+        raise NotImplementedError
+
+    def _build_weight_from_kernel(self, kernel):
+        """Private method to build an adjacency matrix from
+        a kernel matrix
+
+        Just puts zeroes down the diagonal in-place, since the
+        kernel matrix is ultimately not stored.
+
+        Parameters
+        ----------
+        kernel : array-like, shape=[n_samples, n_samples]
+            Kernel matrix.
+
+        Returns
+        -------
+        Adjacency matrix, shape=[n_samples, n_samples]
+        """
+
+        weight = kernel.copy()
+        self._diagonal = weight.diagonal().copy()
+        weight = set_diagonal(weight, 0)
+        return weight
+
+
+class DataGraph(with_metaclass(abc.ABCMeta, Data, BaseGraph)):
     """Abstract class for graphs built from a dataset
 
     Parameters
@@ -437,17 +452,15 @@ class DataGraph(with_metaclass(abc.ABCMeta, BaseGraph, Data)):
         n_jobs = -2, all CPUs but one are used
     """
 
-    def __init__(self, data, n_pca=None, random_state=None,
-                 verbose=True, n_jobs=1, **kwargs):
+    def __init__(self, data,
+                 verbose=True,
+                 n_jobs=1, **kwargs):
         # kwargs are ignored
         self.n_jobs = n_jobs
-        self.random_state = random_state
         self.verbose = verbose
         set_logging(verbose)
         log_debug("set logging to debug")
-        Data.__init__(self, data, n_pca=n_pca,
-                      random_state=random_state)
-        BaseGraph.__init__(self, **kwargs)
+        super().__init__(data, **kwargs)
 
     def get_params(self):
         """Get parameters from this object
@@ -1002,6 +1015,7 @@ class LandmarkGraph(DataGraph):
         probabilities between cluster centers by using transition probabilities
         between samples assigned to each cluster.
         """
+        log_start("landmark operator")
         is_sparse = sparse.issparse(self.kernel)
         # spectral clustering
         log_start("SVD")
@@ -1040,6 +1054,7 @@ class LandmarkGraph(DataGraph):
         # store output
         self._landmark_op = diff_op
         self._transitions = pnm
+        log_complete("landmark operator")
 
     def extend_to_data(self, data, **kwargs):
         """Build transition matrix from new data to the graph
@@ -1673,6 +1688,7 @@ def Graph(data,
           verbose=False,
           random_state=None,
           graphtype='auto',
+          use_pygsp=False,
           **kwargs):
     """Create a graph built on data.
 
@@ -1759,6 +1775,12 @@ def Graph(data,
         For n_jobs below -1, (n_cpus + 1 + n_jobs) are used. Thus for
         n_jobs = -2, all CPUs but one are used
 
+    graphtype : {'exact', 'knn', 'mnn', 'auto'} (Default: 'auto')
+        Manually selects graph type. Only recommended for expert users
+
+    use_pygsp : `bool` (Default: `False`)
+        If true, inherits from `pygsp.graphs.Graph`.
+
     Returns
     -------
     G : `DataGraph`
@@ -1814,16 +1836,22 @@ def Graph(data,
                          "['knn', 'mnn', 'exact', 'auto']")
 
     # set add landmarks if necessary
+    parent_classes = [base]
+    msg = "Building {} graph".format(graphtype)
     if n_landmark is not None:
-        log_debug("Building {} graph with landmarks".format(graphtype))
+        parent_classes.append(LandmarkGraph)
+        msg = msg + " with landmarks"
+    if use_pygsp:
+        parent_classes.append(PyGSPGraph)
+        if len(parent_classes) > 2:
+            msg = msg + " with PyGSP inheritance"
+        else:
+            msg = msg + " and PyGSP inheritance"
 
-        class Graph(base, LandmarkGraph):
-            pass
-    else:
-        log_debug("Building {} graph".format(graphtype))
+    log_debug(msg)
 
-        class Graph(base):
-            pass
+    class Graph(*parent_classes):
+        pass
 
     # build graph and return
     return Graph(data,
