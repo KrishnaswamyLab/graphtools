@@ -1169,6 +1169,15 @@ class TraditionalGraph(DataGraph):
             n_pca = None
             warnings.warn("n_pca cannot be given on a precomputed graph."
                           " Setting n_pca=None", RuntimeWarning)
+        if precomputed is not None:
+            if precomputed not in ["distance", "affinity", "adjacency"]:
+                raise ValueError("Precomputed value {} not recognized. "
+                                 "Choose from ['distance', 'affinity', "
+                                 "'adjacency']")
+            elif data.shape[0] != data.shape[1]:
+                raise ValueError("Precomputed {} must be a square matrix. "
+                                 "{} was given".format(precomputed,
+                                                       data.shape))
         self.knn = knn
         self.decay = decay
         self.distance = distance
@@ -1242,15 +1251,6 @@ class TraditionalGraph(DataGraph):
         ------
         ValueError: if `precomputed` is not an acceptable value
         """
-        if self.precomputed is not None:
-            if self.precomputed not in ["distance", "affinity", "adjacency"]:
-                raise ValueError("Precomputed value {} not recognized. "
-                                 "Choose from ['distance', 'affinity', "
-                                 "'adjacency']")
-            elif self.data_nu.shape[0] != self.data_nu.shape[1]:
-                raise ValueError("Precomputed {} must be a square matrix. "
-                                 "{} was given".format(self.precomputed,
-                                                       self.data_nu.shape))
         if self.precomputed is "affinity":
             # already done
             # TODO: should we check that precomputed matrices look okay?

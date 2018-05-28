@@ -57,7 +57,8 @@ def test_knn_graph():
     np.fill_diagonal(W, 0)
     G = pygsp.graphs.Graph(W)
     G2 = build_graph(data, n_pca=n_pca,
-                     decay=None, knn=k, random_state=42)
+                     decay=None, knn=k, random_state=42,
+                     use_pygsp=True)
     assert(G.N == G2.N)
     assert(np.all(G.d == G2.d))
     assert((G.W != G2.W).nnz == 0)
@@ -81,7 +82,7 @@ def test_sparse_alpha_knn_graph():
     G = pygsp.graphs.Graph(W)
     G2 = build_graph(data, n_pca=None,  # n_pca,
                      decay=a, knn=k, thresh=thresh,
-                     random_state=42)
+                     random_state=42, use_pygsp=True)
     assert(np.abs(G.W - G2.W).max() < thresh)
     assert(G.N == G2.N)
     assert(isinstance(G2, graphtools.kNNGraph))

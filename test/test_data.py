@@ -69,7 +69,7 @@ def test_transform_sparse_pca():
 
 def test_transform_sparse_no_pca():
     G = build_graph(data, sparse=True, n_pca=None)
-    assert(np.all(G.data_nu == G.transform(G.data)))
+    assert(np.sum(G.data_nu != G.transform(G.data)) == 0)
     assert_raises(ValueError, G.transform, sp.csr_matrix(G.data)[:, :15])
     assert_raises(ValueError, G.transform, sp.csr_matrix(G.data)[:, 0])
     assert_raises(ValueError, G.transform, sp.csr_matrix(G.data)[:, :15])

@@ -20,13 +20,15 @@ from . import (
 
 @raises(ValueError)
 def test_sample_idx_and_precomputed():
-    build_graph(data, n_pca=None, sample_idx=np.arange(10),
+    build_graph(squareform(pdist(data)), n_pca=None,
+                sample_idx=np.arange(10),
                 precomputed='distance')
 
 
 @raises(ValueError)
 def test_invalid_precomputed():
-    build_graph(data, n_pca=None, precomputed='hello world')
+    build_graph(squareform(pdist(data)), n_pca=None,
+                precomputed='hello world')
 
 
 @raises(ValueError)
@@ -67,14 +69,15 @@ def test_exact_graph():
     np.fill_diagonal(W, 0)
     G = pygsp.graphs.Graph(W)
     G2 = build_graph(data, thresh=0, n_pca=n_pca,
-                     decay=a, knn=k, random_state=42)
+                     decay=a, knn=k, random_state=42,
+                     use_pygsp=True)
     assert(G.N == G2.N)
     assert(np.all(G.d == G2.d))
     assert((G.W != G2.W).nnz == 0)
     assert((G2.W != G.W).sum() == 0)
     assert(isinstance(G2, graphtools.TraditionalGraph))
     G2 = build_graph(pdx, n_pca=None, precomputed='distance',
-                     decay=a, knn=k, random_state=42)
+                     decay=a, knn=k, random_state=42, use_pygsp=True)
     assert(G.N == G2.N)
     assert(np.all(G.d == G2.d))
     assert((G.W != G2.W).nnz == 0)
@@ -82,7 +85,7 @@ def test_exact_graph():
     assert(isinstance(G2, graphtools.TraditionalGraph))
     G2 = build_graph(K / 2, n_pca=None,
                      precomputed='affinity',
-                     random_state=42)
+                     random_state=42, use_pygsp=True)
     assert(G.N == G2.N)
     assert(np.all(G.d == G2.d))
     assert((G.W != G2.W).nnz == 0)
@@ -90,7 +93,7 @@ def test_exact_graph():
     assert(isinstance(G2, graphtools.TraditionalGraph))
     G2 = build_graph(W, n_pca=None,
                      precomputed='adjacency',
-                     random_state=42)
+                     random_state=42, use_pygsp=True)
     assert(G.N == G2.N)
     assert(np.all(G.d == G2.d))
     assert((G.W != G2.W).nnz == 0)

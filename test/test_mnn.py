@@ -85,7 +85,8 @@ def test_mnn_graph_float_gamma():
     np.fill_diagonal(W, 0)
     G = pygsp.graphs.Graph(W)
     G2 = graphtools.Graph(X, knn=k + 1, decay=a, beta=1 - beta, gamma=gamma,
-                          distance=metric, sample_idx=sample_idx, thresh=0)
+                          distance=metric, sample_idx=sample_idx, thresh=0,
+                          use_pygsp=True)
     assert(G.N == G2.N)
     assert(np.all(G.d == G2.d))
     assert((G.W != G2.W).nnz == 0)
@@ -137,7 +138,8 @@ def test_mnn_graph_matrix_gamma():
     np.fill_diagonal(W, 0)
     G = pygsp.graphs.Graph(W)
     G2 = graphtools.Graph(X, knn=k + 1, decay=a, beta=1 - beta, gamma=gamma,
-                          distance=metric, sample_idx=sample_idx, thresh=0)
+                          distance=metric, sample_idx=sample_idx, thresh=0,
+                          use_pygsp=True)
     assert(G.N == G2.N)
     assert(np.all(G.d == G2.d))
     assert((G.W != G2.W).nnz == 0)
