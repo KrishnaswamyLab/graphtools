@@ -461,7 +461,6 @@ class DataGraph(with_metaclass(abc.ABCMeta, Data, BaseGraph)):
         self.n_jobs = n_jobs
         self.verbose = verbose
         set_logging(verbose)
-        log_debug("set logging to debug")
         super().__init__(data, **kwargs)
 
     def get_params(self):
@@ -1795,6 +1794,7 @@ def Graph(data,
     ------
     ValueError : if selected parameters are incompatible.
     """
+    set_logging(verbose)
     if sample_idx is not None and len(np.unique(sample_idx)) == 1:
         warnings.warn("Only one unique sample. "
                       "Not using MNNGraph")
