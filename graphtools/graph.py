@@ -261,7 +261,9 @@ class BaseGraph(with_metaclass(abc.ABCMeta, object)):
     diff_op : synonym for `P`
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, initialize=True, **kwargs):
+        if initialize:
+            self.K
         super().__init__()
 
     def _build_kernel(self):
@@ -1689,6 +1691,7 @@ def Graph(data,
           random_state=None,
           graphtype='auto',
           use_pygsp=False,
+          initialize=True,
           **kwargs):
     """Create a graph built on data.
 
@@ -1781,6 +1784,9 @@ def Graph(data,
     use_pygsp : `bool` (Default: `False`)
         If true, inherits from `pygsp.graphs.Graph`.
 
+    initialize : `bool` (Default: `True`)
+        If True, initialize the kernel matrix on instantiation
+
     Returns
     -------
     G : `DataGraph`
@@ -1870,4 +1876,5 @@ def Graph(data,
                  n_jobs=n_jobs,
                  verbose=verbose,
                  random_state=random_state,
+                 initialize=initialize,
                  **kwargs)
