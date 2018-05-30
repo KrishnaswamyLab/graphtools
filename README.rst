@@ -15,4 +15,27 @@ graphtools
     :target: https://github.com/KrishnaswamyLab/graphtools/
     :alt: GitHub stars
 
-Tools for building and manipulating graphs in Python
+Tools for building and manipulating graphs in Python.
+
+Installation
+------------
+
+graphtools is available on `pip`. Install by running the following in a terminal::
+
+        pip install --user graphtools
+
+Usage example
+-------------
+
+The `graphtools.Graph` class provides an all-in-one interface for k-nearest neighbors, mutual nearest neighbors, exact (pairwise distances) and landmark graphs.
+
+Use it as follows::
+
+        from sklearn import datasets
+        import graphtools
+        digits = datasets.load_digits()
+        G = graphtools.Graph(digits['data'])
+        K = G.kernel
+        P = G.diff_op
+        G = graphtools.Graph(digits['data'], n_landmark=300)
+        L = G.landmark_op
