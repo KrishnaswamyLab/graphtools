@@ -254,8 +254,9 @@ class kNNGraph(DataGraph):
                     indices[idx] = ind_new[i]
                 update_idx = [i for i, d in enumerate(distances)
                               if np.max(d) < radius[i]]
-                log_debug("search_knn = {}; {} remaining".format(search_knn,
-                                                                 len(update_idx)))
+                log_debug("search_knn = {}; {} remaining".format(
+                    search_knn,
+                    len(update_idx)))
             if search_knn > len(self.data_nu) / 2:
                 knn_tree = NearestNeighbors(knn, algorithm='brute',
                                             n_jobs=-1).fit(self.data_nu)
