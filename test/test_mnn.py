@@ -32,7 +32,7 @@ def test_sample_idx_wrong_length():
 
 @raises(ValueError)
 def test_sample_idx_unique():
-    build_graph(data, graph_class=graphtools.MNNGraph,
+    build_graph(data, graph_class=graphtools.graphs.MNNGraph,
                 sample_idx=np.ones(len(data)))
 
 
@@ -91,7 +91,7 @@ def test_mnn_graph_float_gamma():
     assert(np.all(G.d == G2.d))
     assert((G.W != G2.W).nnz == 0)
     assert((G2.W != G.W).sum() == 0)
-    assert(isinstance(G2, graphtools.MNNGraph))
+    assert(isinstance(G2, graphtools.graphs.MNNGraph))
 
 
 def test_mnn_graph_matrix_gamma():
@@ -144,7 +144,7 @@ def test_mnn_graph_matrix_gamma():
     assert(np.all(G.d == G2.d))
     assert((G.W != G2.W).nnz == 0)
     assert((G2.W != G.W).sum() == 0)
-    assert(isinstance(G2, graphtools.MNNGraph))
+    assert(isinstance(G2, graphtools.graphs.MNNGraph))
 
 
 def test_mnn_graph_error():

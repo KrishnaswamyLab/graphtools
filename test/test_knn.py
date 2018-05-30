@@ -63,7 +63,7 @@ def test_knn_graph():
     assert(np.all(G.d == G2.d))
     assert((G.W != G2.W).nnz == 0)
     assert((G2.W != G.W).sum() == 0)
-    assert(isinstance(G2, graphtools.kNNGraph))
+    assert(isinstance(G2, graphtools.graphs.kNNGraph))
 
 
 def test_sparse_alpha_knn_graph():
@@ -85,7 +85,7 @@ def test_sparse_alpha_knn_graph():
                      random_state=42, use_pygsp=True)
     assert(np.abs(G.W - G2.W).max() < thresh)
     assert(G.N == G2.N)
-    assert(isinstance(G2, graphtools.kNNGraph))
+    assert(isinstance(G2, graphtools.graphs.kNNGraph))
 
 
 #####################################################

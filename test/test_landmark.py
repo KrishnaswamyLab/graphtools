@@ -36,8 +36,8 @@ def test_landmark_exact_graph():
                     thresh=0, n_pca=20,
                     decay=10, knn=5, random_state=42)
     assert(G.landmark_op.shape == (n_landmark, n_landmark))
-    assert(isinstance(G, graphtools.TraditionalGraph))
-    assert(isinstance(G, graphtools.LandmarkGraph))
+    assert(isinstance(G, graphtools.graphs.TraditionalGraph))
+    assert(isinstance(G, graphtools.graphs.LandmarkGraph))
 
 
 def test_landmark_knn_graph():
@@ -46,8 +46,8 @@ def test_landmark_knn_graph():
     G = build_graph(data, n_landmark=n_landmark, n_pca=20,
                     decay=None, knn=5, random_state=42)
     assert(G.landmark_op.shape == (n_landmark, n_landmark))
-    assert(isinstance(G, graphtools.kNNGraph))
-    assert(isinstance(G, graphtools.LandmarkGraph))
+    assert(isinstance(G, graphtools.graphs.kNNGraph))
+    assert(isinstance(G, graphtools.graphs.LandmarkGraph))
 
 
 def test_landmark_mnn_graph():
@@ -58,8 +58,8 @@ def test_landmark_mnn_graph():
                     decay=10, knn=5, random_state=42,
                     sample_idx=digits['target'])
     assert(G.landmark_op.shape == (n_landmark, n_landmark))
-    assert(isinstance(G, graphtools.MNNGraph))
-    assert(isinstance(G, graphtools.LandmarkGraph))
+    assert(isinstance(G, graphtools.graphs.MNNGraph))
+    assert(isinstance(G, graphtools.graphs.LandmarkGraph))
 
 
 #####################################################
