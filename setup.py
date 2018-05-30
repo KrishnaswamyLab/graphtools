@@ -6,9 +6,9 @@ install_requires = [
     'numpy>=1.10.0',
     'pandas>=0.18.0',
     'scipy>=0.14.0',
-    'pygsp',
-    'sklearn',
-    'future',
+    'pygsp>=0.5.1',
+    'sklearn>=0.19.1',
+    'future>=0.16.0',
 ]
 
 test_requires = [
