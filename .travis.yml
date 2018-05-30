@@ -4,6 +4,10 @@
     - "3.5"
     - "3.6"
 
+  os:
+    - linux
+    - osx
+
   sudo: required
 
   before_install:
