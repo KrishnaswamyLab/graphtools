@@ -10,4 +10,4 @@
     - pip install nose2
 
   script:
-    - python setup.py test
+    - python -m nose2 -v
