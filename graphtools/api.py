@@ -13,9 +13,9 @@ def Graph(data,
           adaptive_k='sqrt',
           precomputed=None,
           knn=5,
-          decay=None,
+          decay=10,
           distance='euclidean',
-          thresh=0,
+          thresh=1e-4,
           n_landmark=None,
           n_svd=100,
           beta=1,
@@ -58,7 +58,7 @@ def Graph(data,
     knn : `int`, optional (default: 5)
         Number of nearest neighbors (including self) to use to build the graph
 
-    decay : `int` or `None`, optional (default: `None`)
+    decay : `int` or `None`, optional (default: 10)
         Rate of alpha decay to use. If `None`, alpha decay is not used.
 
     distance : `str`, optional (default: `'euclidean'`)
@@ -66,7 +66,7 @@ def Graph(data,
         distance metric for building kNN graph.
         TODO: actually sklearn.neighbors has even more choices
 
-    thresh : `float`, optional (default: `1e-5`)
+    thresh : `float`, optional (default: `1e-4`)
         Threshold above which to calculate alpha decay kernel.
         All affinities below `thresh` will be set to zero in order to save
         on time and memory constraints.
