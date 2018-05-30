@@ -191,8 +191,19 @@ def Graph(data,
 
     log_debug(msg)
 
-    class Graph(*parent_classes):
-        pass
+    # Python3 syntax only
+    # class Graph(*parent_classes):
+    #     pass
+    if len(parent_classes) == 1:
+        Graph = parent_classes[0]
+    elif len(parent_classes) == 2:
+        class Graph(parent_classes[0], parent_classes[1]):
+            pass
+    elif len(parent_classes) == 2:
+        class Graph(parent_classes[0], parent_classes[1], parent_classes[2]):
+            pass
+    else:
+        raise RuntimeError("unknown graph classes")
 
     # build graph and return
     return Graph(data,
