@@ -87,11 +87,11 @@ def test_mnn_graph_float_gamma():
     G2 = graphtools.Graph(X, knn=k + 1, decay=a, beta=1 - beta, gamma=gamma,
                           distance=metric, sample_idx=sample_idx, thresh=0,
                           use_pygsp=True)
-    assert(G.N == G2.N)
-    assert(np.all(G.d == G2.d))
-    assert((G.W != G2.W).nnz == 0)
-    assert((G2.W != G.W).sum() == 0)
-    assert(isinstance(G2, graphtools.graphs.MNNGraph))
+    assert G.N == G2.N
+    assert np.all(G.d == G2.d), "{} != {}".format(G.d, G2.d)
+    assert (G.W != G2.W).nnz == 0
+    assert (G2.W != G.W).sum() == 0
+    assert isinstance(G2, graphtools.graphs.MNNGraph)
 
 
 def test_mnn_graph_matrix_gamma():
@@ -140,11 +140,11 @@ def test_mnn_graph_matrix_gamma():
     G2 = graphtools.Graph(X, knn=k + 1, decay=a, beta=1 - beta, gamma=gamma,
                           distance=metric, sample_idx=sample_idx, thresh=0,
                           use_pygsp=True)
-    assert(G.N == G2.N)
-    assert(np.all(G.d == G2.d))
-    assert((G.W != G2.W).nnz == 0)
-    assert((G2.W != G.W).sum() == 0)
-    assert(isinstance(G2, graphtools.graphs.MNNGraph))
+    assert G.N == G2.N
+    assert np.all(G.d == G2.d), "{} != {}".format(G.d, G2.d)
+    assert (G.W != G2.W).nnz == 0
+    assert (G2.W != G.W).sum() == 0
+    assert isinstance(G2, graphtools.graphs.MNNGraph)
 
 
 def test_mnn_graph_error():
