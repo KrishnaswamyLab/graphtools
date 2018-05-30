@@ -88,7 +88,10 @@ def test_mnn_graph_float_gamma():
                           distance=metric, sample_idx=sample_idx, thresh=0,
                           use_pygsp=True)
     assert G.N == G2.N
-    assert np.all(G.d == G2.d), "{} != {}".format(G.d, G2.d)
+    assert np.all(G.d == G2.d), "{} ({}, {})".format(
+        np.where(G.d != G2.d),
+        G.d[np.argwhere(G.d != G2.d).reshape(-1)],
+        G.d2[np.argwhere(G.d != G2.d).reshape(-1)])
     assert (G.W != G2.W).nnz == 0
     assert (G2.W != G.W).sum() == 0
     assert isinstance(G2, graphtools.graphs.MNNGraph)
@@ -141,7 +144,10 @@ def test_mnn_graph_matrix_gamma():
                           distance=metric, sample_idx=sample_idx, thresh=0,
                           use_pygsp=True)
     assert G.N == G2.N
-    assert np.all(G.d == G2.d), "{} != {}".format(G.d, G2.d)
+    assert np.all(G.d == G2.d), "{} ({}, {})".format(
+        np.where(G.d != G2.d),
+        G.d[np.argwhere(G.d != G2.d).reshape(-1)],
+        G.d2[np.argwhere(G.d != G2.d).reshape(-1)])
     assert (G.W != G2.W).nnz == 0
     assert (G2.W != G.W).sum() == 0
     assert isinstance(G2, graphtools.graphs.MNNGraph)
