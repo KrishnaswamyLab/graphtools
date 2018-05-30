@@ -8,7 +8,7 @@ install_requires = [
     'scipy>=0.18.0',
     'pygsp>=0.5.1',
     'scikit-learn>=0.19.1',
-    'future>=0.16.0',
+    'future',
 ]
 
 test_requires = [
@@ -23,7 +23,7 @@ version_py = os.path.join(os.path.dirname(
 version = open(version_py).read().strip().split(
     '=')[-1].replace('"', '').strip()
 
-readme = open('README.md').read()
+readme = open('README.rst').read()
 
 setup(name='graphtools',
       version=version,
@@ -36,4 +36,29 @@ setup(name='graphtools',
       extras_require={'test': test_requires},
       test_suite='nose2.collector.collector',
       long_description=readme,
+      url='https://github.com/KrishnaswamyLab/graphtools',
+      download_url="https://github.com/KrishnaswamyLab/graphtools/archive/v{}.tar.gz".format(
+          version),
+      keywords=['graphs',
+                'big-data',
+                'signal processing',
+                'manifold-learning',
+                ],
+      classifiers=[
+          'Development Status :: 4 - Beta',
+          'Environment :: Console',
+          'Framework :: Jupyter',
+          'Intended Audience :: Developers',
+          'Intended Audience :: Science/Research',
+          'Natural Language :: English',
+          'Operating System :: MacOS :: MacOS X',
+          'Operating System :: Microsoft :: Windows',
+          'Operating System :: POSIX :: Linux',
+          'Programming Language :: Python :: 2',
+          'Programming Language :: Python :: 2.7',
+          'Programming Language :: Python :: 3',
+          'Programming Language :: Python :: 3.5',
+          'Programming Language :: Python :: 3.6',
+          'Topic :: Scientific/Engineering :: Mathematics',
+      ]
       )
