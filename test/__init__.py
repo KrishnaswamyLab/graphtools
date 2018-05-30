@@ -63,7 +63,7 @@ def warns(*warns):
 
         def newfunc(*arg, **kw):
             with warnings.catch_warnings(record=True) as w:
-                warnings.filterwarnings("default")
+                warnings.filterwarnings("always")
                 func(*arg, **kw)
                 warnings.filterwarnings("error")
             try:

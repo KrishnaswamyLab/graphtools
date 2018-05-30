@@ -238,7 +238,9 @@ class kNNGraph(DataGraph):
                                           1 / self.decay)
             update_idx = np.argwhere(
                 np.max(distances, axis=1) < radius).reshape(-1)
-            if len(update_idx) > 0 and search_knn < len(self.data_nu):
+            log_debug("search_knn = {}; {} remaining".format(search_knn,
+                                                             len(update_idx)))
+            if len(update_idx) > 0:
                 distances = [d for d in distances]
                 indices = [i for i in indices]
             while len(update_idx) > len(Y) // 10 and \
@@ -252,10 +254,14 @@ class kNNGraph(DataGraph):
                     indices[idx] = ind_new[i]
                 update_idx = [i for i, d in enumerate(distances)
                               if np.max(d) < radius[i]]
+                log_debug("search_knn = {}; {} remaining".format(search_knn,
+                                                                 len(update_idx)))
             if search_knn > len(self.data_nu) / 2:
                 knn_tree = NearestNeighbors(knn, algorithm='brute',
                                             n_jobs=-1).fit(self.data_nu)
             if len(update_idx) > 0:
+                log_debug("radius search on {}".format(search_knn,
+                                                       len(update_idx)))
                 # give up - radius search
                 dist_new, ind_new = knn_tree.radius_neighbors(
                     Y[update_idx, :],
@@ -268,7 +274,8 @@ class kNNGraph(DataGraph):
             indices = np.concatenate(indices)
             indptr = np.concatenate(
                 [[0], np.cumsum([len(d) for d in distances])])
-            K = sparse.csr_matrix((data, indices, indptr))
+            K = sparse.csr_matrix((data, indices, indptr),
+                                  shape=(Y.shape[0], self.data_nu.shape[0]))
             K.data = np.exp(-1 * np.power(K.data, self.decay))
             # TODO: should we zero values that are below thresh?
             K.data[K.data < self.thresh] = 0
@@ -591,6 +598,10 @@ class TraditionalGraph(DataGraph):
             n_pca = None
             warnings.warn("n_pca cannot be given on a precomputed graph."
                           " Setting n_pca=None", RuntimeWarning)
+        if decay is None and precomputed not in ['affinity', 'adjacency']:
+            # decay high enough is basically a binary kernel
+            raise ValueError("`decay` must be provided for a TraditionalGraph"
+                             ". For kNN kernel, use kNNGraph.")
         if precomputed is not None:
             if precomputed not in ["distance", "affinity", "adjacency"]:
                 raise ValueError("Precomputed value {} not recognized. "
@@ -600,6 +611,9 @@ class TraditionalGraph(DataGraph):
                 raise ValueError("Precomputed {} must be a square matrix. "
                                  "{} was given".format(precomputed,
                                                        data.shape))
+            elif np.any(data < 0):
+                raise ValueError("Precomputed {} should be "
+                                 "non-negative".format(precomputed))
         self.knn = knn
         self.decay = decay
         self.distance = distance
@@ -736,12 +750,14 @@ class TraditionalGraph(DataGraph):
         if self.precomputed is not None:
             raise ValueError("Cannot extend kernel on precomputed graph")
         else:
+            log_start("affinities")
             Y = self._check_extension_shape(Y)
             pdx = cdist(Y, self.data_nu, metric=self.distance)
             knn_dist = np.partition(pdx, knn, axis=1)[:, :knn]
             epsilon = np.max(knn_dist, axis=1)
             pdx = (pdx.T / epsilon).T
             K = np.exp(-1 * pdx**self.decay)
+            log_complete("affinities")
         return K
 
 

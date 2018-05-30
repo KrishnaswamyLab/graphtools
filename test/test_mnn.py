@@ -72,7 +72,7 @@ def test_mnn_graph_float_gamma():
             kdx_ij = np.sort(pdx_ij, axis=1)  # get kNN
             e_ij = kdx_ij[:, k]             # dist to kNN
             pdxe_ij = pdx_ij / e_ij[:, np.newaxis]  # normalize
-            k_ij = np.exp(-1 * (pdxe_ij ** a))  # apply α-decaying kernel
+            k_ij = np.exp(-1 * (pdxe_ij ** a))  # apply alpha-decaying kernel
             if si == sj:
                 K.iloc[sample_idx == si, sample_idx == sj] = k_ij * \
                     (1 - beta)  # fill out values in K for NN on diagonal
@@ -117,12 +117,12 @@ def test_mnn_graph_matrix_gamma():
             kdx_ij = np.sort(pdx_ij, axis=1)  # get kNN
             e_ij = kdx_ij[:, k]             # dist to kNN
             pdxe_ij = pdx_ij / e_ij[:, np.newaxis]  # normalize
-            k_ij = np.exp(-1 * (pdxe_ij ** a))  # apply α-decaying kernel
+            k_ij = np.exp(-1 * (pdxe_ij ** a))  # apply alpha-decaying kernel
             if si == sj:
                 K.iloc[sample_idx == si, sample_idx == sj] = k_ij * \
-                    (1 - beta)  # fill out values in K for NN on diagnoal
+                    (1 - beta)  # fill out values in K for NN on diagonal
             else:
-                # fill out values in K for NN on diagnoal
+                # fill out values in K for NN on diagonal
                 K.iloc[sample_idx == si, sample_idx == sj] = k_ij
 
     K = np.array(K)
