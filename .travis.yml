@@ -4,6 +4,8 @@
     - "3.5"
     - "3.6"
 
+  sudo: required
+
   before_install:
     - pip install nose2
 
