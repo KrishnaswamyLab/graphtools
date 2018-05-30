@@ -106,9 +106,11 @@ def test_truncated_exact_graph():
     a = 13
     n_pca = 20
     thresh = 1e-4
-    pca = PCA(n_pca, svd_solver='randomized', random_state=42).fit(data)
-    data_nu = pca.transform(data)
-    pdx = squareform(pdist(data_nu, metric='euclidean'))
+    data_small = data[np.random.choice(
+        len(data), len(data) // 2, replace=False)]
+    pca = PCA(n_pca, svd_solver='randomized', random_state=42).fit(data_small)
+    data_small_nu = pca.transform(data_small)
+    pdx = squareform(pdist(data_small_nu, metric='euclidean'))
     knn_dist = np.partition(pdx, k, axis=1)[:, :k]
     epsilon = np.max(knn_dist, axis=1)
     weighted_pdx = (pdx.T / epsilon).T
@@ -118,7 +120,7 @@ def test_truncated_exact_graph():
     W[W < thresh] = 0
     np.fill_diagonal(W, 0)
     G = pygsp.graphs.Graph(W)
-    G2 = build_graph(data, thresh=thresh,
+    G2 = build_graph(data_small, thresh=thresh,
                      graphtype='exact',
                      n_pca=n_pca,
                      decay=a, knn=k, random_state=42,
