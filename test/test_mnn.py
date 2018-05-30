@@ -171,7 +171,7 @@ def test_mnn_graph_error():
 
 def test_verbose():
     X, sample_idx = generate_swiss_roll()
-    build_graph(X, sample_idx=sample_idx, verbose=True)
+    build_graph(X, sample_idx=sample_idx, n_pca=None, verbose=True)
 
 
 if __name__ == "__main__":
