@@ -170,7 +170,8 @@ def test_mnn_graph_error():
 # TODO: add interpolation tests
 
 def test_verbose():
-    build_graph(data, sample_idx=digits['target'], verbose=True)
+    X, sample_idx = generate_swiss_roll()
+    build_graph(X, sample_idx=sample_idx, verbose=True)
 
 
 if __name__ == "__main__":
