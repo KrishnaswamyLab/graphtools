@@ -649,9 +649,6 @@ class kNNGraph(DataGraph):
     """
     K nearest neighbors graph
 
-    TODO: kNNGraph with thresh=0 is just a TraditionalGraph. Should this
-    be resolved?
-
     Parameters
     ----------
 
@@ -670,7 +667,7 @@ class kNNGraph(DataGraph):
         distance metric for building kNN graph.
         TODO: actually sklearn.neighbors has even more choices
 
-    thresh : `float`, optional (default: `1e-5`)
+    thresh : `float`, optional (default: `1e-4`)
         Threshold above which to calculate alpha decay kernel.
         All affinities below `thresh` will be set to zero in order to save
         on time and memory constraints.
@@ -686,7 +683,7 @@ class kNNGraph(DataGraph):
 
     def __init__(self, data, knn=5, decay=None,
                  distance='euclidean',
-                 thresh=1e-5, **kwargs):
+                 thresh=1e-4, **kwargs):
         self.knn = knn
         self.decay = decay
         self.distance = distance
@@ -1198,6 +1195,11 @@ class TraditionalGraph(DataGraph):
         Note: if data is sparse, uses SVD instead of PCA.
         Only one of `precomputed` and `n_pca` can be set.
 
+    thresh : `float`, optional (default: `1e-4`)
+        Threshold above which to calculate alpha decay kernel.
+        All affinities below `thresh` will be set to zero in order to save
+        on time and memory constraints.
+
     precomputed : {'distance', 'affinity', 'adjacency', `None`}, optional (default: `None`)
         If the graph is precomputed, this variable denotes which graph
         matrix is provided as `data`.
@@ -1206,6 +1208,7 @@ class TraditionalGraph(DataGraph):
 
     def __init__(self, data, knn=5, decay=10,
                  distance='euclidean', n_pca=None,
+                 thresh=1e-4,
                  precomputed=None, **kwargs):
         if precomputed is not None and n_pca is not None:
             # the data itself is a matrix of distances / affinities
@@ -1224,6 +1227,7 @@ class TraditionalGraph(DataGraph):
         self.knn = knn
         self.decay = decay
         self.distance = distance
+        self.thresh = thresh
         self.precomputed = precomputed
 
         super().__init__(data, n_pca=n_pca,
@@ -1318,6 +1322,7 @@ class TraditionalGraph(DataGraph):
             log_complete("affinities")
         # symmetrize
         K = (K + K.T) / 2
+        K[K < self.thresh] = 0
         return K
 
     def build_kernel_to_data(self, Y, knn=None):

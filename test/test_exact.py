@@ -64,8 +64,8 @@ def test_exact_graph():
     epsilon = np.max(knn_dist, axis=1)
     weighted_pdx = (pdx.T / epsilon).T
     K = np.exp(-1 * weighted_pdx**a)
-    K = K + K.T
-    W = np.divide(K, 2)
+    W = K + K.T
+    W = np.divide(W, 2)
     np.fill_diagonal(W, 0)
     G = pygsp.graphs.Graph(W)
     G2 = build_graph(data, thresh=0, n_pca=n_pca,
@@ -83,8 +83,62 @@ def test_exact_graph():
     assert((G.W != G2.W).nnz == 0)
     assert((G2.W != G.W).sum() == 0)
     assert(isinstance(G2, graphtools.TraditionalGraph))
-    G2 = build_graph(K / 2, n_pca=None,
+    G2 = build_graph(K, n_pca=None,
                      precomputed='affinity',
+                     random_state=42, use_pygsp=True)
+    assert(G.N == G2.N)
+    assert(np.all(G.d == G2.d))
+    assert((G.W != G2.W).nnz == 0)
+    assert((G2.W != G.W).sum() == 0)
+    assert(isinstance(G2, graphtools.TraditionalGraph))
+    G2 = build_graph(W, n_pca=None,
+                     precomputed='adjacency',
+                     random_state=42, use_pygsp=True)
+    assert(G.N == G2.N)
+    assert(np.all(G.d == G2.d))
+    assert((G.W != G2.W).nnz == 0)
+    assert((G2.W != G.W).sum() == 0)
+    assert(isinstance(G2, graphtools.TraditionalGraph))
+
+
+def test_truncated_exact_graph():
+    k = 3
+    a = 13
+    n_pca = 20
+    thresh = 1e-4
+    pca = PCA(n_pca, svd_solver='randomized', random_state=42).fit(data)
+    data_nu = pca.transform(data)
+    pdx = squareform(pdist(data_nu, metric='euclidean'))
+    knn_dist = np.partition(pdx, k, axis=1)[:, :k]
+    epsilon = np.max(knn_dist, axis=1)
+    weighted_pdx = (pdx.T / epsilon).T
+    K = np.exp(-1 * weighted_pdx**a)
+    W = K + K.T
+    W = np.divide(W, 2)
+    W[W < thresh] = 0
+    np.fill_diagonal(W, 0)
+    G = pygsp.graphs.Graph(W)
+    G2 = build_graph(data, thresh=thresh,
+                     graphtype='exact',
+                     n_pca=n_pca,
+                     decay=a, knn=k, random_state=42,
+                     use_pygsp=True)
+    assert(G.N == G2.N)
+    assert(np.all(G.d == G2.d))
+    assert((G.W != G2.W).nnz == 0)
+    assert((G2.W != G.W).sum() == 0)
+    assert(isinstance(G2, graphtools.TraditionalGraph))
+    G2 = build_graph(pdx, n_pca=None, precomputed='distance',
+                     thresh=thresh,
+                     decay=a, knn=k, random_state=42, use_pygsp=True)
+    assert(G.N == G2.N)
+    assert(np.all(G.d == G2.d))
+    assert((G.W != G2.W).nnz == 0)
+    assert((G2.W != G.W).sum() == 0)
+    assert(isinstance(G2, graphtools.TraditionalGraph))
+    G2 = build_graph(K, n_pca=None,
+                     precomputed='affinity',
+                     thresh=thresh,
                      random_state=42, use_pygsp=True)
     assert(G.N == G2.N)
     assert(np.all(G.d == G2.d))
