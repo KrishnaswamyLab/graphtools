@@ -29,7 +29,7 @@ def generate_swiss_roll(n_samples=1000, noise=0.5, seed=42):
     X = np.concatenate((x, y))
     X += noise * generator.randn(2, n_samples)
     X = X.T[np.argsort(t)]
-    X = np.hstack((X, z.reshape(3000, 1)))
+    X = np.hstack((X, z.reshape(n_samples, 1)))
     return X, sample_idx
 
 
