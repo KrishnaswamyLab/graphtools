@@ -7,7 +7,7 @@ install_requires = [
     'pandas>=0.18.0',
     'scipy>=0.14.0',
     'pygsp>=0.5.1',
-    'sklearn>=0.19.1',
+    'scikit-learn>=0.19.1',
     'future>=0.16.0',
 ]
 
