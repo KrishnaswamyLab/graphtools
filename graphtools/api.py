@@ -121,6 +121,8 @@ def Graph(data,
     initialize : `bool` (Default: `True`)
         If True, initialize the kernel matrix on instantiation
 
+    **kwargs : extra arguments for `pygsp.graphs.Graph`
+
     Returns
     -------
     G : `DataGraph`
@@ -206,6 +208,26 @@ def Graph(data,
         raise RuntimeError("unknown graph classes")
 
     # build graph and return
+    log_debug("Initializing {} with arguments {}".format(
+        parent_classes,
+        {
+            'n_pca': n_pca,
+            'sample_idx': sample_idx,
+            'adaptive_k': adaptive_k,
+            'precomputed': precomputed,
+            'knn': knn,
+            'decay': decay,
+            'distance': distance,
+            'thresh': thresh,
+            'n_landmark': n_landmark,
+            'n_svd': n_svd,
+            'beta': beta,
+            'gamma': gamma,
+            'n_jobs': n_jobs,
+            'verbose': verbose,
+            'random_state': random_state,
+            'initialize': initialize
+        }))
     return Graph(data,
                  n_pca=n_pca,
                  sample_idx=sample_idx,

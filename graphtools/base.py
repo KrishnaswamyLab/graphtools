@@ -25,7 +25,16 @@ from .logging import (set_logging,
                       log_debug)
 
 
-class Data(object):
+class Base(object):
+    """Class that deals with key-word arguments but is otherwise
+    just an object.
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__()
+
+
+class Data(Base):
     """Parent class that handles the import and dimensionality reduction of data
 
     Parameters
@@ -79,7 +88,7 @@ class Data(object):
         self.random_state = random_state
 
         self.data_nu = self._reduce_data()
-        super().__init__()
+        super().__init__(**kwargs)
 
     def _reduce_data(self):
         """Private method to reduce data dimension.
@@ -278,7 +287,7 @@ class Data(object):
                                  Y.shape, self.data_nu.shape))
 
 
-class BaseGraph(with_metaclass(abc.ABCMeta, object)):
+class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
     """Parent graph class
 
     Parameters
@@ -304,8 +313,11 @@ class BaseGraph(with_metaclass(abc.ABCMeta, object)):
 
     def __init__(self, initialize=True, **kwargs):
         if initialize:
+            log_debug("Initializing kernel...")
             self.K
-        super().__init__()
+        else:
+            log_debug("Not initializing kernel.")
+        super().__init__(**kwargs)
 
     def _build_kernel(self):
         """Private method to build kernel matrix
@@ -425,6 +437,14 @@ class PyGSPGraph(with_metaclass(abc.ABCMeta, pygsp.graphs.Graph)):
 
     def __init__(self, **kwargs):
         W = self._build_weight_from_kernel(self.K)
+
+        # delete non-pygsp keywords
+        # TODO: is there a better way?
+        keywords = [k for k in kwargs.keys()]
+        for kw in keywords:
+            if kw not in ['gtype', 'lap_type', 'coords', 'plotting']:
+                del kwargs[kw]
+
         super().__init__(W=W, **kwargs)
 
     @property
