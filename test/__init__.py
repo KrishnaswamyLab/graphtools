@@ -18,7 +18,7 @@ digits = datasets.load_digits()
 data = digits['data']
 
 
-def generate_swiss_roll(n_samples=3000, noise=0.5, seed=42):
+def generate_swiss_roll(n_samples=1000, noise=0.5, seed=42):
     generator = np.random.RandomState(seed)
     t = 1.5 * np.pi * (1 + 2 * generator.rand(1, n_samples))
     x = t * np.cos(t)

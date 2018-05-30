@@ -67,7 +67,7 @@ def test_knn_graph():
 
 
 def test_sparse_alpha_knn_graph():
-    data = datasets.make_swiss_roll(n_samples=5000)[0]
+    data = datasets.make_swiss_roll()[0]
     k = 5
     a = 0.45
     thresh = 0.01

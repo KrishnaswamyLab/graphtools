@@ -1,5 +1,6 @@
 from . import (
     graphtools,
+    np,
     nose2,
     data,
     digits,
@@ -53,10 +54,11 @@ def test_landmark_knn_graph():
 def test_landmark_mnn_graph():
     n_landmark = 500
     # mnn graph
-    G = build_graph(data, n_landmark=n_landmark,
+    select_idx = np.random.choice([True, False], len(data), replace=True)
+    G = build_graph(data[select_idx], n_landmark=n_landmark,
                     thresh=1e-5, n_pca=20,
                     decay=10, knn=5, random_state=42,
-                    sample_idx=digits['target'])
+                    sample_idx=digits['target'][select_idx])
     assert(G.landmark_op.shape == (n_landmark, n_landmark))
     assert(isinstance(G, graphtools.graphs.MNNGraph))
     assert(isinstance(G, graphtools.graphs.LandmarkGraph))
