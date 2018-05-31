@@ -1,7 +1,7 @@
 from . import (
     graphtools,
     np,
-    sparse,
+    sp,
     pygsp,
     nose2,
     data,
@@ -104,7 +104,7 @@ def test_exact_graph():
     assert((G.W != G2.W).nnz == 0)
     assert((G2.W != G.W).sum() == 0)
     assert(isinstance(G2, graphtools.graphs.TraditionalGraph))
-    G2 = build_graph(sparse.coo_matrix(K), n_pca=None,
+    G2 = build_graph(sp.coo_matrix(K), n_pca=None,
                      precomputed='affinity',
                      random_state=42, use_pygsp=True)
     assert(G.N == G2.N)
