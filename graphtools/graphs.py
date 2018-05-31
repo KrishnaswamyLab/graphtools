@@ -612,7 +612,7 @@ class TraditionalGraph(DataGraph):
                 raise ValueError("Precomputed {} must be a square matrix. "
                                  "{} was given".format(precomputed,
                                                        data.shape))
-            elif np.any(data < 0):
+            elif (data < 0).sum() > 0:
                 raise ValueError("Precomputed {} should be "
                                  "non-negative".format(precomputed))
         self.knn = knn
@@ -713,7 +713,13 @@ class TraditionalGraph(DataGraph):
             log_complete("affinities")
         # symmetrize
         K = (K + K.T) / 2
-        K[K < self.thresh] = 0
+        if sparse.issparse(K):
+            K.data[K.data < self.thresh] = 0
+            K = K.tocoo()
+            K.eliminate_zeros()
+            K = K.tocsr()
+        else:
+            K[K < self.thresh] = 0
         return K
 
     def build_kernel_to_data(self, Y, knn=None):
