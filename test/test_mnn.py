@@ -91,7 +91,7 @@ def test_mnn_graph_float_gamma():
     assert np.all(G.d == G2.d), "{} ({}, {})".format(
         np.where(G.d != G2.d),
         G.d[np.argwhere(G.d != G2.d).reshape(-1)],
-        G.d[np.argwhere(G.d != G2.d).reshape(-1)])
+        G2.d[np.argwhere(G.d != G2.d).reshape(-1)])
     assert (G.W != G2.W).nnz == 0
     assert (G2.W != G.W).sum() == 0
     assert isinstance(G2, graphtools.graphs.MNNGraph)
@@ -147,7 +147,7 @@ def test_mnn_graph_matrix_gamma():
     assert np.all(G.d == G2.d), "{} ({}, {})".format(
         np.where(G.d != G2.d),
         G.d[np.argwhere(G.d != G2.d).reshape(-1)],
-        G.d[np.argwhere(G.d != G2.d).reshape(-1)])
+        G2.d[np.argwhere(G.d != G2.d).reshape(-1)])
     assert (G.W != G2.W).nnz == 0
     assert (G2.W != G.W).sum() == 0
     assert isinstance(G2, graphtools.graphs.MNNGraph)
