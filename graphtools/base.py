@@ -3,25 +3,21 @@ from builtins import super
 import numpy as np
 import abc
 import pygsp
-from sklearn.neighbors import NearestNeighbors, kneighbors_graph
 from sklearn.decomposition import PCA
-from scipy.spatial.distance import pdist, cdist
-from scipy.spatial.distance import squareform
 from sklearn.utils.extmath import randomized_svd
 from sklearn.preprocessing import normalize
-from sklearn.cluster import MiniBatchKMeans
 from scipy import sparse
-import numbers
 import warnings
+try:
+    import pandas as pd
+except ImportError:
+    # pandas not installed
+    pass
 
-from .utils import (elementwise_minimum,
-                    elementwise_maximum,
-                    set_diagonal,
-                    set_submatrix)
+from .utils import set_diagonal
 from .logging import (set_logging,
                       log_start,
                       log_complete,
-                      log_warning,
                       log_debug)
 
 
@@ -83,6 +79,14 @@ class Data(Base):
                                                            data.shape[1]),
                           RuntimeWarning)
             n_pca = None
+        try:
+            if isinstance(data, pd.SparseDataFrame):
+                data = data.to_coo()
+            elif isinstance(data, pd.DataFrame):
+                data = np.array(data)
+        except NameError:
+            # pandas not installed
+            pass
         self.data = data
         self.n_pca = n_pca
         self.random_state = random_state

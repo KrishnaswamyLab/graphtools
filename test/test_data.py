@@ -1,6 +1,8 @@
 from . import (
     np,
     sp,
+    pd,
+    graphtools,
     nose2,
     data,
     build_graph,
@@ -36,6 +38,23 @@ def test_precomputed_with_pca():
     build_graph(squareform(pdist(data)),
                 precomputed='distance',
                 n_pca=20)
+
+
+#####################################################
+# Check data types
+#####################################################
+
+
+def test_pandas_dataframe():
+    G = build_graph(pd.DataFrame(data))
+    assert isinstance(G, graphtools.base.BaseGraph)
+    assert isinstance(G.data, np.ndarray)
+
+
+def test_pandas_sparse_dataframe():
+    G = build_graph(pd.SparseDataFrame(data))
+    assert isinstance(G, graphtools.base.BaseGraph)
+    assert isinstance(G.data, sp.coo_matrix)
 
 
 #####################################################

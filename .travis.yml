@@ -7,7 +7,7 @@
   sudo: required
 
   before_install:
-    - pip install nose2
+    - pip install nose2 pandas
 
   script:
     - python -m nose2 -v
