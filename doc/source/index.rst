@@ -28,7 +28,7 @@ Tools for building and manipulating graphs in Python.
     :maxdepth: 2
 
     installation
-    api
+    reference
 
 Quick Start
 ===========
