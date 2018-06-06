@@ -29,8 +29,8 @@ class kNNGraph(DataGraph):
     ----------
 
     data : array-like, shape=[n_samples,n_features]
-        accepted types: `numpy.ndarray`, `scipy.sparse.spmatrix`.
-        TODO: accept pandas dataframes
+        accepted types: `numpy.ndarray`, `scipy.sparse.spmatrix`,
+        `pandas.DataFrame`, `pandas.SparseDataFrame`.
 
     knn : `int`, optional (default: 5)
         Number of nearest neighbors (including self) to use to build the graph
@@ -300,8 +300,8 @@ class LandmarkGraph(DataGraph):
     ----------
 
     data : array-like, shape=[n_samples,n_features]
-        accepted types: `numpy.ndarray`, `scipy.sparse.spmatrix`.
-        TODO: accept pandas dataframes
+        accepted types: `numpy.ndarray`, `scipy.sparse.spmatrix`.,
+        `pandas.DataFrame`, `pandas.SparseDataFrame`.
 
     n_landmark : `int`, optional (default: 2000)
         number of landmarks to use
@@ -549,18 +549,15 @@ class LandmarkGraph(DataGraph):
 class TraditionalGraph(DataGraph):
     """Traditional weighted adjacency graph
 
-    TODO: kNNGraph with thresh=0 is just a TraditionalGraph. Should this
-    be resolved?
-
     Parameters
     ----------
 
     data : array-like, shape=[n_samples,n_features]
-        accepted types: `numpy.ndarray`, `scipy.sparse.spmatrix`.
+        accepted types: `numpy.ndarray`, `scipy.sparse.spmatrix`,
+        `pandas.DataFrame`, `pandas.SparseDataFrame`.
         If `precomputed` is not `None`, data should be an
         [n_samples, n_samples] matrix denoting pairwise distances,
         affinities, or edge weights.
-        TODO: accept pandas dataframes
 
     knn : `int`, optional (default: 5)
         Number of nearest neighbors (including self) to use to build the graph
@@ -777,6 +774,11 @@ class MNNGraph(DataGraph):
 
     Parameters
     ----------
+
+    data : array-like, shape=[n_samples,n_features]
+        accepted types: `numpy.ndarray`, `scipy.sparse.spmatrix`.,
+        `pandas.DataFrame`, `pandas.SparseDataFrame`.
+
     sample_idx: array-like, shape=[n_samples]
         Batch index
 

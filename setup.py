@@ -4,7 +4,6 @@ from setuptools import setup
 
 install_requires = [
     'numpy>=1.10.0',
-    'pandas>=0.18.0',
     'scipy>=0.18.0',
     'pygsp>=0.5.1',
     'scikit-learn>=0.19.1',

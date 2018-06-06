@@ -8,6 +8,9 @@ graphtools
 .. image:: https://api.travis-ci.com/KrishnaswamyLab/graphtools.svg?branch=master
     :target: https://travis-ci.com/KrishnaswamyLab/graphtools
     :alt: Travis CI Build
+.. image:: https://img.shields.io/readthedocs/graphtools.svg
+    :target: https://graphtools.readthedocs.io/
+    :alt: Read the Docs
 .. image:: https://img.shields.io/twitter/follow/KrishnaswamyLab.svg?style=social&label=Follow
     :target: https://twitter.com/KrishnaswamyLab
     :alt: Twitter
