@@ -205,44 +205,17 @@ def Graph(data,
         class Graph(parent_classes[0], parent_classes[1], parent_classes[2]):
             pass
     else:
-        raise RuntimeError("unknown graph classes")
+        raise RuntimeError("unknown graph classes {}".format(parent_classes))
+
+    params = {}
+    for parent_class in parent_classes:
+        for param in parent_class._get_param_names():
+            params[param] = eval(param)
 
     # build graph and return
     log_debug("Initializing {} with arguments {}".format(
         parent_classes,
-        {
-            'n_pca': n_pca,
-            'sample_idx': sample_idx,
-            'adaptive_k': adaptive_k,
-            'precomputed': precomputed,
-            'knn': knn,
-            'decay': decay,
-            'distance': distance,
-            'thresh': thresh,
-            'n_landmark': n_landmark,
-            'n_svd': n_svd,
-            'beta': beta,
-            'gamma': gamma,
-            'n_jobs': n_jobs,
-            'verbose': verbose,
-            'random_state': random_state,
-            'initialize': initialize
-        }))
+        params))
     return Graph(data,
-                 n_pca=n_pca,
-                 sample_idx=sample_idx,
-                 adaptive_k=adaptive_k,
-                 precomputed=precomputed,
-                 knn=knn,
-                 decay=decay,
-                 distance=distance,
-                 thresh=thresh,
-                 n_landmark=n_landmark,
-                 n_svd=n_svd,
-                 beta=beta,
-                 gamma=gamma,
-                 n_jobs=n_jobs,
-                 verbose=verbose,
-                 random_state=random_state,
-                 initialize=initialize,
+                 **params,
                  **kwargs)
