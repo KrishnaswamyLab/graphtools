@@ -172,19 +172,7 @@ class kNNGraph(DataGraph):
             symmetric matrix with ones down the diagonal
             with no non-negative entries.
         """
-        if self.decay is None or self.thresh == 1:
-            # binary connectivity matrix
-            # sklearn has a function for this
-            log_start("KNN search")
-            K = kneighbors_graph(self.knn_tree,
-                                 n_neighbors=self.knn,
-                                 metric=self.distance,
-                                 mode='connectivity',
-                                 include_self=True)
-            log_complete("KNN search")
-        else:
-            # sparse fast alpha decay
-            K = self.build_kernel_to_data(self.data_nu)
+        K = self.build_kernel_to_data(self.data_nu)
         # symmetrize
         K = (K + K.T) / 2
         return K
