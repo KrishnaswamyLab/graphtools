@@ -113,14 +113,6 @@ def test_inverse_transform_dense_no_pca():
     assert_raises(ValueError, G.inverse_transform, G.data[:, :15])
 
 
-def test_inverse_transform_sparse_pca():
-    G = build_graph(data, sparse=True, n_pca=data.shape[1] - 1)
-    assert(np.allclose(G.data.toarray(), G.inverse_transform(G.data_nu)))
-    assert_raises(ValueError, G.inverse_transform, sp.csr_matrix(G.data)[:, 0])
-    assert_raises(ValueError, G.inverse_transform,
-                  sp.csr_matrix(G.data)[:, :15])
-
-
 def test_inverse_transform_sparse_no_pca():
     G = build_graph(data, sparse=True, n_pca=None)
     assert(np.sum(G.data != G.inverse_transform(G.data_nu)) == 0)
