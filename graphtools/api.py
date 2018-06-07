@@ -201,7 +201,7 @@ def Graph(data,
     elif len(parent_classes) == 2:
         class Graph(parent_classes[0], parent_classes[1]):
             pass
-    elif len(parent_classes) == 2:
+    elif len(parent_classes) == 3:
         class Graph(parent_classes[0], parent_classes[1], parent_classes[2]):
             pass
     else:
