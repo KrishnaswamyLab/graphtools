@@ -5,16 +5,20 @@ import abc
 import pygsp
 from sklearn.decomposition import PCA
 from sklearn.utils.extmath import randomized_svd
+from sklearn.utils.fixes import signature
 from sklearn.preprocessing import normalize
 from scipy import sparse
 import warnings
+import numbers
 try:
     import pandas as pd
 except ImportError:
     # pandas not installed
     pass
 
-from .utils import set_diagonal
+from .utils import (elementwise_minimum,
+                    elementwise_maximum,
+                    set_diagonal)
 from .logging import (set_logging,
                       log_start,
                       log_complete,
@@ -26,8 +30,37 @@ class Base(object):
     just an object.
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self):
         super().__init__()
+
+    @classmethod
+    def _get_param_names(cls):
+        """Get parameter names for the estimator"""
+        # fetch the constructor or the original constructor before
+        # deprecation wrapping if any
+        init = getattr(cls.__init__, 'deprecated_original', cls.__init__)
+        if init is object.__init__:
+            # No explicit constructor to introspect
+            return []
+
+        # introspect the constructor arguments to find the model parameters
+        # to represent
+        init_signature = signature(init)
+        # Consider the constructor parameters excluding 'self'
+        parameters = [p for p in init_signature.parameters.values()
+                      if p.name != 'self' and p.kind != p.VAR_KEYWORD]
+        # Extract and sort argument names excluding 'self'
+        parameters = set([p.name for p in parameters])
+
+        # recurse
+        for superclass in cls.__bases__:
+            try:
+                parameters.update(superclass._get_param_names())
+            except AttributeError:
+                # object and pygsp.graphs.Graph don't have this method
+                pass
+
+        return parameters
 
 
 class Data(Base):
@@ -37,7 +70,7 @@ class Data(Base):
     ----------
     data : array-like, shape=[n_samples,n_features]
         accepted types: `numpy.ndarray`, `scipy.sparse.spmatrix`.
-        TODO: accept pandas dataframes
+        `pandas.DataFrame`, `pandas.SparseDataFrame`.
 
     n_pca : `int` or `None`, optional (default: `None`)
         number of PC dimensions to retain for graph building.
@@ -297,6 +330,17 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
     Parameters
     ----------
 
+    kernel_symm : string, optional (default: '+')
+        Defines method of MNN symmetrization.
+        '+'  : additive
+        '*'  : multiplicative
+        'gamma' : min-max
+        'none' : no symmetrization
+
+    gamma: float (default: 0.5)
+        Min-max symmetrization constant.
+        K = `gamma * min(K, K.T) + (1 - gamma) * max(K, K.T)`
+
     initialize : `bool`, optional (default : `True`)
         if false, don't create the kernel matrix.
 
@@ -315,13 +359,29 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
     diff_op : synonym for `P`
     """
 
-    def __init__(self, initialize=True, **kwargs):
+    def __init__(self, kernel_symm='+',
+                 gamma=0.5,
+                 initialize=True, **kwargs):
+        self.kernel_symm = kernel_symm
+        self.gamma = gamma
+        self._check_symmetrization(kernel_symm, gamma)
+
         if initialize:
             log_debug("Initializing kernel...")
             self.K
         else:
             log_debug("Not initializing kernel.")
         super().__init__(**kwargs)
+
+    def _check_symmetrization(self, kernel_symm, gamma):
+        if kernel_symm not in ['+', '*', 'gamma', 'none']:
+            raise ValueError(
+                "kernel_symm '{}' not recognized. Choose from "
+                "'+', '*', 'gamma', or 'none'.".format(kernel_symm))
+        elif kernel_symm == 'gamma':
+            if not isinstance(gamma, numbers.Number) or gamma < 0 or gamma > 1:
+                raise ValueError("gamma {} not recognized. "
+                                 "Expected a float between 0 and 1".format(gamma))
 
     def _build_kernel(self):
         """Private method to build kernel matrix
@@ -338,16 +398,41 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         RuntimeWarning : if K is not symmetric
         """
         kernel = self.build_kernel()
+        kernel = self.symmetrize_kernel(kernel)
         if (kernel - kernel.T).max() > 1e-5:
             warnings.warn("K should be symmetric", RuntimeWarning)
         if np.any(kernel.diagonal == 0):
             warnings.warn("K should have a non-zero diagonal", RuntimeWarning)
         return kernel
 
+    def symmetrize_kernel(self, K):
+        # symmetrize
+        if self.kernel_symm == "+":
+            log_debug("Using addition symmetrization.")
+            K = (K + K.T) / 2
+        elif self.kernel_symm == "*":
+            log_debug("Using multiplication symmetrization.")
+            K = K.multiply(K.T)
+        elif self.kernel_symm == 'gamma':
+            log_debug(
+                "Using gamma symmetrization (gamma = {}).".format(self.gamma))
+            K = self.gamma * elementwise_minimum(K, K.T) + \
+                (1 - self.gamma) * elementwise_maximum(K, K.T)
+        elif self.kernel_symm == 'none':
+            log_debug("Using no symmetrization.")
+            pass
+        else:
+            # this should never happen
+            raise ValueError(
+                "Expected kernel_symm in ['+', '*', 'gamma' or 'none']. "
+                "Got {}".format(self.gamma))
+        return K
+
     def get_params(self):
         """Get parameters from this object
         """
-        return {}
+        return {'kernel_symm': self.kernel_symm,
+                'gamma': self.gamma}
 
     def set_params(self, **params):
         """Set parameters on this object
@@ -355,6 +440,9 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         Safe setter method - attributes should not be modified directly as some
         changes are not valid.
         Valid parameters:
+        Invalid parameters: (these would require modifying the kernel matrix)
+        - kernel_symm
+        - gamma
 
         Parameters
         ----------
@@ -364,6 +452,11 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         -------
         self
         """
+        if 'gamma' in params and params['gamma'] != self.gamma:
+            raise ValueError("Cannot update gamma. Please create a new graph")
+        if 'kernel_symm' in params and params['kernel_symm'] != self.kernel_symm:
+            raise ValueError(
+                "Cannot update kernel_symm. Please create a new graph")
         return self
 
     @property
@@ -429,7 +522,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         raise NotImplementedError
 
 
-class PyGSPGraph(with_metaclass(abc.ABCMeta, pygsp.graphs.Graph)):
+class PyGSPGraph(with_metaclass(abc.ABCMeta, pygsp.graphs.Graph, Base)):
     """Interface between BaseGraph and PyGSP.
 
     All graphs should possess these matrices. We inherit a lot
@@ -439,17 +532,15 @@ class PyGSPGraph(with_metaclass(abc.ABCMeta, pygsp.graphs.Graph)):
     kernel matrix
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, gtype='unknown', lap_type='combinatorial', coords=None, plotting=None, **kwargs):
+        if plotting is None:
+            plotting = {}
         W = self._build_weight_from_kernel(self.K)
 
-        # delete non-pygsp keywords
-        # TODO: is there a better way?
-        keywords = [k for k in kwargs.keys()]
-        for kw in keywords:
-            if kw not in ['gtype', 'lap_type', 'coords', 'plotting']:
-                del kwargs[kw]
-
-        super().__init__(W=W, **kwargs)
+        super().__init__(W=W, gtype=gtype,
+                         lap_type=lap_type,
+                         coords=coords,
+                         plotting=plotting, **kwargs)
 
     @property
     @abc.abstractmethod

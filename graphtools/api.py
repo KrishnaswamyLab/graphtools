@@ -16,10 +16,11 @@ def Graph(data,
           decay=10,
           distance='euclidean',
           thresh=1e-4,
+          kernel_symm='+',
+          gamma=0.5,
           n_landmark=None,
           n_svd=100,
           beta=1,
-          gamma=0.5,
           n_jobs=-1,
           verbose=False,
           random_state=None,
@@ -71,6 +72,17 @@ def Graph(data,
         All affinities below `thresh` will be set to zero in order to save
         on time and memory constraints.
 
+    kernel_symm : string, optional (default: '+')
+        Defines method of MNN symmetrization.
+        '+'  : additive
+        '*'  : multiplicative
+        'gamma' : min-max
+        'none' : no symmetrization
+
+    gamma: float (default: 0.5)
+        Min-max symmetrization constant.
+        K = `gamma * min(K, K.T) + (1 - gamma) * max(K, K.T)`
+
     precomputed : {'distance', 'affinity', 'adjacency', `None`}, optional (default: `None`)
         If the graph is precomputed, this variable denotes which graph
         matrix is provided as `data`.
@@ -78,11 +90,6 @@ def Graph(data,
 
     beta: float, optional(default: 1)
         Multiply within - batch connections by(1 - beta)
-
-    gamma: float or {'+', '*'} (default: 0.99)
-        Symmetrization method. If '+', use `(K + K.T) / 2`,
-        if '*', use `K * K.T`, if a float, use
-        `gamma * min(K, K.T) + (1 - gamma) * max(K, K.T)`
 
     sample_idx: array-like
         Batch index for MNN kernel
@@ -207,15 +214,17 @@ def Graph(data,
     else:
         raise RuntimeError("unknown graph classes {}".format(parent_classes))
 
-    params = {}
+    params = kwargs
     for parent_class in parent_classes:
         for param in parent_class._get_param_names():
-            params[param] = eval(param)
+            try:
+                params[param] = eval(param)
+            except NameError:
+                # keyword argument not specified above - no problem
+                pass
 
     # build graph and return
     log_debug("Initializing {} with arguments {}".format(
         parent_classes,
         params))
-    return Graph(data,
-                 **params,
-                 **kwargs)
+    return Graph(**params)
