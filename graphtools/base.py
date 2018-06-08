@@ -3,9 +3,8 @@ from builtins import super
 import numpy as np
 import abc
 import pygsp
-from sklearn.decomposition import PCA
-from sklearn.utils.extmath import randomized_svd
 from sklearn.utils.fixes import signature
+from sklearn.decomposition import PCA, TruncatedSVD
 from sklearn.preprocessing import normalize
 from scipy import sparse
 import warnings
@@ -91,14 +90,8 @@ class Data(Base):
     data_nu : array-like, shape=[n_samples,n_pca]
         Reduced data matrix
 
-    U : array-like, shape=[n_samples, n_pca]
-        Left singular vectors from PCA calculation
-
-    S : array-like, shape=[n_pca]
-        Singular values from PCA calculation
-
-    V : array-like, shape=[n_features, n_pca]
-        Right singular vectors from SVD calculation
+    data_pca : sklearn.decomposition.PCA or sklearn.decomposition.TruncatedSVD
+        sklearn PCA operator
     """
 
     def __init__(self, data, n_pca=None, random_state=None, **kwargs):
@@ -123,7 +116,6 @@ class Data(Base):
         self.data = data
         self.n_pca = n_pca
         self.random_state = random_state
-
         self.data_nu = self._reduce_data()
         super().__init__(**kwargs)
 
@@ -141,17 +133,14 @@ class Data(Base):
         if self.n_pca is not None and self.n_pca < self.data.shape[1]:
             log_start("PCA")
             if sparse.issparse(self.data):
-                _, _, VT = randomized_svd(self.data, self.n_pca,
-                                          random_state=self.random_state)
-                V = VT.T
-                self._right_singular_vectors = V
-                data_nu = self.data.dot(V)
+                self.data_pca = TruncatedSVD(self.n_pca,
+                                             random_state=self.random_state)
             else:
-                self.pca = PCA(self.n_pca,
-                               svd_solver='randomized',
-                               random_state=self.random_state)
-                self.pca.fit(self.data)
-                data_nu = self.pca.transform(self.data)
+                self.data_pca = PCA(self.n_pca,
+                                    svd_solver='randomized',
+                                    random_state=self.random_state)
+            self.data_pca.fit(self.data)
+            data_nu = self.data_pca.transform(self.data)
             log_complete("PCA")
             return data_nu
         else:
@@ -186,59 +175,6 @@ class Data(Base):
             self.random_state = params['random_state']
         return self
 
-    @property
-    def U(self):
-        """Left singular vectors
-
-        Returns
-        -------
-        Left singular vectors from PCA calculation, shape=[n_samples, n_pca]
-
-        Raises
-        ------
-        AttributeError : PCA was not performed
-        """
-        try:
-            return self.pca.components_
-        except AttributeError:
-            return None
-
-    @property
-    def S(self):
-        """Singular values
-
-        Returns
-        -------
-        Singular values from PCA calculation, shape=[n_pca]
-
-        Raises
-        ------
-        AttributeError : PCA was not performed
-        """
-        try:
-            return self.pca.singular_values_
-        except AttributeError:
-            return None
-
-    @property
-    def V(self):
-        """Right singular vectors
-
-        TODO: can we get this from PCA as well?
-
-        Returns
-        -------
-        Right singular values from SVD calculation, shape=[n_features, n_pca]
-
-        Raises
-        ------
-        AttributeError : SVD was not performed
-        """
-        try:
-            return self._right_singular_vectors
-        except AttributeError:
-            return None
-
     def transform(self, Y):
         """Transform input data `Y` to reduced data space defined by `self.data`
 
@@ -260,21 +196,17 @@ class Data(Base):
         """
         try:
             # try PCA first
-            return self.pca.transform(Y)
-        except AttributeError:
-            # no PCA - try SVD instead
+
+            return self.data_pca.transform(Y)
+        except AttributeError:  # no pca, try to return data
             try:
-                return Y.dot(self._right_singular_vectors)
-            except AttributeError:
-                # no SVD either - check if we can just return as is
-                try:
-                    if Y.shape[1] != self.data.shape[1]:
-                        # shape is wrong
-                        raise ValueError
-                    return Y
-                except IndexError:
-                    # len(Y.shape) < 2
+                if Y.shape[1] != self.data.shape[1]:
+                    # shape is wrong
                     raise ValueError
+                return Y
+            except IndexError:
+                # len(Y.shape) < 2
+                raise ValueError
         except ValueError:
             # more informative error
             raise ValueError("data of shape {} cannot be transformed"
@@ -302,21 +234,16 @@ class Data(Base):
         """
         try:
             # try PCA first
-            return self.pca.inverse_transform(Y)
+            return self.data_pca.inverse_transform(Y)
         except AttributeError:
-            # no PCA - try SVD instead
             try:
-                return Y.dot(self._right_singular_vectors.T)
-            except AttributeError:
-                # no SVD either - check if we can just return as is
-                try:
-                    if Y.shape[1] != self.data_nu.shape[1]:
-                        # shape is wrong
-                        raise ValueError
-                    return Y
-                except IndexError:
-                    # len(Y.shape) < 2
+                if Y.shape[1] != self.data_nu.shape[1]:
+                    # shape is wrong
                     raise ValueError
+                return Y
+            except IndexError:
+                # len(Y.shape) < 2
+                raise ValueError
         except ValueError:
             # more informative error
             raise ValueError("data of shape {} cannot be inverse transformed"
@@ -380,8 +307,8 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
                 "'+', '*', 'gamma', or 'none'.".format(kernel_symm))
         elif kernel_symm == 'gamma':
             if not isinstance(gamma, numbers.Number) or gamma < 0 or gamma > 1:
-                raise ValueError("gamma {} not recognized. "
-                                 "Expected a float between 0 and 1".format(gamma))
+                raise ValueError("gamma {} not recognized. Expected "
+                                 "a float between 0 and 1".format(gamma))
 
     def _build_kernel(self):
         """Private method to build kernel matrix
@@ -532,7 +459,8 @@ class PyGSPGraph(with_metaclass(abc.ABCMeta, pygsp.graphs.Graph, Base)):
     kernel matrix
     """
 
-    def __init__(self, gtype='unknown', lap_type='combinatorial', coords=None, plotting=None, **kwargs):
+    def __init__(self, gtype='unknown', lap_type='combinatorial', coords=None,
+                 plotting=None, **kwargs):
         if plotting is None:
             plotting = {}
         W = self._build_weight_from_kernel(self.K)
