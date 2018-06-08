@@ -11,6 +11,11 @@ from . import (
 #####################################################
 
 
+@raises(TypeError)
+def test_unknown_parameter():
+    build_graph(data, hello='world')
+
+
 @raises(ValueError)
 def test_invalid_graphtype():
     build_graph(data, graphtype='hello world')
