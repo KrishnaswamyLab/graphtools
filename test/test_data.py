@@ -1,4 +1,4 @@
-from . import (
+from load_tests import (
     np,
     sp,
     pd,

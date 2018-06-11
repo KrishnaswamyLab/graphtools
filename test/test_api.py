@@ -1,4 +1,4 @@
-from . import (
+from load_tests import (
     nose2,
     data,
     build_graph,

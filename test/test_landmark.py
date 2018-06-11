@@ -1,4 +1,4 @@
-from . import (
+from load_tests import (
     graphtools,
     np,
     nose2,
@@ -73,7 +73,10 @@ def test_landmark_mnn_graph():
 
 
 def test_verbose():
+    print()
+    print("Verbose test: Landmark")
     build_graph(data, decay=None, n_landmark=500, verbose=True).landmark_op
+    print()
 
 
 if __name__ == "__main__":

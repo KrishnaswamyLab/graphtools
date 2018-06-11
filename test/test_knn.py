@@ -1,4 +1,4 @@
-from . import (
+from load_tests import (
     graphtools,
     np,
     pygsp,
@@ -125,7 +125,10 @@ def test_knn_interpolate():
 
 
 def test_verbose():
+    print()
+    print("Verbose test: kNN")
     build_graph(data, decay=None, verbose=True)
+    print()
 
 
 if __name__ == "__main__":

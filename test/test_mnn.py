@@ -1,4 +1,4 @@
-from . import (
+from load_tests import (
     graphtools,
     np,
     pd,
@@ -185,8 +185,11 @@ def test_mnn_graph_matrix_gamma():
 
 def test_verbose():
     X, sample_idx = generate_swiss_roll()
+    print()
+    print("Verbose test: MNN")
     build_graph(X, sample_idx=sample_idx,
                 kernel_symm='gamma', n_pca=None, verbose=True)
+    print()
 
 
 if __name__ == "__main__":

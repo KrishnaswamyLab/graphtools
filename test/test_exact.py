@@ -1,4 +1,4 @@
-from . import (
+from load_tests import (
     graphtools,
     np,
     sp,
@@ -230,7 +230,10 @@ def test_precomputed_interpolate():
 
 
 def test_verbose():
+    print()
+    print("Verbose test: Exact")
     build_graph(data, decay=10, thresh=0, verbose=True)
+    print()
 
 
 if __name__ == "__main__":
