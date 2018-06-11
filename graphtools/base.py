@@ -287,7 +287,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
     """
 
     def __init__(self, kernel_symm='+',
-                 gamma=0.5,
+                 gamma=None,
                  initialize=True, **kwargs):
         self.kernel_symm = kernel_symm
         self.gamma = gamma
@@ -305,8 +305,17 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
             raise ValueError(
                 "kernel_symm '{}' not recognized. Choose from "
                 "'+', '*', 'gamma', or 'none'.".format(kernel_symm))
-        elif kernel_symm == 'gamma':
-            if not isinstance(gamma, numbers.Number) or gamma < 0 or gamma > 1:
+        elif kernel_symm != 'gamma' and gamma is not None:
+            warnings.warn("kernel_symm='{}' but gamma is not None. "
+                          "Setting kernel_symm='gamma'.".format(kernel_symm))
+            self.kernel_symm = kernel_symm = 'gamma'
+
+        if kernel_symm == 'gamma':
+            if gamma is None:
+                warnings.warn("kernel_symm='gamma' but gamma not given. "
+                              "Defaulting to gamma=0.5.")
+                self.gamma = gamma = 0.5
+            elif not isinstance(gamma, numbers.Number) or gamma < 0 or gamma > 1:
                 raise ValueError("gamma {} not recognized. Expected "
                                  "a float between 0 and 1".format(gamma))
 

@@ -17,7 +17,7 @@ def Graph(data,
           distance='euclidean',
           thresh=1e-4,
           kernel_symm='+',
-          gamma=0.5,
+          gamma=None,
           n_landmark=None,
           n_svd=100,
           beta=1,
@@ -79,8 +79,8 @@ def Graph(data,
         'gamma' : min-max
         'none' : no symmetrization
 
-    gamma: float (default: 0.5)
-        Min-max symmetrization constant.
+    gamma: float (default: None)
+        Min-max symmetrization constant or matrix. Only used if kernel_symm='gamma'.
         K = `gamma * min(K, K.T) + (1 - gamma) * max(K, K.T)`
 
     precomputed : {'distance', 'affinity', 'adjacency', `None`}, optional (default: `None`)

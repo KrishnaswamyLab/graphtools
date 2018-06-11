@@ -188,8 +188,8 @@ def test_verbose():
     print()
     print("Verbose test: MNN")
     build_graph(X, sample_idx=sample_idx,
-                kernel_symm='gamma', n_pca=None, verbose=True)
-    print()
+                kernel_symm='gamma', gamma=0.5,
+                n_pca=None, verbose=True)
 
 
 if __name__ == "__main__":

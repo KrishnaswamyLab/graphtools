@@ -812,7 +812,8 @@ class MNNGraph(DataGraph):
         super().__init__(data, n_pca=n_pca, **kwargs)
 
     def _check_symmetrization(self, kernel_symm, gamma):
-        if kernel_symm == 'gamma' and not isinstance(gamma, numbers.Number):
+        if kernel_symm == 'gamma' and gamma is not None and \
+                not isinstance(gamma, numbers.Number):
             # matrix gamma
             try:
                 gamma.shape

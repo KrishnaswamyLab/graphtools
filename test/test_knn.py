@@ -128,7 +128,6 @@ def test_verbose():
     print()
     print("Verbose test: kNN")
     build_graph(data, decay=None, verbose=True)
-    print()
 
 
 if __name__ == "__main__":
