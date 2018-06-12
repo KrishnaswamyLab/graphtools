@@ -214,7 +214,7 @@ class kNNGraph(DataGraph):
         else:
             # sparse fast alpha decay
             knn_tree = self.knn_tree
-            search_knn = min(knn * 20, len(self.data_nu))
+            search_knn = min(knn * 20, self.data_nu.shape[0])
             distances, indices = knn_tree.kneighbors(
                 Y, n_neighbors=search_knn)
             log_complete("KNN search")
@@ -230,9 +230,9 @@ class kNNGraph(DataGraph):
                 distances = [d for d in distances]
                 indices = [i for i in indices]
             while len(update_idx) > len(Y) // 10 and \
-                    search_knn < len(self.data_nu) / 2:
+                    search_knn < self.data_nu.shape[0] / 2:
                 # increase the knn search
-                search_knn = min(search_knn * 20, len(self.data_nu))
+                search_knn = min(search_knn * 20, self.data_nu.shape[0])
                 dist_new, ind_new = knn_tree.kneighbors(
                     Y[update_idx], n_neighbors=search_knn)
                 for i, idx in enumerate(update_idx):
@@ -243,7 +243,7 @@ class kNNGraph(DataGraph):
                 log_debug("search_knn = {}; {} remaining".format(
                     search_knn,
                     len(update_idx)))
-            if search_knn > len(self.data_nu) / 2:
+            if search_knn > self.data_nu.shape[0] / 2:
                 knn_tree = NearestNeighbors(knn, algorithm='brute',
                                             n_jobs=-1).fit(self.data_nu)
             if len(update_idx) > 0:
@@ -988,8 +988,8 @@ class MNNGraph(DataGraph):
         return K
 
     def symmetrize_kernel(self, K):
-        if self.kernel_symm == 'gamma' and not isinstance(self.gamma,
-                                                          numbers.Number):
+        if self.kernel_symm == 'gamma' and self.gamma is not None and \
+                not isinstance(self.gamma, numbers.Number):
             # matrix gamma
             # Gamma can be a matrix with specific values transitions for
             # each batch. This allows for technical replicates and
@@ -998,10 +998,12 @@ class MNNGraph(DataGraph):
                       "Gamma:\n{}".format(self.gamma))
             for i, sample_i in enumerate(self.samples):
                 for j, sample_j in enumerate(self.samples):
-                    Kij = K[self.sample_idx == sample_i, :][
-                        :, self.sample_idx == sample_j]
-                    Kji = K[self.sample_idx == sample_j, :][
-                        :, self.sample_idx == sample_i]
+                    if j < i:
+                        continue
+                    Kij = K[np.ix_(self.sample_idx == sample_i,
+                                   self.sample_idx == sample_j)]
+                    Kji = K[np.ix_(self.sample_idx == sample_j,
+                                   self.sample_idx == sample_i)]
                     Kij_symm = self.gamma[i, j] * \
                         elementwise_minimum(Kij, Kji.T) + \
                         (1 - self.gamma[i, j]) * \
@@ -1010,7 +1012,8 @@ class MNNGraph(DataGraph):
                                       self.sample_idx == sample_j, Kij_symm)
                     if not i == j:
                         K = set_submatrix(K, self.sample_idx == sample_j,
-                                          self.sample_idx == sample_i, Kij_symm.T)
+                                          self.sample_idx == sample_i,
+                                          Kij_symm.T)
         else:
             K = super().symmetrize_kernel(K)
         return K
