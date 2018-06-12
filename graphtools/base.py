@@ -133,6 +133,10 @@ class Data(Base):
         if self.n_pca is not None and self.n_pca < self.data.shape[1]:
             log_start("PCA")
             if sparse.issparse(self.data):
+                if isinstance(self.data, sparse.coo_matrix) or \
+                        isinstance(self.data, sparse.lil_matrix) or \
+                        isinstance(self.data, sparse.dok_matrix):
+                    self.data = self.data.tocsr()
                 self.data_pca = TruncatedSVD(self.n_pca,
                                              random_state=self.random_state)
             else:
