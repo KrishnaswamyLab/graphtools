@@ -980,8 +980,8 @@ class MNNGraph(DataGraph):
                 if i == j:
                     # downweight within-batch affinities by beta
                     Kij = Kij * self.beta
-                K = set_submatrix(K, self.sample_idx == i,
-                                  self.sample_idx == j, Kij)
+                K = set_submatrix(K, self.sample_idx == self.samples[i],
+                                  self.sample_idx == self.samples[j], Kij)
                 log_complete(
                     "kernel from sample {} to {}".format(self.samples[i],
                                                          self.samples[j]))
@@ -996,19 +996,21 @@ class MNNGraph(DataGraph):
             # experimental samples to be corrected simultaneously
             log_debug("Using gamma symmetrization. "
                       "Gamma:\n{}".format(self.gamma))
-            for i in range(len(self.samples)):
-                for j in range(i, len(self.samples)):
-                    Kij = K[self.sample_idx == i, :][:, self.sample_idx == j]
-                    Kji = K[self.sample_idx == j, :][:, self.sample_idx == i]
+            for i, sample_i in enumerate(self.samples):
+                for j, sample_j in enumerate(self.samples):
+                    Kij = K[self.sample_idx == sample_i, :][
+                        :, self.sample_idx == sample_j]
+                    Kji = K[self.sample_idx == sample_j, :][
+                        :, self.sample_idx == sample_i]
                     Kij_symm = self.gamma[i, j] * \
                         elementwise_minimum(Kij, Kji.T) + \
                         (1 - self.gamma[i, j]) * \
                         elementwise_maximum(Kij, Kji.T)
-                    K = set_submatrix(K, self.sample_idx == i,
-                                      self.sample_idx == j, Kij_symm)
+                    K = set_submatrix(K, self.sample_idx == sample_i,
+                                      self.sample_idx == sample_j, Kij_symm)
                     if not i == j:
-                        K = set_submatrix(K, self.sample_idx == j,
-                                          self.sample_idx == i, Kij_symm.T)
+                        K = set_submatrix(K, self.sample_idx == sample_j,
+                                          self.sample_idx == sample_i, Kij_symm.T)
         else:
             K = super().symmetrize_kernel(K)
         return K
@@ -1043,6 +1045,7 @@ class MNNGraph(DataGraph):
         transitions : array-like, [n_samples_y, self.data.shape[0]]
             Transition matrix from `Y` to `self.data`
         """
+        raise NotImplementedError
         log_warning("building MNN kernel to gamma is experimental")
         if not isinstance(self.gamma, str) and \
                 not isinstance(self.gamma, numbers.Number):
