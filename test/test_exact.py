@@ -1,4 +1,4 @@
-from . import (
+from load_tests import (
     graphtools,
     np,
     sp,
@@ -144,9 +144,9 @@ def test_truncated_exact_graph():
     epsilon = np.max(knn_dist, axis=1)
     weighted_pdx = (pdx.T / epsilon).T
     K = np.exp(-1 * weighted_pdx**a)
+    K[K < thresh] = 0
     W = K + K.T
     W = np.divide(W, 2)
-    W[W < thresh] = 0
     np.fill_diagonal(W, 0)
     G = pygsp.graphs.Graph(W)
     G2 = build_graph(data_small, thresh=thresh,
@@ -230,6 +230,8 @@ def test_precomputed_interpolate():
 
 
 def test_verbose():
+    print()
+    print("Verbose test: Exact")
     build_graph(data, decay=10, thresh=0, verbose=True)
 
 

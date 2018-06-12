@@ -1,4 +1,4 @@
-from . import (
+from load_tests import (
     nose2,
     data,
     build_graph,
@@ -9,6 +9,11 @@ from . import (
 #####################################################
 # Check parameters
 #####################################################
+
+
+@raises(TypeError)
+def test_unknown_parameter():
+    build_graph(data, hello='world')
 
 
 @raises(ValueError)

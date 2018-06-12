@@ -1,6 +1,6 @@
 from builtins import super
 import numpy as np
-from sklearn.neighbors import NearestNeighbors, kneighbors_graph
+from sklearn.neighbors import NearestNeighbors
 from scipy.spatial.distance import pdist, cdist
 from scipy.spatial.distance import squareform
 from sklearn.utils.extmath import randomized_svd
@@ -10,9 +10,9 @@ from scipy import sparse
 import numbers
 import warnings
 
-from .utils import (elementwise_minimum,
+from .utils import (set_diagonal,
+                    elementwise_minimum,
                     elementwise_maximum,
-                    set_diagonal,
                     set_submatrix)
 from .logging import (log_start,
                       log_complete,
@@ -173,8 +173,6 @@ class kNNGraph(DataGraph):
             with no non-negative entries.
         """
         K = self.build_kernel_to_data(self.data_nu)
-        # symmetrize
-        K = (K + K.T) / 2
         return K
 
     def build_kernel_to_data(self, Y, knn=None):
@@ -696,8 +694,7 @@ class TraditionalGraph(DataGraph):
             pdx = (pdx.T / epsilon).T
             K = np.exp(-1 * np.power(pdx, self.decay))
             log_complete("affinities")
-        # symmetrize
-        K = (K + K.T) / 2
+        # truncate
         if sparse.issparse(K):
             K.data[K.data < self.thresh] = 0
             K = K.tocoo()
@@ -749,6 +746,7 @@ class TraditionalGraph(DataGraph):
             epsilon = np.max(knn_dist, axis=1)
             pdx = (pdx.T / epsilon).T
             K = np.exp(-1 * pdx**self.decay)
+            K[K < self.thresh] = 0
             log_complete("affinities")
         return K
 
@@ -773,13 +771,6 @@ class MNNGraph(DataGraph):
     beta: `float`, optional (default: 1)
         Downweight within-batch affinities by beta
 
-    gamma: `float` or {'+', '*'} (default: 0.99)
-        Symmetrization method.
-        If '+', use `(K + K.T) / 2`;
-        if '*', use `K * K.T`;
-        if a float, use
-        `gamma * min(K, K.T) + (1 - gamma) * max(K, K.T)`
-
     adaptive_k : `{'min', 'mean', 'sqrt', 'none'}` (default: 'sqrt')
         Weights MNN kernel adaptively using the number of cells in
         each sample according to the selected method.
@@ -791,19 +782,22 @@ class MNNGraph(DataGraph):
     """
 
     def __init__(self, data, sample_idx,
-                 knn=5, beta=1, gamma=0.99, n_pca=None,
+                 knn=5, beta=1, n_pca=None,
                  adaptive_k='sqrt',
+                 decay=None,
+                 distance='euclidean',
+                 thresh=1e-4,
                  **kwargs):
         self.beta = beta
-        self.gamma = gamma
         self.sample_idx = sample_idx
         self.samples, self.n_cells = np.unique(
             self.sample_idx, return_counts=True)
         self.adaptive_k = adaptive_k
         self.knn = knn
+        self.decay = decay
+        self.distance = distance
+        self.thresh = thresh
         self.weighted_knn = self._weight_knn()
-
-        self.knn_args = kwargs
 
         if sample_idx is None:
             raise ValueError("sample_idx must be given. For a graph without"
@@ -815,24 +809,21 @@ class MNNGraph(DataGraph):
             raise ValueError(
                 "sample_idx must contain more than one unique value")
 
-        if isinstance(gamma, str):
-            if gamma not in ['+', '*']:
-                raise ValueError(
-                    "gamma '{}' not recognized. Choose from "
-                    "'+', '*', a float between 0 and 1, "
-                    "or a matrix of floats between 0 "
-                    "and 1.".format(gamma))
-        elif isinstance(gamma, numbers.Number):
-            if (gamma < 0 or gamma > 1):
-                raise ValueError(
-                    "gamma '{}' invalid. Choose from "
-                    "'+', '*', a float between 0 and 1, "
-                    "or a matrix of floats between 0 "
-                    "and 1.".format(gamma))
-        else:
-            # matrix
-            if not np.shape(self.gamma) == (len(self.samples),
-                                            len(self.samples)):
+        super().__init__(data, n_pca=n_pca, **kwargs)
+
+    def _check_symmetrization(self, kernel_symm, gamma):
+        if kernel_symm == 'gamma' and gamma is not None and \
+                not isinstance(gamma, numbers.Number):
+            # matrix gamma
+            try:
+                gamma.shape
+            except AttributeError:
+                raise ValueError("gamma {} not recognized. "
+                                 "Expected a float between 0 and 1 "
+                                 "or a [n_batch,n_batch] matrix of "
+                                 "floats between 0 and 1".format(gamma))
+            if not np.shape(gamma) == (len(self.samples),
+                                       len(self.samples)):
                 raise ValueError(
                     "Matrix gamma must be of shape "
                     "({}), got ({})".format(
@@ -845,8 +836,8 @@ class MNNGraph(DataGraph):
                         np.max(gamma), np.min(gamma)))
             elif np.any(gamma != gamma.T):
                 raise ValueError("gamma must be a symmetric matrix")
-
-        super().__init__(data, n_pca=n_pca, **kwargs)
+        else:
+            super()._check_symmetrization(kernel_symm, gamma)
 
     def _weight_knn(self, sample_size=None):
         """Select adaptive values of knn
@@ -888,7 +879,7 @@ class MNNGraph(DataGraph):
         """
         params = super().get_params()
         params.update({'beta': self.beta,
-                       'gamma': self.gamma})
+                       'adaptive_k': self.adaptive_k})
         params.update(self.knn_args)
         return params
 
@@ -908,7 +899,6 @@ class MNNGraph(DataGraph):
         - distance
         - thresh
         - beta
-        - gamma
 
         Parameters
         ----------
@@ -921,8 +911,6 @@ class MNNGraph(DataGraph):
         # mnn specific arguments
         if 'beta' in params and params['beta'] != self.beta:
             raise ValueError("Cannot update beta. Please create a new graph")
-        if 'gamma' in params and params['gamma'] != self.gamma:
-            raise ValueError("Cannot update gamma. Please create a new graph")
         if 'adaptive_k' in params and params['adaptive_k'] != self.adaptive_k:
             raise ValueError(
                 "Cannot update adaptive_k. Please create a new graph")
@@ -936,8 +924,7 @@ class MNNGraph(DataGraph):
                 raise ValueError("Cannot update {}. "
                                  "Please create a new graph".format(arg))
         for arg in knn_other_args:
-            if arg in params:
-                self.knn_args[arg] = params[arg]
+            self.__setattr__(arg, params[arg])
 
         # update subgraph parameters
         [g.set_params(**knn_other_args) for g in self.subgraphs]
@@ -960,10 +947,6 @@ class MNNGraph(DataGraph):
         log_start("subgraphs")
         self.subgraphs = []
         from .api import Graph
-        remove_args = ['n_landmark', 'initialize']
-        for arg in remove_args:
-            if arg in self.knn_args:
-                del self.knn_args[arg]
         # iterate through sample ids
         for i, idx in enumerate(self.samples):
             log_debug("subgraph {}: sample {}".format(i, idx))
@@ -972,12 +955,16 @@ class MNNGraph(DataGraph):
             # build a kNN graph for cells within sample
             graph = Graph(data, n_pca=None,
                           knn=self.weighted_knn[i],
-                          initialize=False,
-                          **(self.knn_args))
+                          decay=self.decay,
+                          distance=self.distance,
+                          thresh=self.thresh,
+                          verbose=self.verbose,
+                          random_state=self.random_state,
+                          initialize=False)
             self.subgraphs.append(graph)  # append to list of subgraphs
         log_complete("subgraphs")
 
-        if isinstance(self.subgraphs[0], kNNGraph):
+        if self.thresh > 0 or self.decay is None:
             K = sparse.lil_matrix(
                 (self.data_nu.shape[0], self.data_nu.shape[0]))
         else:
@@ -998,13 +985,17 @@ class MNNGraph(DataGraph):
                 log_complete(
                     "kernel from sample {} to {}".format(self.samples[i],
                                                          self.samples[j]))
+        return K
 
-        if not (isinstance(self.gamma, str) or
-                isinstance(self.gamma, numbers.Number)):
+    def symmetrize_kernel(self, K):
+        if self.kernel_symm == 'gamma' and not isinstance(self.gamma,
+                                                          numbers.Number):
             # matrix gamma
             # Gamma can be a matrix with specific values transitions for
             # each batch. This allows for technical replicates and
             # experimental samples to be corrected simultaneously
+            log_debug("Using gamma symmetrization. "
+                      "Gamma:\n{}".format(self.gamma))
             for i in range(len(self.samples)):
                 for j in range(i, len(self.samples)):
                     Kij = K[self.sample_idx == i, :][:, self.sample_idx == j]
@@ -1019,18 +1010,7 @@ class MNNGraph(DataGraph):
                         K = set_submatrix(K, self.sample_idx == j,
                                           self.sample_idx == i, Kij_symm.T)
         else:
-            # symmetrize
-            if isinstance(self.gamma, str):
-                if self.gamma == "+":
-                    K = (K + K.T) / 2
-                elif self.gamma == "*":
-                    K = K.multiply(K.T)
-            elif isinstance(self.gamma, numbers.Number):
-                K = self.gamma * elementwise_minimum(K, K.T) + \
-                    (1 - self.gamma) * elementwise_maximum(K, K.T)
-            else:
-                # this should never happen
-                raise ValueError("invalid gamma")
+            K = super().symmetrize_kernel(K)
         return K
 
     def build_kernel_to_data(self, Y, gamma=None):

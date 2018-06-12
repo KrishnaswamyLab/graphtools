@@ -1,4 +1,4 @@
-from . import (
+from load_tests import (
     graphtools,
     np,
     pd,
@@ -21,13 +21,15 @@ from . import (
 
 @raises(ValueError)
 def test_sample_idx_and_precomputed():
-    build_graph(data, n_pca=None, sample_idx=np.arange(10),
+    build_graph(data, n_pca=None,
+                sample_idx=np.arange(10),
                 precomputed='distance')
 
 
 @raises(ValueError)
 def test_sample_idx_wrong_length():
-    build_graph(data, graphtype='mnn', sample_idx=np.arange(10))
+    build_graph(data, graphtype='mnn',
+                sample_idx=np.arange(10))
 
 
 @raises(ValueError)
@@ -44,6 +46,31 @@ def test_sample_idx_none():
 @raises(ValueError)
 def test_build_mnn_with_precomputed():
     build_graph(data, n_pca=None, graphtype='mnn', precomputed='distance')
+
+
+@raises(ValueError)
+def test_mnn_with_square_gamma_wrong_length():
+    n_sample = len(np.unique(digits['target']))
+    # square matrix gamma of the wrong size
+    build_graph(
+        data, thresh=0, n_pca=20,
+        decay=10, knn=5, random_state=42,
+        sample_idx=digits['target'],
+        kernel_symm='gamma',
+        gamma=np.tile(np.linspace(0, 1, n_sample - 1),
+                      n_sample).reshape(n_sample - 1, n_sample))
+
+
+@raises(ValueError)
+def test_mnn_with_vector_gamma():
+    n_sample = len(np.unique(digits['target']))
+    # vector gamma
+    build_graph(
+        data, thresh=0, n_pca=20,
+        decay=10, knn=5, random_state=42,
+        sample_idx=digits['target'],
+        kernel_symm='gamma',
+        gamma=np.linspace(0, 1, n_sample - 1))
 
 
 #####################################################
@@ -84,14 +111,12 @@ def test_mnn_graph_float_gamma():
                  ((1 - gamma) * np.maximum(K, K.T)))
     np.fill_diagonal(W, 0)
     G = pygsp.graphs.Graph(W)
-    G2 = graphtools.Graph(X, knn=k + 1, decay=a, beta=1 - beta, gamma=gamma,
+    G2 = graphtools.Graph(X, knn=k + 1, decay=a, beta=1 - beta,
+                          kernel_symm='gamma', gamma=gamma,
                           distance=metric, sample_idx=sample_idx, thresh=0,
                           use_pygsp=True)
     assert G.N == G2.N
-    assert np.all(G.d == G2.d), "{} ({}, {})".format(
-        np.where(G.d != G2.d),
-        G.d[np.argwhere(G.d != G2.d).reshape(-1)],
-        G2.d[np.argwhere(G.d != G2.d).reshape(-1)])
+    assert np.all(G.d == G2.d)
     assert (G.W != G2.W).nnz == 0
     assert (G2.W != G.W).sum() == 0
     assert isinstance(G2, graphtools.graphs.MNNGraph)
@@ -140,32 +165,15 @@ def test_mnn_graph_matrix_gamma():
                  ((1 - matrix_gamma) * np.maximum(K, K.T)))
     np.fill_diagonal(W, 0)
     G = pygsp.graphs.Graph(W)
-    G2 = graphtools.Graph(X, knn=k + 1, decay=a, beta=1 - beta, gamma=gamma,
+    G2 = graphtools.Graph(X, knn=k + 1, decay=a, beta=1 - beta,
+                          kernel_symm='gamma', gamma=gamma,
                           distance=metric, sample_idx=sample_idx, thresh=0,
                           use_pygsp=True)
     assert G.N == G2.N
-    assert np.all(G.d == G2.d), "{} ({}, {})".format(
-        np.where(G.d != G2.d),
-        G.d[np.argwhere(G.d != G2.d).reshape(-1)],
-        G2.d[np.argwhere(G.d != G2.d).reshape(-1)])
+    assert np.all(G.d == G2.d)
     assert (G.W != G2.W).nnz == 0
     assert (G2.W != G.W).sum() == 0
     assert isinstance(G2, graphtools.graphs.MNNGraph)
-
-
-def test_mnn_graph_error():
-    n_sample = len(np.unique(digits['target']))
-    assert_raises(ValueError, build_graph,
-                  data, thresh=0, n_pca=20,
-                  decay=10, knn=5, random_state=42,
-                  sample_idx=digits['target'],
-                  gamma=np.tile(np.linspace(0, 1, n_sample - 1),
-                                n_sample).reshape(n_sample - 1, n_sample))
-    assert_raises(ValueError, build_graph,
-                  data, thresh=0, n_pca=20,
-                  decay=10, knn=5, random_state=42,
-                  sample_idx=digits['target'],
-                  gamma=np.linspace(0, 1, n_sample - 1))
 
 
 #####################################################
@@ -177,7 +185,11 @@ def test_mnn_graph_error():
 
 def test_verbose():
     X, sample_idx = generate_swiss_roll()
-    build_graph(X, sample_idx=sample_idx, n_pca=None, verbose=True)
+    print()
+    print("Verbose test: MNN")
+    build_graph(X, sample_idx=sample_idx,
+                kernel_symm='gamma', gamma=0.5,
+                n_pca=None, verbose=True)
 
 
 if __name__ == "__main__":

@@ -38,12 +38,14 @@ def build_graph(data, n_pca=20, thresh=0,
                 random_state=42,
                 sparse=False,
                 graph_class=graphtools.Graph,
+                verbose=0,
                 **kwargs):
     if sparse:
         data = sp.coo_matrix(data)
     return graph_class(data, thresh=thresh, n_pca=n_pca,
                        decay=decay, knn=knn,
-                       random_state=42, **kwargs)
+                       random_state=42, verbose=verbose,
+                       **kwargs)
 
 
 def warns(*warns):
