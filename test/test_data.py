@@ -54,7 +54,7 @@ def test_pandas_dataframe():
 def test_pandas_sparse_dataframe():
     G = build_graph(pd.SparseDataFrame(data))
     assert isinstance(G, graphtools.base.BaseGraph)
-    assert isinstance(G.data, sp.coo_matrix)
+    assert isinstance(G.data, sp.csr_matrix)
 
 
 #####################################################
