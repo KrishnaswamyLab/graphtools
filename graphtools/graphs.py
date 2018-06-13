@@ -68,6 +68,10 @@ class kNNGraph(DataGraph):
         if decay is not None and thresh <= 0:
             raise ValueError("Cannot instantiate a kNNGraph with `decay=None` "
                              "and `thresh=0`. Use a TraditionalGraph instead.")
+        if knn > data.shape[0]:
+            warnings.warn("Cannot set knn ({k}) to be greater than "
+                          "data.shape[0] ({n}). Setting knn={n}".format(
+                              k=knn, n=data.shape[0]))
 
         super().__init__(data, **kwargs)
 
@@ -203,6 +207,11 @@ class kNNGraph(DataGraph):
         """
         if knn is None:
             knn = self.knn
+        if knn > self.data.shape[0]:
+            warnings.warn("Cannot set knn ({k}) to be greater than "
+                          "data.shape[0] ({n}). Setting knn={n}".format(
+                              k=knn, n=self.data.shape[0]))
+
         Y = self._check_extension_shape(Y)
         log_start("KNN search")
         if self.decay is None or self.thresh == 1:
@@ -949,7 +958,8 @@ class MNNGraph(DataGraph):
         from .api import Graph
         # iterate through sample ids
         for i, idx in enumerate(self.samples):
-            log_debug("subgraph {}: sample {}".format(i, idx))
+            log_debug("subgraph {}: sample {}, n = {}, knn = {}".format(
+                i, idx, np.sum(self.sample_idx == idx), self.weighted_knn[i]))
             # select data for sample
             data = self.data_nu[self.sample_idx == idx]
             # build a kNN graph for cells within sample
