@@ -256,8 +256,7 @@ class kNNGraph(DataGraph):
                 knn_tree = NearestNeighbors(knn, algorithm='brute',
                                             n_jobs=-1).fit(self.data_nu)
             if len(update_idx) > 0:
-                log_debug("radius search on {}".format(search_knn,
-                                                       len(update_idx)))
+                log_debug("radius search on {}".format(len(update_idx)))
                 # give up - radius search
                 dist_new, ind_new = knn_tree.radius_neighbors(
                     Y[update_idx, :],
