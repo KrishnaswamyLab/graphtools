@@ -689,8 +689,9 @@ class TraditionalGraph(DataGraph):
         elif self.precomputed is "adjacency":
             # need to set diagonal to one to make it an affinity matrix
             K = self.data_nu
-            if not (isinstance(K, sparse.dok_matrix) or
-                    isinstance(K, sparse.lil_matrix)):
+            if sparse.issparse(K) and \
+                not (isinstance(K, sparse.dok_matrix) or
+                     isinstance(K, sparse.lil_matrix)):
                 K = K.tolil()
             K = set_diagonal(K, 1)
         else:
