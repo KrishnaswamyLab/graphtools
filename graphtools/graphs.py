@@ -689,6 +689,9 @@ class TraditionalGraph(DataGraph):
         elif self.precomputed is "adjacency":
             # need to set diagonal to one to make it an affinity matrix
             K = self.data_nu
+            if not (isinstance(K, sparse.dok_matrix) or
+                    isinstance(K, sparse.lil_matrix)):
+                K = K.tolil()
             K = set_diagonal(K, 1)
         else:
             log_start("affinities")
@@ -705,6 +708,10 @@ class TraditionalGraph(DataGraph):
             log_complete("affinities")
         # truncate
         if sparse.issparse(K):
+            if not (isinstance(K, sparse.csr_matrix) or
+                    isinstance(K, sparse.csc_matrix) or
+                    isinstance(K, sparse.bsr_matrix)):
+                K = K.tocsr()
             K.data[K.data < self.thresh] = 0
             K = K.tocoo()
             K.eliminate_zeros()
