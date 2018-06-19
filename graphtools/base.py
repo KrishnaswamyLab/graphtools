@@ -148,7 +148,10 @@ class Data(Base):
             log_complete("PCA")
             return data_nu
         else:
-            return self.data
+            data = self.data
+            if sparse.issparse(data):
+                data = data.toarray()
+            return data
 
     def get_params(self):
         """Get parameters from this object
@@ -305,7 +308,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         super().__init__(**kwargs)
 
     def _check_symmetrization(self, kernel_symm, gamma):
-        if kernel_symm not in ['+', '*', 'gamma', 'none']:
+        if kernel_symm not in ['+', '*', 'gamma', None]:
             raise ValueError(
                 "kernel_symm '{}' not recognized. Choose from "
                 "'+', '*', 'gamma', or 'none'.".format(kernel_symm))
@@ -358,13 +361,13 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
                 "Using gamma symmetrization (gamma = {}).".format(self.gamma))
             K = self.gamma * elementwise_minimum(K, K.T) + \
                 (1 - self.gamma) * elementwise_maximum(K, K.T)
-        elif self.kernel_symm == 'none':
+        elif self.kernel_symm is None:
             log_debug("Using no symmetrization.")
             pass
         else:
             # this should never happen
             raise ValueError(
-                "Expected kernel_symm in ['+', '*', 'gamma' or 'none']. "
+                "Expected kernel_symm in ['+', '*', 'gamma' or None]. "
                 "Got {}".format(self.gamma))
         return K
 

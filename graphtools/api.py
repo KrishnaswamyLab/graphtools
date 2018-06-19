@@ -226,5 +226,7 @@ def Graph(data,
     # build graph and return
     log_debug("Initializing {} with arguments {}".format(
         parent_classes,
-        params))
+        ", ".join(["{}='{}'".format(key, value)
+                   for key, value in params.items()
+                   if key != "data"])))
     return Graph(**params)

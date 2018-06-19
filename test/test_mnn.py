@@ -73,6 +73,38 @@ def test_mnn_with_vector_gamma():
         gamma=np.linspace(0, 1, n_sample - 1))
 
 
+def test_mnn_with_non_zero_indexed_sample_idx():
+    X, sample_idx = generate_swiss_roll()
+    G = build_graph(X, sample_idx=sample_idx,
+                    kernel_symm='gamma', gamma=0.5,
+                    n_pca=None, use_pygsp=True)
+    sample_idx += 1
+    G2 = build_graph(X, sample_idx=sample_idx,
+                     kernel_symm='gamma', gamma=0.5,
+                     n_pca=None, use_pygsp=True)
+    assert G.N == G2.N
+    assert np.all(G.d == G2.d)
+    assert (G.W != G2.W).nnz == 0
+    assert (G2.W != G.W).sum() == 0
+    assert isinstance(G2, graphtools.graphs.MNNGraph)
+
+
+def test_mnn_with_string_sample_idx():
+    X, sample_idx = generate_swiss_roll()
+    G = build_graph(X, sample_idx=sample_idx,
+                    kernel_symm='gamma', gamma=0.5,
+                    n_pca=None, use_pygsp=True)
+    sample_idx = np.where(sample_idx == 0, 'a', 'b')
+    G2 = build_graph(X, sample_idx=sample_idx,
+                     kernel_symm='gamma', gamma=0.5,
+                     n_pca=None, use_pygsp=True)
+    assert G.N == G2.N
+    assert np.all(G.d == G2.d)
+    assert (G.W != G2.W).nnz == 0
+    assert (G2.W != G.W).sum() == 0
+    assert isinstance(G2, graphtools.graphs.MNNGraph)
+
+
 #####################################################
 # Check kernel
 #####################################################
