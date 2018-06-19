@@ -154,9 +154,11 @@ class kNNGraph(DataGraph):
                     n_jobs=self.n_jobs).fit(self.data_nu)
             except ValueError:
                 # invalid metric
-                log_warning(
+                warnings.warn(
                     "Metric {} not valid for `sklearn.neighbors.BallTree`. "
-                    "Graph instantiation may be slower than normal.")
+                    "Graph instantiation may be slower than normal.".format(
+                        self.distance),
+                    UserWarning)
                 self._knn_tree = NearestNeighbors(
                     n_neighbors=self.knn,
                     algorithm='auto',
