@@ -148,7 +148,10 @@ class Data(Base):
             log_complete("PCA")
             return data_nu
         else:
-            return self.data
+            data = self.data
+            if sparse.issparse(data):
+                data = data.toarray()
+            return data
 
     def get_params(self):
         """Get parameters from this object
