@@ -59,7 +59,7 @@ class kNNGraph(DataGraph):
 
     def __init__(self, data, knn=5, decay=None,
                  distance='euclidean',
-                 thresh=1e-4, **kwargs):
+                 thresh=1e-4, n_pca=None, **kwargs):
         self.knn = knn
         self.decay = decay
         self.distance = distance
@@ -72,8 +72,12 @@ class kNNGraph(DataGraph):
             warnings.warn("Cannot set knn ({k}) to be greater than "
                           "data.shape[0] ({n}). Setting knn={n}".format(
                               k=knn, n=data.shape[0]))
+        if n_pca is None and data.shape[1] > 500:
+            warnings.warn("Building a kNNGraph on data of shape {} is "
+                          "expensive. Consider setting n_pca.".format(
+                              data.shape), UserWarning)
 
-        super().__init__(data, **kwargs)
+        super().__init__(data, n_pca=n_pca, **kwargs)
 
     def get_params(self):
         """Get parameters from this object
