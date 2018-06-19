@@ -151,6 +151,10 @@ class Data(Base):
             data = self.data
             if sparse.issparse(data):
                 data = data.toarray()
+            if data.shape[1] > 500:
+                warnings.warn("Building a graph on data of shape {} is "
+                              "expensive. Consider setting n_pca.".format(
+                                  data.shape), UserWarning)
             return data
 
     def get_params(self):
