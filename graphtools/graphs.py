@@ -686,12 +686,12 @@ class TraditionalGraph(DataGraph):
         ------
         ValueError: if `precomputed` is not an acceptable value
         """
-        if self.precomputed is "affinity":
+        if self.precomputed == "affinity":
             # already done
             # TODO: should we check that precomputed matrices look okay?
             # e.g. check the diagonal
             K = self.data_nu
-        elif self.precomputed is "adjacency":
+        elif self.precomputed == "adjacency":
             # need to set diagonal to one to make it an affinity matrix
             K = self.data_nu
             if sparse.issparse(K) and \
@@ -703,10 +703,15 @@ class TraditionalGraph(DataGraph):
             log_start("affinities")
             if sparse.issparse(self.data_nu):
                 self.data_nu = self.data_nu.toarray()
-            if self.precomputed is "distance":
+            if self.precomputed == "distance":
                 pdx = self.data_nu
             elif self.precomputed is None:
                 pdx = squareform(pdist(self.data_nu, metric=self.distance))
+            else:
+                raise ValueError(
+                    "precomputed='{}' not recognized. "
+                    "Choose from ['affinity', 'adjacency', 'distance', "
+                    "None]".format(self.precomputed))
             knn_dist = np.partition(pdx, self.knn, axis=1)[:, :self.knn]
             epsilon = np.max(knn_dist, axis=1)
             pdx = (pdx.T / epsilon).T
