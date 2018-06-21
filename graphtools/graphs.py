@@ -59,7 +59,7 @@ class kNNGraph(DataGraph):
 
     def __init__(self, data, knn=5, decay=None,
                  distance='euclidean',
-                 thresh=1e-4, **kwargs):
+                 thresh=1e-4, n_pca=None, **kwargs):
         self.knn = knn
         self.decay = decay
         self.distance = distance
@@ -72,8 +72,12 @@ class kNNGraph(DataGraph):
             warnings.warn("Cannot set knn ({k}) to be greater than "
                           "data.shape[0] ({n}). Setting knn={n}".format(
                               k=knn, n=data.shape[0]))
+        if n_pca is None and data.shape[1] > 500:
+            warnings.warn("Building a kNNGraph on data of shape {} is "
+                          "expensive. Consider setting n_pca.".format(
+                              data.shape), UserWarning)
 
-        super().__init__(data, **kwargs)
+        super().__init__(data, n_pca=n_pca, **kwargs)
 
     def get_params(self):
         """Get parameters from this object
@@ -154,9 +158,11 @@ class kNNGraph(DataGraph):
                     n_jobs=self.n_jobs).fit(self.data_nu)
             except ValueError:
                 # invalid metric
-                log_warning(
+                warnings.warn(
                     "Metric {} not valid for `sklearn.neighbors.BallTree`. "
-                    "Graph instantiation may be slower than normal.")
+                    "Graph instantiation may be slower than normal.".format(
+                        self.distance),
+                    UserWarning)
                 self._knn_tree = NearestNeighbors(
                     n_neighbors=self.knn,
                     algorithm='auto',
@@ -680,12 +686,12 @@ class TraditionalGraph(DataGraph):
         ------
         ValueError: if `precomputed` is not an acceptable value
         """
-        if self.precomputed is "affinity":
+        if self.precomputed == "affinity":
             # already done
             # TODO: should we check that precomputed matrices look okay?
             # e.g. check the diagonal
             K = self.data_nu
-        elif self.precomputed is "adjacency":
+        elif self.precomputed == "adjacency":
             # need to set diagonal to one to make it an affinity matrix
             K = self.data_nu
             if sparse.issparse(K) and \
@@ -697,10 +703,15 @@ class TraditionalGraph(DataGraph):
             log_start("affinities")
             if sparse.issparse(self.data_nu):
                 self.data_nu = self.data_nu.toarray()
-            if self.precomputed is "distance":
+            if self.precomputed == "distance":
                 pdx = self.data_nu
             elif self.precomputed is None:
                 pdx = squareform(pdist(self.data_nu, metric=self.distance))
+            else:
+                raise ValueError(
+                    "precomputed='{}' not recognized. "
+                    "Choose from ['affinity', 'adjacency', 'distance', "
+                    "None]".format(self.precomputed))
             knn_dist = np.partition(pdx, self.knn, axis=1)[:, :self.knn]
             epsilon = np.max(knn_dist, axis=1)
             pdx = (pdx.T / epsilon).T
