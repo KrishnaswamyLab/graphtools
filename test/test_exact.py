@@ -12,6 +12,7 @@ from load_tests import (
     squareform,
     pdist,
     PCA,
+    TruncatedSVD
 )
 
 #####################################################
@@ -179,6 +180,100 @@ def test_truncated_exact_graph():
     G2 = build_graph(W, n_pca=None,
                      precomputed='adjacency',
                      random_state=42, use_pygsp=True)
+    assert(G.N == G2.N)
+    assert(np.all(G.d == G2.d))
+    assert((G.W != G2.W).nnz == 0)
+    assert((G2.W != G.W).sum() == 0)
+    assert(isinstance(G2, graphtools.graphs.TraditionalGraph))
+
+
+def test_truncated_exact_graph_sparse():
+    k = 3
+    a = 13
+    n_pca = 20
+    thresh = 1e-4
+    data_small = data[np.random.choice(
+        len(data), len(data) // 2, replace=False)]
+    pca = TruncatedSVD(n_pca,
+                       random_state=42).fit(data_small)
+    data_small_nu = pca.transform(data_small)
+    pdx = squareform(pdist(data_small_nu, metric='euclidean'))
+    knn_dist = np.partition(pdx, k, axis=1)[:, :k]
+    epsilon = np.max(knn_dist, axis=1)
+    weighted_pdx = (pdx.T / epsilon).T
+    K = np.exp(-1 * weighted_pdx**a)
+    K[K < thresh] = 0
+    W = K + K.T
+    W = np.divide(W, 2)
+    np.fill_diagonal(W, 0)
+    G = pygsp.graphs.Graph(W)
+    G2 = build_graph(sp.coo_matrix(data_small), thresh=thresh,
+                     graphtype='exact',
+                     n_pca=n_pca,
+                     decay=a, knn=k, random_state=42,
+                     use_pygsp=True)
+    assert(G.N == G2.N)
+    np.testing.assert_allclose(G2.W.toarray(), G.W.toarray())
+    assert(isinstance(G2, graphtools.graphs.TraditionalGraph))
+    G2 = build_graph(sp.bsr_matrix(pdx), n_pca=None, precomputed='distance',
+                     thresh=thresh,
+                     decay=a, knn=k, random_state=42, use_pygsp=True)
+    assert(G.N == G2.N)
+    assert(np.all(G.d == G2.d))
+    assert((G.W != G2.W).nnz == 0)
+    assert((G2.W != G.W).sum() == 0)
+    assert(isinstance(G2, graphtools.graphs.TraditionalGraph))
+    G2 = build_graph(sp.lil_matrix(K), n_pca=None,
+                     precomputed='affinity',
+                     thresh=thresh,
+                     random_state=42, use_pygsp=True)
+    assert(G.N == G2.N)
+    assert(np.all(G.d == G2.d))
+    assert((G.W != G2.W).nnz == 0)
+    assert((G2.W != G.W).sum() == 0)
+    assert(isinstance(G2, graphtools.graphs.TraditionalGraph))
+    G2 = build_graph(sp.dok_matrix(W), n_pca=None,
+                     precomputed='adjacency',
+                     random_state=42, use_pygsp=True)
+    assert(G.N == G2.N)
+    assert(np.all(G.d == G2.d))
+    assert((G.W != G2.W).nnz == 0)
+    assert((G2.W != G.W).sum() == 0)
+    assert(isinstance(G2, graphtools.graphs.TraditionalGraph))
+
+
+def test_truncated_exact_graph_no_pca():
+    k = 3
+    a = 13
+    n_pca = None
+    thresh = 1e-4
+    data_small = data[np.random.choice(
+        len(data), len(data) // 10, replace=False)]
+    pdx = squareform(pdist(data_small, metric='euclidean'))
+    knn_dist = np.partition(pdx, k, axis=1)[:, :k]
+    epsilon = np.max(knn_dist, axis=1)
+    weighted_pdx = (pdx.T / epsilon).T
+    K = np.exp(-1 * weighted_pdx**a)
+    K[K < thresh] = 0
+    W = K + K.T
+    W = np.divide(W, 2)
+    np.fill_diagonal(W, 0)
+    G = pygsp.graphs.Graph(W)
+    G2 = build_graph(data_small, thresh=thresh,
+                     graphtype='exact',
+                     n_pca=n_pca,
+                     decay=a, knn=k, random_state=42,
+                     use_pygsp=True)
+    assert(G.N == G2.N)
+    assert(np.all(G.d == G2.d))
+    assert((G.W != G2.W).nnz == 0)
+    assert((G2.W != G.W).sum() == 0)
+    assert(isinstance(G2, graphtools.graphs.TraditionalGraph))
+    G2 = build_graph(sp.csr_matrix(data_small), thresh=thresh,
+                     graphtype='exact',
+                     n_pca=n_pca,
+                     decay=a, knn=k, random_state=42,
+                     use_pygsp=True)
     assert(G.N == G2.N)
     assert(np.all(G.d == G2.d))
     assert((G.W != G2.W).nnz == 0)

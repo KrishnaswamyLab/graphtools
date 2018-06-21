@@ -1,16 +1,19 @@
 from load_tests import (
     graphtools,
     np,
+    sp,
     pygsp,
     nose2,
     data,
     datasets,
     build_graph,
     assert_raises,
+    warns,
     raises,
     squareform,
     pdist,
     PCA,
+    TruncatedSVD,
 )
 
 
@@ -66,6 +69,31 @@ def test_knn_graph():
     assert(isinstance(G2, graphtools.graphs.kNNGraph))
 
 
+def test_knn_graph_sparse():
+    k = 3
+    n_pca = 20
+    pca = TruncatedSVD(n_pca, random_state=42).fit(data)
+    data_nu = pca.transform(data)
+    pdx = squareform(pdist(data_nu, metric='euclidean'))
+    knn_dist = np.partition(pdx, k, axis=1)[:, :k]
+    epsilon = np.max(knn_dist, axis=1)
+    K = np.empty_like(pdx)
+    for i in range(len(pdx)):
+        K[i, pdx[i, :] <= epsilon[i]] = 1
+        K[i, pdx[i, :] > epsilon[i]] = 0
+
+    K = K + K.T
+    W = np.divide(K, 2)
+    np.fill_diagonal(W, 0)
+    G = pygsp.graphs.Graph(W)
+    G2 = build_graph(sp.coo_matrix(data), n_pca=n_pca,
+                     decay=None, knn=k, random_state=42,
+                     use_pygsp=True)
+    assert(G.N == G2.N)
+    np.testing.assert_allclose(G2.W.toarray(), G.W.toarray())
+    assert(isinstance(G2, graphtools.graphs.kNNGraph))
+
+
 def test_sparse_alpha_knn_graph():
     data = datasets.make_swiss_roll()[0]
     k = 5
@@ -86,6 +114,13 @@ def test_sparse_alpha_knn_graph():
     assert(np.abs(G.W - G2.W).max() < thresh)
     assert(G.N == G2.N)
     assert(isinstance(G2, graphtools.graphs.kNNGraph))
+
+
+@warns(UserWarning)
+def test_knn_graph_sparse_no_pca():
+    build_graph(sp.coo_matrix(data), n_pca=None,  # n_pca,
+                decay=10, knn=3, thresh=1e-4,
+                random_state=42, use_pygsp=True)
 
 
 #####################################################
