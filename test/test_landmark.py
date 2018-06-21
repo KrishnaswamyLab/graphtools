@@ -52,7 +52,7 @@ def test_landmark_knn_graph():
 
 
 def test_landmark_mnn_graph():
-    n_landmark = 500
+    n_landmark = 150
     # mnn graph
     select_idx = np.random.choice(len(data), len(data) // 5, replace=False)
     G = build_graph(data[select_idx], n_landmark=n_landmark,
