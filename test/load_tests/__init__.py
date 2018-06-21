@@ -1,4 +1,4 @@
-from sklearn.decomposition import PCA
+from sklearn.decomposition import PCA, TruncatedSVD
 from sklearn import datasets
 from scipy.spatial.distance import pdist, cdist, squareform
 import pygsp

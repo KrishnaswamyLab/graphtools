@@ -244,7 +244,7 @@ class kNNGraph(DataGraph):
             if len(update_idx) > 0:
                 distances = [d for d in distances]
                 indices = [i for i in indices]
-            while len(update_idx) > len(Y) // 10 and \
+            while len(update_idx) > Y.shape[0] // 10 and \
                     search_knn < self.data_nu.shape[0] / 2:
                 # increase the knn search
                 search_knn = min(search_knn * 20, self.data_nu.shape[0])
@@ -829,9 +829,9 @@ class MNNGraph(DataGraph):
         if sample_idx is None:
             raise ValueError("sample_idx must be given. For a graph without"
                              " batch correction, use kNNGraph.")
-        elif len(sample_idx) != len(data):
+        elif len(sample_idx) != data.shape[0]:
             raise ValueError("sample_idx ({}) must be the same length as "
-                             "data ({})".format(len(sample_idx), len(data)))
+                             "data ({})".format(len(sample_idx), data.shape[0]))
         elif len(self.samples) == 1:
             raise ValueError(
                 "sample_idx must contain more than one unique value")
@@ -1092,7 +1092,7 @@ class MNNGraph(DataGraph):
         kernel_yx = []
         # don't really need within Y kernel
         Y_graph = kNNGraph(Y, n_pca=None, knn=0, **(self.knn_args))
-        y_knn = self._weight_knn(sample_size=len(Y))
+        y_knn = self._weight_knn(sample_size=Y.shape[0])
         for i, X in enumerate(self.subgraphs):
             kernel_xy.append(X.build_kernel_to_data(
                 Y, knn=self.weighted_knn[i]))  # kernel X -> Y
