@@ -233,6 +233,10 @@ class Data(Base):
         ----------
         Y : array-like, shape=[n_samples_y, n_pca]
             n_features must be the same as `self.data_nu`.
+        columns : list-like
+            list of integers referring to column indices in the original data
+            space to be returned. Avoids recomputing the full matrix where only
+            a few dimensions of the ambient space are of interest
 
         Returns
         -------
