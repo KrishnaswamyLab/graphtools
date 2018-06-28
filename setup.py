@@ -3,8 +3,8 @@ import sys
 from setuptools import setup
 
 install_requires = [
-    'numpy>=1.10.0',
-    'scipy>=0.18.0',
+    'numpy>=1.14.0',
+    'scipy>=1.1.0',
     'pygsp>=0.5.1',
     'scikit-learn>=0.19.1',
     'future',
