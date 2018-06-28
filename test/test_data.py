@@ -99,10 +99,39 @@ def test_transform_sparse_no_pca():
 
 def test_inverse_transform_dense_pca():
     G = build_graph(data, n_pca=data.shape[1] - 1)
-    assert(np.allclose(G.data, G.inverse_transform(G.data_nu)))
+    np.testing.assert_allclose(
+        G.data, G.inverse_transform(G.data_nu), atol=1e-12)
+    np.testing.assert_allclose(G.data[:, -1, None],
+                               G.inverse_transform(G.data_nu, columns=-1),
+                               atol=1e-12)
+    np.testing.assert_allclose(G.data[:, 5:7],
+                               G.inverse_transform(G.data_nu, columns=[5, 6]),
+                               atol=1e-12)
+    assert_raises(IndexError, G.inverse_transform,
+                  G.data_nu, columns=data.shape[1])
     assert_raises(ValueError, G.inverse_transform, G.data[:, 0])
     assert_raises(ValueError, G.inverse_transform, G.data[:, None, :15])
     assert_raises(ValueError, G.inverse_transform, G.data[:, :15])
+
+
+def test_inverse_transform_sparse_svd():
+    G = build_graph(data, sparse=True, n_pca=data.shape[1] - 1)
+    np.testing.assert_allclose(
+        data, G.inverse_transform(G.data_nu), atol=1e-12)
+    np.testing.assert_allclose(data[:, -1, None],
+                               G.inverse_transform(G.data_nu, columns=-1),
+                               atol=1e-12)
+    np.testing.assert_allclose(data[:, 5:7],
+                               G.inverse_transform(G.data_nu, columns=[5, 6]),
+                               atol=1e-12)
+    assert_raises(IndexError, G.inverse_transform,
+                  G.data_nu, columns=data.shape[1])
+    assert_raises(TypeError, G.inverse_transform, sp.csr_matrix(G.data)[:, 0])
+    assert_raises(TypeError, G.inverse_transform,
+                  sp.csr_matrix(G.data)[:, :15])
+    assert_raises(ValueError, G.inverse_transform, data[:, 0])
+    assert_raises(ValueError, G.inverse_transform,
+                  data[:, :15])
 
 
 def test_inverse_transform_dense_no_pca():

@@ -223,7 +223,7 @@ class Data(Base):
                              " to graph built on data of shape {}".format(
                                  Y.shape, self.data.shape))
 
-    def inverse_transform(self, Y):
+    def inverse_transform(self, Y, columns=None):
         """Transform input data `Y` to ambient data space defined by `self.data`
 
         Takes data in the same reduced space as `self.data_nu` and transforms
@@ -243,17 +243,30 @@ class Data(Base):
         ValueError : if Y.shape[1] != self.data_nu.shape[1]
         """
         try:
-            # try PCA first
-            return self.data_pca.inverse_transform(Y)
-        except AttributeError:
-            try:
-                if Y.shape[1] != self.data_nu.shape[1]:
-                    # shape is wrong
+            if not hasattr(self, "data_pca"):
+                # no pca performed
+                try:
+                    if Y.shape[1] != self.data_nu.shape[1]:
+                        # shape is wrong
+                        raise ValueError
+                except IndexError:
+                    # len(Y.shape) < 2
                     raise ValueError
-                return Y
-            except IndexError:
-                # len(Y.shape) < 2
-                raise ValueError
+                if columns is None:
+                    return Y
+                else:
+                    columns = np.array([columns]).flatten()
+                    return Y[:, columns]
+            else:
+                if columns is None:
+                    return self.data_pca.inverse_transform(Y)
+                else:
+                    # only return specific columns
+                    columns = np.array([columns]).flatten()
+                    Y_inv = np.dot(Y, self.data_pca.components_[:, columns])
+                    if hasattr(self.data_pca, "mean_"):
+                        Y_inv += self.data_pca.mean_[columns]
+                    return Y_inv
         except ValueError:
             # more informative error
             raise ValueError("data of shape {} cannot be inverse transformed"
