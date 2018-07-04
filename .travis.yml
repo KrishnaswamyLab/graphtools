@@ -11,3 +11,5 @@
 
   script:
     - python -m nose2 -v
+    - cd doc
+    - make html
