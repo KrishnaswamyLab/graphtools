@@ -6,6 +6,11 @@
 
   sudo: required
 
+  addons:
+    apt:
+      packages:
+        libjs-mathjax
+
   before_install:
     - pip install nose2 pandas
 
