@@ -191,7 +191,7 @@ class kNNGraph(DataGraph):
         Parameters
         ----------
 
-        Y: array-like, [n_samples_y, n_dimensions]
+        Y: array-like, [n_samples_y, n_features]
             new data for which an affinity matrix is calculated
             to the existing data. `n_features` must match
             either the ambient or PCA dimensions
@@ -493,7 +493,7 @@ class LandmarkGraph(DataGraph):
         Parameters
         ----------
 
-        Y: array-like, [n_samples_y, n_dimensions]
+        Y: array-like, [n_samples_y, n_features]
             new data for which an affinity matrix is calculated
             to the existing data. `n_features` must match
             either the ambient or PCA dimensions
@@ -529,7 +529,7 @@ class LandmarkGraph(DataGraph):
         transitions : array-like, optional, shape=[n_samples_y, n_samples]
             Transition matrix from `Y` (not provided) to `self.data`
 
-        Y: array-like, optional, shape=[n_samples_y, n_dimensions]
+        Y: array-like, optional, shape=[n_samples_y, n_features]
             new data for which an affinity matrix is calculated
             to the existing data. `n_features` must match
             either the ambient or PCA dimensions
@@ -744,7 +744,7 @@ class TraditionalGraph(DataGraph):
         Parameters
         ----------
 
-        Y: array-like, [n_samples_y, n_dimensions]
+        Y: array-like, [n_samples_y, n_features]
             new data for which an affinity matrix is calculated
             to the existing data. `n_features` must match
             either the ambient or PCA dimensions
@@ -789,7 +789,8 @@ class MNNGraph(DataGraph):
     ----------
 
     data : array-like, shape=[n_samples,n_features]
-        accepted types: `numpy.ndarray`, `scipy.sparse.spmatrix`.,
+        accepted types: `numpy.ndarray`,
+        `scipy.sparse.spmatrix`.,
         `pandas.DataFrame`, `pandas.SparseDataFrame`.
 
     sample_idx: array-like, shape=[n_samples]
@@ -798,13 +799,13 @@ class MNNGraph(DataGraph):
     beta: `float`, optional (default: 1)
         Downweight within-batch affinities by beta
 
-    adaptive_k : `{'min', 'mean', 'sqrt', 'none'}` (default: 'sqrt')
+    adaptive_k : {'min', 'mean', 'sqrt', `None`} (default: 'sqrt')
         Weights MNN kernel adaptively using the number of cells in
         each sample according to the selected method.
 
     Attributes
     ----------
-    subgraphs : list of `kNNGraph`s
+    subgraphs : list of :class:`~graphtools.graphs.kNNGraph`s
         Graphs representing each batch separately
     """
 
@@ -1061,7 +1062,7 @@ class MNNGraph(DataGraph):
         Parameters
         ----------
 
-        Y : array-like, [n_samples_y, n_dimensions]
+        Y : array-like, [n_samples_y, n_features]
             new data for which an affinity matrix is calculated
             to the existing data. `n_features` must match
             either the ambient or PCA dimensions
