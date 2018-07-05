@@ -53,3 +53,8 @@ To use `graphtools` with `pygsp`, create a `graphtools.Graph` class with `use_py
     N = G.N
     W = G.W
     basis = G.compute_fourier_basis()
+
+Help
+====
+
+If you have any questions or require assistance using graphtools, please contact us at https://krishnaswamylab.org/get-help
