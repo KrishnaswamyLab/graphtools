@@ -11,6 +11,9 @@ graphtools
 .. image:: https://img.shields.io/readthedocs/graphtools.svg
     :target: https://graphtools.readthedocs.io/
     :alt: Read the Docs
+.. image:: https://coveralls.io/repos/github/KrishnaswamyLab/graphtools/badge.svg?branch=master
+    :target: https://coveralls.io/github/KrishnaswamyLab/graphtools?branch=master
+    :alt: Coverage Status
 .. image:: https://img.shields.io/twitter/follow/KrishnaswamyLab.svg?style=social&label=Follow
     :target: https://twitter.com/KrishnaswamyLab
     :alt: Twitter

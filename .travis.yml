@@ -11,11 +11,12 @@
       packages:
         libjs-mathjax
 
-  before_install:
-    - pip install nose2 pandas
-
   script:
-    - python -m nose2 -v
+    - pip install -U .[test,doc]
+    - python setup.py test
     - cd doc
-    - pip install -r source/requirements.txt
     - make html
+    - cd ..
+
+  after_success:
+    - coveralls

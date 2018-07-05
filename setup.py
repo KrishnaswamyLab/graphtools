@@ -12,6 +12,14 @@ install_requires = [
 
 test_requires = [
     'nose2',
+    'pandas',
+    'coverage',
+    'coveralls'
+]
+
+doc_requires = [
+    'sphinx',
+    'sphinxcontrib-napoleon',
 ]
 
 if sys.version_info[:2] < (2, 7) or (3, 0) <= sys.version_info[:2] < (3, 5):
@@ -32,7 +40,8 @@ setup(name='graphtools',
       packages=['graphtools', ],
       license='GNU General Public License Version 2',
       install_requires=install_requires,
-      extras_require={'test': test_requires},
+      extras_require={'test': test_requires,
+                      'doc': doc_requires},
       test_suite='nose2.collector.collector',
       long_description=readme,
       url='https://github.com/KrishnaswamyLab/graphtools',
