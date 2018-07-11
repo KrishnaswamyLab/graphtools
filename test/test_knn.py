@@ -41,7 +41,8 @@ def test_build_knn_with_sample_idx():
 def test_duplicate_data():
     build_graph(np.vstack([data, data[:10]]),
                 n_pca=20,
-                decay=10)
+                decay=10,
+                thresh=1e-4)
 
 
 #####################################################

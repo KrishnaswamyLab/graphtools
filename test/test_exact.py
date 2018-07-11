@@ -73,7 +73,7 @@ def test_duplicate_data():
     build_graph(np.vstack([data, data[:10]]),
                 n_pca=20,
                 decay=10,
-                graphtype='exact')
+                thresh=0)
 
 
 #####################################################
