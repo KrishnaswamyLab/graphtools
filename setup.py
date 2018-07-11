@@ -13,6 +13,8 @@ install_requires = [
 test_requires = [
     'nose2',
     'pandas',
+    'pathlib',
+    'anndata',
     'coverage',
     'coveralls'
 ]

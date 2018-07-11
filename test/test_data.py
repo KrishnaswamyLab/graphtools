@@ -12,6 +12,13 @@ from load_tests import (
     squareform,
     pdist,
 )
+try:
+    import anndata
+except SyntaxError:
+    # python2 support is missing
+    import sys
+    print("Warning: failed to import anndata", file=sys.stderr)
+    pass
 
 #####################################################
 # Check parameters
@@ -53,6 +60,28 @@ def test_pandas_dataframe():
 
 def test_pandas_sparse_dataframe():
     G = build_graph(pd.SparseDataFrame(data))
+    assert isinstance(G, graphtools.base.BaseGraph)
+    assert isinstance(G.data, sp.csr_matrix)
+
+
+def test_anndata():
+    try:
+        anndata
+    except NameError:
+        # not installed
+        return
+    G = build_graph(anndata.AnnData(data))
+    assert isinstance(G, graphtools.base.BaseGraph)
+    assert isinstance(G.data, np.ndarray)
+
+
+def test_anndata_sparse():
+    try:
+        anndata
+    except NameError:
+        # not installed
+        return
+    G = build_graph(anndata.AnnData(sp.csr_matrix(data)))
     assert isinstance(G, graphtools.base.BaseGraph)
     assert isinstance(G.data, sp.csr_matrix)
 
