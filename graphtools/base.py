@@ -17,7 +17,7 @@ except ImportError:
 
 try:
     import anndata
-except ImportError, SyntaxError:
+except (ImportError, SyntaxError):
     # anndata not installed
     pass
 
