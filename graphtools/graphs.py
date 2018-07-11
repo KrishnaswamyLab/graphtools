@@ -232,6 +232,20 @@ class kNNGraph(DataGraph):
             search_knn = min(knn * 20, self.data_nu.shape[0])
             distances, indices = knn_tree.kneighbors(
                 Y, n_neighbors=search_knn)
+            if np.any(distances[:, 1] == 0):
+                has_duplicates = distances[:, 1] == 0
+                idx = np.argwhere((distances == 0) & has_duplicates[:, None])
+                duplicate_ids = np.array(
+                    [[indices[i[0], i[1]], i[0]]
+                     for i in idx if indices[i[0], i[1]] < i[0]])
+                duplicate_ids = duplicate_ids[np.argsort(duplicate_ids[:, 0])]
+                duplicate_names = ", ".join(["{} and {}".format(i[0], i[1])
+                                             for i in duplicate_ids])
+                warnings.warn(
+                    "Detected zero distance between samples {}. "
+                    "Consider removing duplicates to avoid errors in "
+                    "downstream processing.".format(duplicate_names),
+                    RuntimeWarning)
             log_complete("KNN search")
             log_start("affinities")
             bandwidth = distances[:, knn - 1]
@@ -706,7 +720,21 @@ class TraditionalGraph(DataGraph):
             if self.precomputed == "distance":
                 pdx = self.data_nu
             elif self.precomputed is None:
-                pdx = squareform(pdist(self.data_nu, metric=self.distance))
+                pdx = pdist(self.data_nu, metric=self.distance)
+                if np.any(pdx == 0):
+                    pdx = squareform(pdx)
+                    duplicate_ids = np.array(
+                        [i for i in np.argwhere(pdx == 0)
+                         if i[1] > i[0]])
+                    duplicate_names = ", ".join(["{} and {}".format(i[0], i[1])
+                                                 for i in duplicate_ids])
+                    warnings.warn(
+                        "Detected zero distance between samples {}. "
+                        "Consider removing duplicates to avoid errors in "
+                        "downstream processing.".format(duplicate_names),
+                        RuntimeWarning)
+                else:
+                    pdx = squareform(pdx)
             else:
                 raise ValueError(
                     "precomputed='{}' not recognized. "
