@@ -12,12 +12,15 @@ from load_tests import (
     squareform,
     pdist,
 )
+import warnings
+
 try:
     import anndata
-except SyntaxError:
+except (ImportError, SyntaxError):
     # python2 support is missing
-    import sys
-    print("Warning: failed to import anndata", file=sys.stderr)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("always")
+        warnings.warn("Warning: failed to import anndata", ImportWarning)
     pass
 
 #####################################################
