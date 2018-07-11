@@ -180,7 +180,3 @@ def test_inverse_transform_sparse_no_pca():
     assert_raises(ValueError, G.inverse_transform, sp.csr_matrix(G.data)[:, 0])
     assert_raises(ValueError, G.inverse_transform,
                   sp.csr_matrix(G.data)[:, :15])
-
-
-if __name__ == "__main__":
-    exit(nose2.run())

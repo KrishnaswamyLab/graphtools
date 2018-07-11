@@ -77,7 +77,3 @@ def test_verbose():
     print()
     print("Verbose test: Landmark")
     build_graph(data, decay=None, n_landmark=500, verbose=True).landmark_op
-
-
-if __name__ == "__main__":
-    exit(nose2.run())

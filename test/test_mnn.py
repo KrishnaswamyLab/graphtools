@@ -222,7 +222,3 @@ def test_verbose():
     build_graph(X, sample_idx=sample_idx,
                 kernel_symm='gamma', gamma=0.5,
                 n_pca=None, verbose=True)
-
-
-if __name__ == "__main__":
-    exit(nose2.run())

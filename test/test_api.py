@@ -19,7 +19,3 @@ def test_unknown_parameter():
 @raises(ValueError)
 def test_invalid_graphtype():
     build_graph(data, graphtype='hello world')
-
-
-if __name__ == "__main__":
-    exit(nose2.run())
