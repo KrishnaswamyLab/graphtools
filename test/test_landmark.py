@@ -57,7 +57,7 @@ def test_landmark_mnn_graph():
     X, sample_idx = generate_swiss_roll()
     # mnn graph
     G = build_graph(X, n_landmark=n_landmark,
-                    thresh=1e-5, n_pca=20,
+                    thresh=1e-5, n_pca=None,
                     decay=10, knn=5, random_state=42,
                     sample_idx=sample_idx)
     assert(G.landmark_op.shape == (n_landmark, n_landmark))
