@@ -168,6 +168,9 @@ def test_inverse_transform_sparse_svd():
 
 def test_inverse_transform_dense_no_pca():
     G = build_graph(data, n_pca=None)
+    np.testing.assert_allclose(data[:, 5:7],
+                               G.inverse_transform(G.data_nu, columns=[5, 6]),
+                               atol=1e-12)
     assert(np.all(G.data == G.inverse_transform(G.data_nu)))
     assert_raises(ValueError, G.inverse_transform, G.data[:, 0])
     assert_raises(ValueError, G.inverse_transform, G.data[:, None, :15])
