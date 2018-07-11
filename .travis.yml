@@ -14,9 +14,7 @@
   script:
     - pip install -U .[test,doc]
     - python setup.py test
-    - cd doc
-    - make html
-    - cd ..
+    - cd doc; make html; cd ..
 
   after_success:
     - coveralls
