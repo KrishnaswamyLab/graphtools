@@ -17,6 +17,9 @@ test_requires = [
     'coveralls'
 ]
 
+if sys.version_info[0] == 3:
+    test_requires += ['anndata']
+
 doc_requires = [
     'sphinx',
     'sphinxcontrib-napoleon',

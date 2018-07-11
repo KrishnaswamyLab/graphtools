@@ -15,6 +15,12 @@ except ImportError:
     # pandas not installed
     pass
 
+try:
+    import anndata
+except (ImportError, SyntaxError):
+    # anndata not installed
+    pass
+
 from .utils import (elementwise_minimum,
                     elementwise_maximum,
                     set_diagonal)
@@ -110,6 +116,13 @@ class Data(Base):
                 data = np.array(data)
         except NameError:
             # pandas not installed
+            pass
+
+        try:
+            if isinstance(data, anndata.AnnData):
+                data = data.X
+        except NameError:
+            # anndata not installed
             pass
         self.data = data
         self.n_pca = n_pca

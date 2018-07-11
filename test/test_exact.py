@@ -336,7 +336,3 @@ def test_verbose():
     print()
     print("Verbose test: Exact")
     build_graph(data, decay=10, thresh=0, verbose=True)
-
-
-if __name__ == "__main__":
-    exit(nose2.run())

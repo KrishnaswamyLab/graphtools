@@ -7,6 +7,7 @@ from load_tests import (
     build_graph,
     raises,
     warns,
+    generate_swiss_roll
 )
 
 
@@ -53,12 +54,12 @@ def test_landmark_knn_graph():
 
 def test_landmark_mnn_graph():
     n_landmark = 150
+    X, sample_idx = generate_swiss_roll()
     # mnn graph
-    select_idx = np.random.choice(len(data), len(data) // 5, replace=False)
-    G = build_graph(data[select_idx], n_landmark=n_landmark,
-                    thresh=1e-5, n_pca=20,
+    G = build_graph(X, n_landmark=n_landmark,
+                    thresh=1e-5, n_pca=None,
                     decay=10, knn=5, random_state=42,
-                    sample_idx=digits['target'][select_idx])
+                    sample_idx=sample_idx)
     assert(G.landmark_op.shape == (n_landmark, n_landmark))
     assert(isinstance(G, graphtools.graphs.MNNGraph))
     assert(isinstance(G, graphtools.graphs.LandmarkGraph))
@@ -76,7 +77,3 @@ def test_verbose():
     print()
     print("Verbose test: Landmark")
     build_graph(data, decay=None, n_landmark=500, verbose=True).landmark_op
-
-
-if __name__ == "__main__":
-    exit(nose2.run())

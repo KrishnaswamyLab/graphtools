@@ -12,6 +12,16 @@ from load_tests import (
     squareform,
     pdist,
 )
+import warnings
+
+try:
+    import anndata
+except (ImportError, SyntaxError):
+    # python2 support is missing
+    with warnings.catch_warnings():
+        warnings.filterwarnings("always")
+        warnings.warn("Warning: failed to import anndata", ImportWarning)
+    pass
 
 #####################################################
 # Check parameters
@@ -53,6 +63,28 @@ def test_pandas_dataframe():
 
 def test_pandas_sparse_dataframe():
     G = build_graph(pd.SparseDataFrame(data))
+    assert isinstance(G, graphtools.base.BaseGraph)
+    assert isinstance(G.data, sp.csr_matrix)
+
+
+def test_anndata():
+    try:
+        anndata
+    except NameError:
+        # not installed
+        return
+    G = build_graph(anndata.AnnData(data))
+    assert isinstance(G, graphtools.base.BaseGraph)
+    assert isinstance(G.data, np.ndarray)
+
+
+def test_anndata_sparse():
+    try:
+        anndata
+    except NameError:
+        # not installed
+        return
+    G = build_graph(anndata.AnnData(sp.csr_matrix(data)))
     assert isinstance(G, graphtools.base.BaseGraph)
     assert isinstance(G.data, sp.csr_matrix)
 
@@ -136,6 +168,9 @@ def test_inverse_transform_sparse_svd():
 
 def test_inverse_transform_dense_no_pca():
     G = build_graph(data, n_pca=None)
+    np.testing.assert_allclose(data[:, 5:7],
+                               G.inverse_transform(G.data_nu, columns=[5, 6]),
+                               atol=1e-12)
     assert(np.all(G.data == G.inverse_transform(G.data_nu)))
     assert_raises(ValueError, G.inverse_transform, G.data[:, 0])
     assert_raises(ValueError, G.inverse_transform, G.data[:, None, :15])
@@ -148,7 +183,3 @@ def test_inverse_transform_sparse_no_pca():
     assert_raises(ValueError, G.inverse_transform, sp.csr_matrix(G.data)[:, 0])
     assert_raises(ValueError, G.inverse_transform,
                   sp.csr_matrix(G.data)[:, :15])
-
-
-if __name__ == "__main__":
-    exit(nose2.run())
