@@ -68,6 +68,14 @@ def test_precomputed_negative():
                 n_pca=None)
 
 
+@warns(RuntimeWarning)
+def test_duplicate_data():
+    build_graph(np.vstack([data, data[:10]]),
+                n_pca=20,
+                decay=10,
+                thresh=0)
+
+
 #####################################################
 # Check kernel
 #####################################################

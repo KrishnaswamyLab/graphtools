@@ -11,6 +11,9 @@ graphtools
 .. image:: https://img.shields.io/readthedocs/graphtools.svg
     :target: https://graphtools.readthedocs.io/
     :alt: Read the Docs
+.. image:: https://coveralls.io/repos/github/KrishnaswamyLab/graphtools/badge.svg?branch=master
+    :target: https://coveralls.io/github/KrishnaswamyLab/graphtools?branch=master
+    :alt: Coverage Status
 .. image:: https://img.shields.io/twitter/follow/KrishnaswamyLab.svg?style=social&label=Follow
     :target: https://twitter.com/KrishnaswamyLab
     :alt: Twitter
@@ -42,3 +45,8 @@ Use it as follows::
         P = G.diff_op
         G = graphtools.Graph(digits['data'], n_landmark=300)
         L = G.landmark_op
+
+Help
+----
+
+If you have any questions or require assistance using graphtools, please contact us at https://krishnaswamylab.org/get-help

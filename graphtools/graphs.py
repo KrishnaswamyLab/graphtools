@@ -191,7 +191,7 @@ class kNNGraph(DataGraph):
         Parameters
         ----------
 
-        Y: array-like, [n_samples_y, n_dimensions]
+        Y: array-like, [n_samples_y, n_features]
             new data for which an affinity matrix is calculated
             to the existing data. `n_features` must match
             either the ambient or PCA dimensions
@@ -232,6 +232,20 @@ class kNNGraph(DataGraph):
             search_knn = min(knn * 20, self.data_nu.shape[0])
             distances, indices = knn_tree.kneighbors(
                 Y, n_neighbors=search_knn)
+            if np.any(distances[:, 1] == 0):
+                has_duplicates = distances[:, 1] == 0
+                idx = np.argwhere((distances == 0) & has_duplicates[:, None])
+                duplicate_ids = np.array(
+                    [[indices[i[0], i[1]], i[0]]
+                     for i in idx if indices[i[0], i[1]] < i[0]])
+                duplicate_ids = duplicate_ids[np.argsort(duplicate_ids[:, 0])]
+                duplicate_names = ", ".join(["{} and {}".format(i[0], i[1])
+                                             for i in duplicate_ids])
+                warnings.warn(
+                    "Detected zero distance between samples {}. "
+                    "Consider removing duplicates to avoid errors in "
+                    "downstream processing.".format(duplicate_names),
+                    RuntimeWarning)
             log_complete("KNN search")
             log_start("affinities")
             bandwidth = distances[:, knn - 1]
@@ -493,7 +507,7 @@ class LandmarkGraph(DataGraph):
         Parameters
         ----------
 
-        Y: array-like, [n_samples_y, n_dimensions]
+        Y: array-like, [n_samples_y, n_features]
             new data for which an affinity matrix is calculated
             to the existing data. `n_features` must match
             either the ambient or PCA dimensions
@@ -529,7 +543,7 @@ class LandmarkGraph(DataGraph):
         transitions : array-like, optional, shape=[n_samples_y, n_samples]
             Transition matrix from `Y` (not provided) to `self.data`
 
-        Y: array-like, optional, shape=[n_samples_y, n_dimensions]
+        Y: array-like, optional, shape=[n_samples_y, n_features]
             new data for which an affinity matrix is calculated
             to the existing data. `n_features` must match
             either the ambient or PCA dimensions
@@ -706,7 +720,21 @@ class TraditionalGraph(DataGraph):
             if self.precomputed == "distance":
                 pdx = self.data_nu
             elif self.precomputed is None:
-                pdx = squareform(pdist(self.data_nu, metric=self.distance))
+                pdx = pdist(self.data_nu, metric=self.distance)
+                if np.any(pdx == 0):
+                    pdx = squareform(pdx)
+                    duplicate_ids = np.array(
+                        [i for i in np.argwhere(pdx == 0)
+                         if i[1] > i[0]])
+                    duplicate_names = ", ".join(["{} and {}".format(i[0], i[1])
+                                                 for i in duplicate_ids])
+                    warnings.warn(
+                        "Detected zero distance between samples {}. "
+                        "Consider removing duplicates to avoid errors in "
+                        "downstream processing.".format(duplicate_names),
+                        RuntimeWarning)
+                else:
+                    pdx = squareform(pdx)
             else:
                 raise ValueError(
                     "precomputed='{}' not recognized. "
@@ -744,7 +772,7 @@ class TraditionalGraph(DataGraph):
         Parameters
         ----------
 
-        Y: array-like, [n_samples_y, n_dimensions]
+        Y: array-like, [n_samples_y, n_features]
             new data for which an affinity matrix is calculated
             to the existing data. `n_features` must match
             either the ambient or PCA dimensions
@@ -789,7 +817,8 @@ class MNNGraph(DataGraph):
     ----------
 
     data : array-like, shape=[n_samples,n_features]
-        accepted types: `numpy.ndarray`, `scipy.sparse.spmatrix`.,
+        accepted types: `numpy.ndarray`,
+        `scipy.sparse.spmatrix`.,
         `pandas.DataFrame`, `pandas.SparseDataFrame`.
 
     sample_idx: array-like, shape=[n_samples]
@@ -798,13 +827,13 @@ class MNNGraph(DataGraph):
     beta: `float`, optional (default: 1)
         Downweight within-batch affinities by beta
 
-    adaptive_k : `{'min', 'mean', 'sqrt', 'none'}` (default: 'sqrt')
+    adaptive_k : {'min', 'mean', 'sqrt', `None`} (default: 'sqrt')
         Weights MNN kernel adaptively using the number of cells in
         each sample according to the selected method.
 
     Attributes
     ----------
-    subgraphs : list of `kNNGraph`s
+    subgraphs : list of :class:`~graphtools.graphs.kNNGraph`s
         Graphs representing each batch separately
     """
 
@@ -1061,7 +1090,7 @@ class MNNGraph(DataGraph):
         Parameters
         ----------
 
-        Y : array-like, [n_samples_y, n_dimensions]
+        Y : array-like, [n_samples_y, n_features]
             new data for which an affinity matrix is calculated
             to the existing data. `n_features` must match
             either the ambient or PCA dimensions

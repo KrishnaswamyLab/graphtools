@@ -6,8 +6,15 @@
 
   sudo: required
 
-  before_install:
-    - pip install nose2 pandas
+  addons:
+    apt:
+      packages:
+        libjs-mathjax
 
   script:
-    - python -m nose2 -v
+    - pip install -U .[test,doc]
+    - python setup.py test
+    - cd doc; make html; cd ..
+
+  after_success:
+    - coveralls

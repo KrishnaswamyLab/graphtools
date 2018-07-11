@@ -96,9 +96,7 @@ class Data(Base):
 
     def __init__(self, data, n_pca=None, random_state=None, **kwargs):
 
-        if len(data.shape) != 2:
-            raise ValueError("Expected a 2D matrix. data has shape {}".format(
-                data.shape))
+        self._check_data(data)
         if n_pca is not None and data.shape[1] <= n_pca:
             warnings.warn("Cannot perform PCA to {} dimensions on "
                           "data with {} dimensions".format(n_pca,
@@ -118,6 +116,16 @@ class Data(Base):
         self.random_state = random_state
         self.data_nu = self._reduce_data()
         super().__init__(**kwargs)
+
+    def _check_data(self, data):
+        if len(data.shape) != 2:
+            msg = "ValueError: Expected 2D array, got {}D array " \
+                "instead (shape: {}.) ".format(len(data.shape), data.shape)
+            if len(data.shape) < 2:
+                msg += "\nReshape your data either using array.reshape(-1, 1) "
+                "if your data has a single feature or array.reshape(1, -1) if "
+                "it contains a single sample."
+            raise ValueError(msg)
 
     def _reduce_data(self):
         """Private method to reduce data dimension.
@@ -233,6 +241,10 @@ class Data(Base):
         ----------
         Y : array-like, shape=[n_samples_y, n_pca]
             n_features must be the same as `self.data_nu`.
+        columns : list-like
+            list of integers referring to column indices in the original data
+            space to be returned. Avoids recomputing the full matrix where only
+            a few dimensions of the ambient space are of interest
 
         Returns
         -------
@@ -546,21 +558,17 @@ class DataGraph(with_metaclass(abc.ABCMeta, Data, BaseGraph)):
 
     data : array-like, shape=[n_samples,n_features]
         accepted types: `numpy.ndarray`, `scipy.sparse.spmatrix`.
-        TODO: accept pandas dataframes
 
     n_pca : `int` or `None`, optional (default: `None`)
         number of PC dimensions to retain for graph building.
         If `None`, uses the original data.
         Note: if data is sparse, uses SVD instead of PCA
-        TODO: should we subtract and store the mean?
 
     random_state : `int` or `None`, optional (default: `None`)
         Random state for random PCA and graph building
 
     verbose : `bool`, optional (default: `True`)
         Verbosity.
-        TODO: should this be an integer instead to allow multiple
-        levels of verbosity?
 
     n_jobs : `int`, optional (default : 1)
         The number of jobs to use for the computation.
