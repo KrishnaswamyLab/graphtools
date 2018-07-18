@@ -1,8 +1,7 @@
 import numpy as np
 import warnings
+import tasklogger
 
-from .logging import (set_logging,
-                      log_debug)
 from .base import PyGSPGraph
 from .graphs import kNNGraph, TraditionalGraph, MNNGraph, LandmarkGraph
 
@@ -138,7 +137,7 @@ def Graph(data,
     ------
     ValueError : if selected parameters are incompatible.
     """
-    set_logging(verbose)
+    tasklogger.set_level(verbose)
     if sample_idx is not None and len(np.unique(sample_idx)) == 1:
         warnings.warn("Only one unique sample. "
                       "Not using MNNGraph")
@@ -198,7 +197,7 @@ def Graph(data,
         else:
             msg = msg + " and PyGSP inheritance"
 
-    log_debug(msg)
+    tasklogger.log_debug(msg)
 
     # Python3 syntax only
     # class Graph(*parent_classes):
@@ -224,7 +223,7 @@ def Graph(data,
                 pass
 
     # build graph and return
-    log_debug("Initializing {} with arguments {}".format(
+    tasklogger.log_debug("Initializing {} with arguments {}".format(
         parent_classes,
         ", ".join(["{}='{}'".format(key, value)
                    for key, value in params.items()

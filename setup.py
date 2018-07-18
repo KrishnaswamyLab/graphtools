@@ -8,6 +8,7 @@ install_requires = [
     'pygsp>=0.5.1',
     'scikit-learn>=0.19.1',
     'future',
+    'tasklogger',
 ]
 
 test_requires = [
