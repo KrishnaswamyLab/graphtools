@@ -481,6 +481,7 @@ class LandmarkGraph(DataGraph):
         else:
             pmn = np.array([np.sum(self.kernel[self._clusters == i, :], axis=0)
                             for i in landmarks])
+
         # row normalize
         pnm = pmn.transpose()
         pmn = normalize(pmn, norm='l1', axis=1)
@@ -493,6 +494,17 @@ class LandmarkGraph(DataGraph):
         self._landmark_op = diff_op
         self._transitions = pnm
         log_complete("landmark operator")
+
+    def _data_transitions(self):
+        if is_sparse:
+            pmn = sparse.vstack(
+                [sparse.csr_matrix(self.kernel[self._clusters == i, :].sum(
+                    axis=0)) for i in landmarks])
+        else:
+            pmn = np.array([np.sum(self.kernel[self._clusters == i, :], axis=0)
+                            for i in landmarks])
+
+        return pmn
 
     def extend_to_data(self, data, **kwargs):
         """Build transition matrix from new data to the graph
