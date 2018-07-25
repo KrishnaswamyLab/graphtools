@@ -11,6 +11,12 @@ import pandas as pd
 import nose2
 from nose.tools import raises, assert_raises, make_decorator
 warnings.filterwarnings("error")
+warnings.filterwarnings(
+    "ignore", category=PendingDeprecationWarning,
+    message="the matrix subclass is not the recommended way to represent "
+    "matrices or deal with linear algebra (see "
+    "https://docs.scipy.org/doc/numpy/user/numpy-for-matlab-users.html). "
+    "Please adjust your code to use regular ndarray.")
 
 global digits
 global data
