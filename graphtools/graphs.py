@@ -496,13 +496,14 @@ class LandmarkGraph(DataGraph):
         log_complete("landmark operator")
 
     def _data_transitions(self):
+        landmarks = np.unique(self._clusters)
         if sparse.issparse(self.kernel):
             pmn = sparse.vstack(
                 [sparse.csr_matrix(self.kernel[self._clusters == i, :].sum(
-                    axis=0)) for i in self.landmarks])
+                    axis=0)) for i in landmarks])
         else:
             pmn = np.array([np.sum(self.kernel[self._clusters == i, :], axis=0)
-                            for i in self.landmarks])
+                            for i in landmarks])
 
         return pmn
 
