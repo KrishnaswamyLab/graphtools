@@ -496,13 +496,13 @@ class LandmarkGraph(DataGraph):
         log_complete("landmark operator")
 
     def _data_transitions(self):
-        if is_sparse:
+        if sparse.issparse(self.kernel):
             pmn = sparse.vstack(
                 [sparse.csr_matrix(self.kernel[self._clusters == i, :].sum(
-                    axis=0)) for i in landmarks])
+                    axis=0)) for i in self.landmarks])
         else:
             pmn = np.array([np.sum(self.kernel[self._clusters == i, :], axis=0)
-                            for i in landmarks])
+                            for i in self.landmarks])
 
         return pmn
 
@@ -607,7 +607,8 @@ class TraditionalGraph(DataGraph):
         All affinities below `thresh` will be set to zero in order to save
         on time and memory constraints.
 
-    precomputed : {'distance', 'affinity', 'adjacency', `None`}, optional (default: `None`)
+    precomputed : {'distance', 'affinity', 'adjacency', `None`},
+        optional (default: `None`)
         If the graph is precomputed, this variable denotes which graph
         matrix is provided as `data`.
         Only one of `precomputed` and `n_pca` can be set.
