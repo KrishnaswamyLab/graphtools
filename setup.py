@@ -23,6 +23,7 @@ if sys.version_info[0] == 3:
 doc_requires = [
     'sphinx',
     'sphinxcontrib-napoleon',
+    'sphinxcontrib-bibtex'
 ]
 
 if sys.version_info[:2] < (2, 7) or (3, 0) <= sys.version_info[:2] < (3, 5):
