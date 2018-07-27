@@ -291,6 +291,8 @@ class kNNGraph(DataGraph):
             K = sparse.csr_matrix((data, indices, indptr),
                                   shape=(Y.shape[0], self.data_nu.shape[0]))
             K.data = np.exp(-1 * np.power(K.data, self.decay))
+            # handle nan
+            K.data = np.where(np.isnan(K.data), 1, K.data)
             # TODO: should we zero values that are below thresh?
             K.data[K.data < self.thresh] = 0
             K = K.tocoo()
@@ -752,6 +754,8 @@ class TraditionalGraph(DataGraph):
             epsilon = np.max(knn_dist, axis=1)
             pdx = (pdx.T / epsilon).T
             K = np.exp(-1 * np.power(pdx, self.decay))
+            # handle nan
+            K = np.where(np.isnan(K), 1, K)
             tasklogger.log_complete("affinities")
         # truncate
         if sparse.issparse(K):
@@ -809,6 +813,8 @@ class TraditionalGraph(DataGraph):
             epsilon = np.max(knn_dist, axis=1)
             pdx = (pdx.T / epsilon).T
             K = np.exp(-1 * pdx**self.decay)
+            # handle nan
+            K = np.where(np.isnan(K), 1, K)
             K[K < self.thresh] = 0
             tasklogger.log_complete("affinities")
         return K
