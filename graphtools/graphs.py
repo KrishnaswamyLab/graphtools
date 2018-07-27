@@ -15,7 +15,7 @@ from .utils import (set_diagonal,
                     elementwise_minimum,
                     elementwise_maximum,
                     set_submatrix)
-from .base import DataGraph
+from .base import DataGraph, PyGSPGraph
 
 
 class kNNGraph(DataGraph):
@@ -456,7 +456,7 @@ class LandmarkGraph(DataGraph):
         is_sparse = sparse.issparse(self.kernel)
         # spectral clustering
         tasklogger.log_start("SVD")
-        _, _, VT = randomized_svd(self.diff_op,
+        _, _, VT = randomized_svd(self.diff_aff,
                                   n_components=self.n_svd,
                                   random_state=self.random_state)
         tasklogger.log_complete("SVD")
@@ -484,12 +484,12 @@ class LandmarkGraph(DataGraph):
         pnm = pmn.transpose()
         pmn = normalize(pmn, norm='l1', axis=1)
         pnm = normalize(pnm, norm='l1', axis=1)
-        diff_op = pmn.dot(pnm)  # sparsity agnostic matrix multiplication
+        landmark_op = pmn.dot(pnm)  # sparsity agnostic matrix multiplication
         if is_sparse:
             # no need to have a sparse landmark operator
-            diff_op = diff_op.toarray()
+            landmark_op = landmark_op.toarray()
         # store output
-        self._landmark_op = diff_op
+        self._landmark_op = landmark_op
         self._transitions = pnm
         tasklogger.log_complete("landmark operator")
 
@@ -1154,3 +1154,39 @@ class MNNGraph(DataGraph):
             K = self.gamma * kernel_xy.minimum(kernel_yx.T) + \
                 (1 - self.gamma) * kernel_xy.maximum(kernel_yx.T)
         return K
+
+
+class kNNLandmarkGraph(kNNGraph, LandmarkGraph):
+    pass
+
+
+class MNNLandmarkGraph(MNNGraph, LandmarkGraph):
+    pass
+
+
+class TraditionalLandmarkGraph(TraditionalGraph, LandmarkGraph):
+    pass
+
+
+class kNNPyGSPGraph(kNNGraph, PyGSPGraph):
+    pass
+
+
+class MNNPyGSPGraph(MNNGraph, PyGSPGraph):
+    pass
+
+
+class TraditionalPyGSPGraph(TraditionalGraph, PyGSPGraph):
+    pass
+
+
+class kNNLandmarkPyGSPGraph(kNNGraph, LandmarkGraph, PyGSPGraph):
+    pass
+
+
+class MNNLandmarkPyGSPGraph(MNNGraph, LandmarkGraph, PyGSPGraph):
+    pass
+
+
+class TraditionalLandmarkPyGSPGraph(TraditionalGraph, LandmarkGraph, PyGSPGraph):
+    pass

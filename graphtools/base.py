@@ -463,6 +463,31 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
             return self._diff_op
 
     @property
+    def diff_aff(self):
+        """Symmetric diffusion affinity matrix
+
+        Return or calculate the symmetric diffusion affinity matrix
+
+        .. math:: A(x,y) = K(x,y) (d(x) d(y))^{-1/2}
+
+        where :math:`d` is the degrees (row sums of the kernel.)
+
+        Returns
+        -------
+
+        diff_aff : array-like, shape=[n_samples, n_samples]
+            symmetric diffusion affinity matrix defined as a
+            doubly-stochastic form of the kernel matrix
+        """
+        row_degrees = np.array(self.kernel.sum(axis=1)).reshape(-1, 1)
+        col_degrees = np.array(self.kernel.sum(axis=0)).reshape(1, -1)
+        if sparse.issparse(self.kernel):
+            return self.kernel.multiply(1 / np.sqrt(row_degrees)).multiply(
+                1 / np.sqrt(col_degrees))
+        else:
+            return (self.kernel / np.sqrt(row_degrees)) / np.sqrt(col_degrees)
+
+    @property
     def diff_op(self):
         """Synonym for P
         """
