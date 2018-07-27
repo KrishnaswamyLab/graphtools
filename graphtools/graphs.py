@@ -445,6 +445,20 @@ class LandmarkGraph(DataGraph):
             self.build_landmark_op()
             return self._transitions
 
+    def _landmarks_to_data(self):
+        landmarks = np.unique(self._clusters)
+        if sparse.issparse(self.kernel):
+            pmn = sparse.vstack(
+                [sparse.csr_matrix(self.kernel[self._clusters == i, :].sum(
+                    axis=0)) for i in landmarks])
+        else:
+            pmn = np.array([np.sum(self.kernel[self._clusters == i, :], axis=0)
+                            for i in landmarks])
+        return pmn
+
+    def _data_transitions(self):
+        return normalize(self._landmarks_to_data(), 'l1', axis=1)
+
     def build_landmark_op(self):
         """Build the landmark operator
 
@@ -469,17 +483,11 @@ class LandmarkGraph(DataGraph):
         self._clusters = kmeans.fit_predict(
             self.diff_op.dot(VT.T))
         # some clusters are not assigned
-        landmarks = np.unique(self._clusters)
         tasklogger.log_complete("KMeans")
 
         # transition matrices
-        if is_sparse:
-            pmn = sparse.vstack(
-                [sparse.csr_matrix(self.kernel[self._clusters == i, :].sum(
-                    axis=0)) for i in landmarks])
-        else:
-            pmn = np.array([np.sum(self.kernel[self._clusters == i, :], axis=0)
-                            for i in landmarks])
+        pmn = self._landmarks_to_data()
+
         # row normalize
         pnm = pmn.transpose()
         pmn = normalize(pmn, norm='l1', axis=1)
@@ -594,7 +602,8 @@ class TraditionalGraph(DataGraph):
         All affinities below `thresh` will be set to zero in order to save
         on time and memory constraints.
 
-    precomputed : {'distance', 'affinity', 'adjacency', `None`}, optional (default: `None`)
+    precomputed : {'distance', 'affinity', 'adjacency', `None`},
+        optional (default: `None`)
         If the graph is precomputed, this variable denotes which graph
         matrix is provided as `data`.
         Only one of `precomputed` and `n_pca` can be set.
