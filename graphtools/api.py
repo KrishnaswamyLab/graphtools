@@ -1,7 +1,7 @@
 import numpy as np
 import warnings
+import tasklogger
 
-from . import logging
 from . import base
 from . import graphs
 
@@ -137,7 +137,7 @@ def Graph(data,
     ------
     ValueError : if selected parameters are incompatible.
     """
-    logging.set_logging(verbose)
+    tasklogger.set_level(verbose)
     if sample_idx is not None and len(np.unique(sample_idx)) == 1:
         warnings.warn("Only one unique sample. "
                       "Not using MNNGraph")
@@ -197,7 +197,7 @@ def Graph(data,
         else:
             msg = msg + " and PyGSP inheritance"
 
-    logging.log_debug(msg)
+    tasklogger.log_debug(msg)
 
     class_names = [p.__name__.replace("Graph", "") for p in parent_classes]
     try:
@@ -215,7 +215,7 @@ def Graph(data,
                 pass
 
     # build graph and return
-    logging.log_debug("Initializing {} with arguments {}".format(
+    tasklogger.log_debug("Initializing {} with arguments {}".format(
         parent_classes,
         ", ".join(["{}='{}'".format(key, value)
                    for key, value in params.items()

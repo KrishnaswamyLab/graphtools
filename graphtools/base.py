@@ -9,6 +9,8 @@ from sklearn.preprocessing import normalize
 from scipy import sparse
 import warnings
 import numbers
+import tasklogger
+
 try:
     import pandas as pd
 except ImportError:
@@ -24,10 +26,6 @@ except (ImportError, SyntaxError):
 from .utils import (elementwise_minimum,
                     elementwise_maximum,
                     set_diagonal)
-from .logging import (set_logging,
-                      log_start,
-                      log_complete,
-                      log_debug)
 
 
 class Base(object):
@@ -152,7 +150,7 @@ class Data(Base):
         Reduced data matrix
         """
         if self.n_pca is not None and self.n_pca < self.data.shape[1]:
-            log_start("PCA")
+            tasklogger.log_start("PCA")
             if sparse.issparse(self.data):
                 if isinstance(self.data, sparse.coo_matrix) or \
                         isinstance(self.data, sparse.lil_matrix) or \
@@ -166,7 +164,7 @@ class Data(Base):
                                     random_state=self.random_state)
             self.data_pca.fit(self.data)
             data_nu = self.data_pca.transform(self.data)
-            log_complete("PCA")
+            tasklogger.log_complete("PCA")
             return data_nu
         else:
             data_nu = self.data
@@ -342,10 +340,10 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         self._check_symmetrization(kernel_symm, gamma)
 
         if initialize:
-            log_debug("Initializing kernel...")
+            tasklogger.log_debug("Initializing kernel...")
             self.K
         else:
-            log_debug("Not initializing kernel.")
+            tasklogger.log_debug("Not initializing kernel.")
         super().__init__(**kwargs)
 
     def _check_symmetrization(self, kernel_symm, gamma):
@@ -363,7 +361,8 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
                 warnings.warn("kernel_symm='gamma' but gamma not given. "
                               "Defaulting to gamma=0.5.")
                 self.gamma = gamma = 0.5
-            elif not isinstance(gamma, numbers.Number) or gamma < 0 or gamma > 1:
+            elif not isinstance(gamma, numbers.Number) or \
+                    gamma < 0 or gamma > 1:
                 raise ValueError("gamma {} not recognized. Expected "
                                  "a float between 0 and 1".format(gamma))
 
@@ -392,18 +391,18 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
     def symmetrize_kernel(self, K):
         # symmetrize
         if self.kernel_symm == "+":
-            log_debug("Using addition symmetrization.")
+            tasklogger.log_debug("Using addition symmetrization.")
             K = (K + K.T) / 2
         elif self.kernel_symm == "*":
-            log_debug("Using multiplication symmetrization.")
+            tasklogger.log_debug("Using multiplication symmetrization.")
             K = K.multiply(K.T)
         elif self.kernel_symm == 'gamma':
-            log_debug(
+            tasklogger.log_debug(
                 "Using gamma symmetrization (gamma = {}).".format(self.gamma))
             K = self.gamma * elementwise_minimum(K, K.T) + \
                 (1 - self.gamma) * elementwise_maximum(K, K.T)
         elif self.kernel_symm is None:
-            log_debug("Using no symmetrization.")
+            tasklogger.log_debug("Using no symmetrization.")
             pass
         else:
             # this should never happen
@@ -438,7 +437,8 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         """
         if 'gamma' in params and params['gamma'] != self.gamma:
             raise ValueError("Cannot update gamma. Please create a new graph")
-        if 'kernel_symm' in params and params['kernel_symm'] != self.kernel_symm:
+        if 'kernel_symm' in params and \
+                params['kernel_symm'] != self.kernel_symm:
             raise ValueError(
                 "Cannot update kernel_symm. Please create a new graph")
         return self
@@ -622,7 +622,7 @@ class DataGraph(with_metaclass(abc.ABCMeta, Data, BaseGraph)):
         # kwargs are ignored
         self.n_jobs = n_jobs
         self.verbose = verbose
-        set_logging(verbose)
+        tasklogger.set_level(verbose)
         super().__init__(data, **kwargs)
 
     def get_params(self):
