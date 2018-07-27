@@ -36,12 +36,3 @@ Utilities
     :undoc-members:
     :inherited-members:
     :show-inheritance:
-
-Logging
--------
-
-.. automodule:: graphtools.logging
-    :members:
-    :undoc-members:
-    :inherited-members:
-    :show-inheritance:
