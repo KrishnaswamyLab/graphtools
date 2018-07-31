@@ -332,7 +332,32 @@ def test_precomputed_interpolate():
     G.build_kernel_to_data(data)
 
 
+####################
+# Test API
+####################
+
+
 def test_verbose():
     print()
     print("Verbose test: Exact")
     build_graph(data, decay=10, thresh=0, verbose=True)
+
+
+def test_set_params():
+    G = build_graph(data, decay=10, thresh=0)
+    assert G.get_params() == {'n_pca': 20,
+                              'random_state': 42,
+                              'kernel_symm': '+',
+                              'gamma': None,
+                              'knn': 3,
+                              'decay': 10,
+                              'distance': 'euclidean',
+                              'precomputed': None}
+    assert_raises(ValueError, G.set_params, knn=15)
+    assert_raises(ValueError, G.set_params, decay=15)
+    assert_raises(ValueError, G.set_params, distance='manhattan')
+    assert_raises(ValueError, G.set_params, precomputed='distance')
+    G.set_params(knn=G.knn,
+                 decay=G.decay,
+                 distance=G.distance,
+                 precomputed=G.precomputed)

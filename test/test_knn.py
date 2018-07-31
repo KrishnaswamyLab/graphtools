@@ -167,7 +167,48 @@ def test_knn_interpolate():
                   G.interpolate(pca_data, transitions=transitions)))
 
 
+####################
+# Test API
+####################
+
+
 def test_verbose():
     print()
     print("Verbose test: kNN")
     build_graph(data, decay=None, verbose=True)
+
+
+def test_set_params():
+    G = build_graph(data, decay=None)
+    assert G.get_params() == {
+        'n_pca': 20,
+        'random_state': 42,
+        'kernel_symm': '+',
+        'gamma': None,
+        'knn': 3,
+        'decay': None,
+        'distance': 'euclidean',
+        'thresh': 0,
+        'n_jobs': -1,
+        'verbose': 0
+    }
+    G.set_params(n_jobs=4)
+    assert G.n_jobs == 4
+    assert G.knn_tree.n_jobs == 4
+    G.set_params(random_state=13)
+    assert G.random_state == 13
+    G.set_params(verbose=2)
+    assert G.verbose == 2
+    G.set_params(verbose=0)
+    assert_raises(ValueError, G.set_params, knn=15)
+    assert_raises(ValueError, G.set_params, decay=10)
+    assert_raises(ValueError, G.set_params, distance='manhattan')
+    assert_raises(ValueError, G.set_params, thresh=1e-3)
+    assert_raises(ValueError, G.set_params, gamma=0.99)
+    assert_raises(ValueError, G.set_params, kernel_symm='*')
+    G.set_params(knn=G.knn,
+                 decay=G.decay,
+                 thresh=G.thresh,
+                 distance=G.distance,
+                 gamma=G.gamma,
+                 kernel_symm=G.kernel_symm)

@@ -5,10 +5,12 @@ from load_tests import (
     data,
     digits,
     build_graph,
+    assert_raises,
     raises,
     warns,
     generate_swiss_roll
 )
+import pygsp
 
 
 #####################################################
@@ -66,6 +68,50 @@ def test_landmark_mnn_graph():
 
 
 #####################################################
+# Check PyGSP
+#####################################################
+
+
+def test_landmark_exact_pygsp_graph():
+    n_landmark = 100
+    # exact graph
+    G = build_graph(data, n_landmark=n_landmark,
+                    thresh=0, n_pca=10,
+                    decay=10, knn=3, random_state=42,
+                    use_pygsp=True)
+    assert(G.landmark_op.shape == (n_landmark, n_landmark))
+    assert(isinstance(G, graphtools.graphs.TraditionalGraph))
+    assert(isinstance(G, graphtools.graphs.LandmarkGraph))
+    assert(isinstance(G, pygsp.graphs.Graph))
+
+
+def test_landmark_knn_pygsp_graph():
+    n_landmark = 500
+    # knn graph
+    G = build_graph(data, n_landmark=n_landmark, n_pca=10,
+                    decay=None, knn=3, random_state=42,
+                    use_pygsp=True)
+    assert(G.landmark_op.shape == (n_landmark, n_landmark))
+    assert(isinstance(G, graphtools.graphs.kNNGraph))
+    assert(isinstance(G, graphtools.graphs.LandmarkGraph))
+    assert(isinstance(G, pygsp.graphs.Graph))
+
+
+def test_landmark_mnn_pygsp_graph():
+    n_landmark = 150
+    X, sample_idx = generate_swiss_roll()
+    # mnn graph
+    G = build_graph(X, n_landmark=n_landmark,
+                    thresh=1e-3, n_pca=None,
+                    decay=10, knn=3, random_state=42,
+                    sample_idx=sample_idx, use_pygsp=True)
+    assert(G.landmark_op.shape == (n_landmark, n_landmark))
+    assert(isinstance(G, graphtools.graphs.MNNGraph))
+    assert(isinstance(G, graphtools.graphs.LandmarkGraph))
+    assert(isinstance(G, pygsp.graphs.Graph))
+
+
+#####################################################
 # Check interpolation
 #####################################################
 
@@ -73,7 +119,34 @@ def test_landmark_mnn_graph():
 # TODO: add interpolation tests
 
 
+#############
+# Test API
+#############
+
 def test_verbose():
     print()
     print("Verbose test: Landmark")
     build_graph(data, decay=None, n_landmark=500, verbose=True).landmark_op
+
+
+def test_set_params():
+    G = build_graph(data, n_landmark=500, decay=None)
+    G.landmark_op
+    assert G.get_params() == {'n_pca': 20,
+                              'random_state': 42,
+                              'kernel_symm': '+',
+                              'gamma': None,
+                              'n_landmark': 500,
+                              'knn': 3,
+                              'decay': None,
+                              'distance':
+                              'euclidean',
+                              'thresh': 0,
+                              'n_jobs': -1,
+                              'verbose': 0}
+    G.set_params(n_landmark=300)
+    assert G.landmark_op.shape == (300, 300)
+    G.set_params(n_landmark=G.n_landmark, n_svd=G.n_svd)
+    assert hasattr(G, "_landmark_op")
+    G.set_params(n_svd=50)
+    assert not hasattr(G, "_landmark_op")

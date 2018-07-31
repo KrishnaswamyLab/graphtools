@@ -9,16 +9,13 @@ from sklearn.cluster import MiniBatchKMeans
 from scipy import sparse
 import numbers
 import warnings
+import tasklogger
 
 from .utils import (set_diagonal,
                     elementwise_minimum,
                     elementwise_maximum,
                     set_submatrix)
-from .logging import (log_start,
-                      log_complete,
-                      log_warning,
-                      log_debug)
-from .base import DataGraph
+from .base import DataGraph, PyGSPGraph
 
 
 class kNNGraph(DataGraph):
@@ -127,6 +124,8 @@ class kNNGraph(DataGraph):
             raise ValueError("Cannot update thresh. Please create a new graph")
         if 'n_jobs' in params:
             self.n_jobs = params['n_jobs']
+            if hasattr(self, "_knn_tree"):
+                self.knn_tree.set_params(n_jobs=self.n_jobs)
         if 'random_state' in params:
             self.random_state = params['random_state']
         if 'verbose' in params:
@@ -219,13 +218,13 @@ class kNNGraph(DataGraph):
                               k=knn, n=self.data.shape[0]))
 
         Y = self._check_extension_shape(Y)
-        log_start("KNN search")
+        tasklogger.log_start("KNN search")
         if self.decay is None or self.thresh == 1:
             # binary connectivity matrix
             K = self.knn_tree.kneighbors_graph(
                 Y, n_neighbors=knn,
                 mode='connectivity')
-            log_complete("KNN search")
+            tasklogger.log_complete("KNN search")
         else:
             # sparse fast alpha decay
             knn_tree = self.knn_tree
@@ -246,15 +245,15 @@ class kNNGraph(DataGraph):
                     "Consider removing duplicates to avoid errors in "
                     "downstream processing.".format(duplicate_names),
                     RuntimeWarning)
-            log_complete("KNN search")
-            log_start("affinities")
+            tasklogger.log_complete("KNN search")
+            tasklogger.log_start("affinities")
             bandwidth = distances[:, knn - 1]
             radius = bandwidth * np.power(-1 * np.log(self.thresh),
                                           1 / self.decay)
             update_idx = np.argwhere(
                 np.max(distances, axis=1) < radius).reshape(-1)
-            log_debug("search_knn = {}; {} remaining".format(search_knn,
-                                                             len(update_idx)))
+            tasklogger.log_debug("search_knn = {}; {} remaining".format(
+                search_knn, len(update_idx)))
             if len(update_idx) > 0:
                 distances = [d for d in distances]
                 indices = [i for i in indices]
@@ -269,14 +268,16 @@ class kNNGraph(DataGraph):
                     indices[idx] = ind_new[i]
                 update_idx = [i for i, d in enumerate(distances)
                               if np.max(d) < radius[i]]
-                log_debug("search_knn = {}; {} remaining".format(
+                tasklogger.log_debug("search_knn = {}; {} remaining".format(
                     search_knn,
                     len(update_idx)))
             if search_knn > self.data_nu.shape[0] / 2:
-                knn_tree = NearestNeighbors(knn, algorithm='brute',
-                                            n_jobs=self.n_jobs).fit(self.data_nu)
+                knn_tree = NearestNeighbors(
+                    knn, algorithm='brute',
+                    n_jobs=self.n_jobs).fit(self.data_nu)
             if len(update_idx) > 0:
-                log_debug("radius search on {}".format(len(update_idx)))
+                tasklogger.log_debug(
+                    "radius search on {}".format(len(update_idx)))
                 # give up - radius search
                 dist_new, ind_new = knn_tree.radius_neighbors(
                     Y[update_idx, :],
@@ -292,12 +293,14 @@ class kNNGraph(DataGraph):
             K = sparse.csr_matrix((data, indices, indptr),
                                   shape=(Y.shape[0], self.data_nu.shape[0]))
             K.data = np.exp(-1 * np.power(K.data, self.decay))
+            # handle nan
+            K.data = np.where(np.isnan(K.data), 1, K.data)
             # TODO: should we zero values that are below thresh?
             K.data[K.data < self.thresh] = 0
             K = K.tocoo()
             K.eliminate_zeros()
             K = K.tocsr()
-            log_complete("affinities")
+            tasklogger.log_complete("affinities")
         return K
 
 
@@ -446,6 +449,20 @@ class LandmarkGraph(DataGraph):
             self.build_landmark_op()
             return self._transitions
 
+    def _landmarks_to_data(self):
+        landmarks = np.unique(self._clusters)
+        if sparse.issparse(self.kernel):
+            pmn = sparse.vstack(
+                [sparse.csr_matrix(self.kernel[self._clusters == i, :].sum(
+                    axis=0)) for i in landmarks])
+        else:
+            pmn = np.array([np.sum(self.kernel[self._clusters == i, :], axis=0)
+                            for i in landmarks])
+        return pmn
+
+    def _data_transitions(self):
+        return normalize(self._landmarks_to_data(), 'l1', axis=1)
+
     def build_landmark_op(self):
         """Build the landmark operator
 
@@ -453,15 +470,15 @@ class LandmarkGraph(DataGraph):
         probabilities between cluster centers by using transition probabilities
         between samples assigned to each cluster.
         """
-        log_start("landmark operator")
+        tasklogger.log_start("landmark operator")
         is_sparse = sparse.issparse(self.kernel)
         # spectral clustering
-        log_start("SVD")
-        _, _, VT = randomized_svd(self.diff_op,
+        tasklogger.log_start("SVD")
+        _, _, VT = randomized_svd(self.diff_aff,
                                   n_components=self.n_svd,
                                   random_state=self.random_state)
-        log_complete("SVD")
-        log_start("KMeans")
+        tasklogger.log_complete("SVD")
+        tasklogger.log_start("KMeans")
         kmeans = MiniBatchKMeans(
             self.n_landmark,
             init_size=3 * self.n_landmark,
@@ -470,29 +487,23 @@ class LandmarkGraph(DataGraph):
         self._clusters = kmeans.fit_predict(
             self.diff_op.dot(VT.T))
         # some clusters are not assigned
-        landmarks = np.unique(self._clusters)
-        log_complete("KMeans")
+        tasklogger.log_complete("KMeans")
 
         # transition matrices
-        if is_sparse:
-            pmn = sparse.vstack(
-                [sparse.csr_matrix(self.kernel[self._clusters == i, :].sum(
-                    axis=0)) for i in landmarks])
-        else:
-            pmn = np.array([np.sum(self.kernel[self._clusters == i, :], axis=0)
-                            for i in landmarks])
+        pmn = self._landmarks_to_data()
+
         # row normalize
         pnm = pmn.transpose()
         pmn = normalize(pmn, norm='l1', axis=1)
         pnm = normalize(pnm, norm='l1', axis=1)
-        diff_op = pmn.dot(pnm)  # sparsity agnostic matrix multiplication
+        landmark_op = pmn.dot(pnm)  # sparsity agnostic matrix multiplication
         if is_sparse:
             # no need to have a sparse landmark operator
-            diff_op = diff_op.toarray()
+            landmark_op = landmark_op.toarray()
         # store output
-        self._landmark_op = diff_op
+        self._landmark_op = landmark_op
         self._transitions = pnm
-        log_complete("landmark operator")
+        tasklogger.log_complete("landmark operator")
 
     def extend_to_data(self, data, **kwargs):
         """Build transition matrix from new data to the graph
@@ -595,7 +606,8 @@ class TraditionalGraph(DataGraph):
         All affinities below `thresh` will be set to zero in order to save
         on time and memory constraints.
 
-    precomputed : {'distance', 'affinity', 'adjacency', `None`}, optional (default: `None`)
+    precomputed : {'distance', 'affinity', 'adjacency', `None`},
+        optional (default: `None`)
         If the graph is precomputed, this variable denotes which graph
         matrix is provided as `data`.
         Only one of `precomputed` and `n_pca` can be set.
@@ -669,14 +681,14 @@ class TraditionalGraph(DataGraph):
             raise ValueError("Cannot update precomputed. "
                              "Please create a new graph")
         if 'distance' in params and params['distance'] != self.distance and \
-                self.precomputed is not None:
+                self.precomputed is None:
             raise ValueError("Cannot update distance. "
                              "Please create a new graph")
         if 'knn' in params and params['knn'] != self.knn and \
-                self.precomputed is not None:
+                self.precomputed is None:
             raise ValueError("Cannot update knn. Please create a new graph")
         if 'decay' in params and params['decay'] != self.decay and \
-                self.precomputed is not None:
+                self.precomputed is None:
             raise ValueError("Cannot update decay. Please create a new graph")
         # update superclass parameters
         super().set_params(**params)
@@ -714,7 +726,7 @@ class TraditionalGraph(DataGraph):
                 K = K.tolil()
             K = set_diagonal(K, 1)
         else:
-            log_start("affinities")
+            tasklogger.log_start("affinities")
             if sparse.issparse(self.data_nu):
                 self.data_nu = self.data_nu.toarray()
             if self.precomputed == "distance":
@@ -744,7 +756,9 @@ class TraditionalGraph(DataGraph):
             epsilon = np.max(knn_dist, axis=1)
             pdx = (pdx.T / epsilon).T
             K = np.exp(-1 * np.power(pdx, self.decay))
-            log_complete("affinities")
+            # handle nan
+            K = np.where(np.isnan(K), 1, K)
+            tasklogger.log_complete("affinities")
         # truncate
         if sparse.issparse(K):
             if not (isinstance(K, sparse.csr_matrix) or
@@ -794,15 +808,17 @@ class TraditionalGraph(DataGraph):
         if self.precomputed is not None:
             raise ValueError("Cannot extend kernel on precomputed graph")
         else:
-            log_start("affinities")
+            tasklogger.log_start("affinities")
             Y = self._check_extension_shape(Y)
             pdx = cdist(Y, self.data_nu, metric=self.distance)
             knn_dist = np.partition(pdx, knn, axis=1)[:, :knn]
             epsilon = np.max(knn_dist, axis=1)
             pdx = (pdx.T / epsilon).T
             K = np.exp(-1 * pdx**self.decay)
+            # handle nan
+            K = np.where(np.isnan(K), 1, K)
             K[K < self.thresh] = 0
-            log_complete("affinities")
+            tasklogger.log_complete("affinities")
         return K
 
 
@@ -843,6 +859,7 @@ class MNNGraph(DataGraph):
                  decay=None,
                  distance='euclidean',
                  thresh=1e-4,
+                 n_jobs=1,
                  **kwargs):
         self.beta = beta
         self.sample_idx = sample_idx
@@ -853,6 +870,7 @@ class MNNGraph(DataGraph):
         self.decay = decay
         self.distance = distance
         self.thresh = thresh
+        self.n_jobs = n_jobs
         self.weighted_knn = self._weight_knn()
 
         if sample_idx is None:
@@ -860,7 +878,8 @@ class MNNGraph(DataGraph):
                              " batch correction, use kNNGraph.")
         elif len(sample_idx) != data.shape[0]:
             raise ValueError("sample_idx ({}) must be the same length as "
-                             "data ({})".format(len(sample_idx), data.shape[0]))
+                             "data ({})".format(len(sample_idx),
+                                                data.shape[0]))
         elif len(self.samples) == 1:
             raise ValueError(
                 "sample_idx must contain more than one unique value")
@@ -923,7 +942,7 @@ class MNNGraph(DataGraph):
         elif self.adaptive_k == 'sqrt':
             # the samples are sqrt'd first, then smallest has k
             knn_weight = np.sqrt(self.n_cells / np.min(self.n_cells))
-        elif self.adaptive_k == 'none':
+        elif self.adaptive_k is None:
             knn_weight = np.repeat(1, len(self.n_cells))
         weighted_knn = np.round(self.knn * knn_weight).astype(np.int32)
         if len(weighted_knn) == 1:
@@ -935,8 +954,12 @@ class MNNGraph(DataGraph):
         """
         params = super().get_params()
         params.update({'beta': self.beta,
-                       'adaptive_k': self.adaptive_k})
-        params.update(self.knn_args)
+                       'adaptive_k': self.adaptive_k,
+                       'knn': self.knn,
+                       'decay': self.decay,
+                       'distance': self.distance,
+                       'thresh': self.thresh,
+                       'n_jobs': self.n_jobs})
         return params
 
     def set_params(self, **params):
@@ -975,15 +998,14 @@ class MNNGraph(DataGraph):
         knn_kernel_args = ['knn', 'decay', 'distance', 'thresh']
         knn_other_args = ['n_jobs', 'random_state', 'verbose']
         for arg in knn_kernel_args:
-            if arg in params and (arg not in self.knn_args or
-                                  params[arg] != self.knn_args[arg]):
+            if arg in params and params[arg] != getattr(self, arg):
                 raise ValueError("Cannot update {}. "
                                  "Please create a new graph".format(arg))
         for arg in knn_other_args:
-            self.__setattr__(arg, params[arg])
-
-        # update subgraph parameters
-        [g.set_params(**knn_other_args) for g in self.subgraphs]
+            if arg in params:
+                self.__setattr__(arg, params[arg])
+                for g in self.subgraphs:
+                    g.set_params(**{arg: params[arg]})
 
         # update superclass parameters
         super().set_params(**params)
@@ -1000,13 +1022,15 @@ class MNNGraph(DataGraph):
             symmetric matrix with ones down the diagonal
             with no non-negative entries.
         """
-        log_start("subgraphs")
+        tasklogger.log_start("subgraphs")
         self.subgraphs = []
         from .api import Graph
         # iterate through sample ids
         for i, idx in enumerate(self.samples):
-            log_debug("subgraph {}: sample {}, n = {}, knn = {}".format(
-                i, idx, np.sum(self.sample_idx == idx), self.weighted_knn[i]))
+            tasklogger.log_debug("subgraph {}: sample {}, "
+                                 "n = {}, knn = {}".format(
+                                     i, idx, np.sum(self.sample_idx == idx),
+                                     self.weighted_knn[i]))
             # select data for sample
             data = self.data_nu[self.sample_idx == idx]
             # build a kNN graph for cells within sample
@@ -1017,9 +1041,10 @@ class MNNGraph(DataGraph):
                           thresh=self.thresh,
                           verbose=self.verbose,
                           random_state=self.random_state,
+                          n_jobs=self.n_jobs,
                           initialize=False)
             self.subgraphs.append(graph)  # append to list of subgraphs
-        log_complete("subgraphs")
+        tasklogger.log_complete("subgraphs")
 
         if self.thresh > 0 or self.decay is None:
             K = sparse.lil_matrix(
@@ -1028,7 +1053,7 @@ class MNNGraph(DataGraph):
             K = np.zeros([self.data_nu.shape[0], self.data_nu.shape[0]])
         for i, X in enumerate(self.subgraphs):
             for j, Y in enumerate(self.subgraphs):
-                log_start(
+                tasklogger.log_start(
                     "kernel from sample {} to {}".format(self.samples[i],
                                                          self.samples[j]))
                 Kij = Y.build_kernel_to_data(
@@ -1039,7 +1064,7 @@ class MNNGraph(DataGraph):
                     Kij = Kij * self.beta
                 K = set_submatrix(K, self.sample_idx == self.samples[i],
                                   self.sample_idx == self.samples[j], Kij)
-                log_complete(
+                tasklogger.log_complete(
                     "kernel from sample {} to {}".format(self.samples[i],
                                                          self.samples[j]))
         return K
@@ -1051,8 +1076,8 @@ class MNNGraph(DataGraph):
             # Gamma can be a matrix with specific values transitions for
             # each batch. This allows for technical replicates and
             # experimental samples to be corrected simultaneously
-            log_debug("Using gamma symmetrization. "
-                      "Gamma:\n{}".format(self.gamma))
+            tasklogger.log_debug("Using gamma symmetrization. "
+                                 "Gamma:\n{}".format(self.gamma))
             for i, sample_i in enumerate(self.samples):
                 for j, sample_j in enumerate(self.samples):
                     if j < i:
@@ -1106,7 +1131,7 @@ class MNNGraph(DataGraph):
             Transition matrix from `Y` to `self.data`
         """
         raise NotImplementedError
-        log_warning("building MNN kernel to gamma is experimental")
+        tasklogger.log_warning("building MNN kernel to gamma is experimental")
         if not isinstance(self.gamma, str) and \
                 not isinstance(self.gamma, numbers.Number):
             if gamma is None:
@@ -1152,3 +1177,39 @@ class MNNGraph(DataGraph):
             K = self.gamma * kernel_xy.minimum(kernel_yx.T) + \
                 (1 - self.gamma) * kernel_xy.maximum(kernel_yx.T)
         return K
+
+
+class kNNLandmarkGraph(kNNGraph, LandmarkGraph):
+    pass
+
+
+class MNNLandmarkGraph(MNNGraph, LandmarkGraph):
+    pass
+
+
+class TraditionalLandmarkGraph(TraditionalGraph, LandmarkGraph):
+    pass
+
+
+class kNNPyGSPGraph(kNNGraph, PyGSPGraph):
+    pass
+
+
+class MNNPyGSPGraph(MNNGraph, PyGSPGraph):
+    pass
+
+
+class TraditionalPyGSPGraph(TraditionalGraph, PyGSPGraph):
+    pass
+
+
+class kNNLandmarkPyGSPGraph(kNNGraph, LandmarkGraph, PyGSPGraph):
+    pass
+
+
+class MNNLandmarkPyGSPGraph(MNNGraph, LandmarkGraph, PyGSPGraph):
+    pass
+
+
+class TraditionalLandmarkPyGSPGraph(TraditionalGraph, LandmarkGraph, PyGSPGraph):
+    pass

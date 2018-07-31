@@ -10,7 +10,22 @@ import pandas as pd
 
 import nose2
 from nose.tools import raises, assert_raises, make_decorator
-warnings.filterwarnings("error")
+
+
+def reset_warnings():
+    warnings.resetwarnings()
+    warnings.simplefilter("error")
+    ignore_numpy_warning()
+
+
+def ignore_numpy_warning():
+    warnings.filterwarnings(
+        "ignore", category=PendingDeprecationWarning,
+        message="the matrix subclass is not the recommended way to represent "
+        "matrices or deal with linear algebra ")
+
+
+reset_warnings()
 
 global digits
 global data
@@ -65,9 +80,11 @@ def warns(*warns):
 
         def newfunc(*arg, **kw):
             with warnings.catch_warnings(record=True) as w:
-                warnings.filterwarnings("always")
+                warnings.resetwarnings()
+                warnings.simplefilter("always")
+                ignore_numpy_warning()
                 func(*arg, **kw)
-                warnings.filterwarnings("error")
+                reset_warnings()
             try:
                 for warn in w:
                     raise warn.category

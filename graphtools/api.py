@@ -1,10 +1,9 @@
 import numpy as np
 import warnings
+import tasklogger
 
-from .logging import (set_logging,
-                      log_debug)
-from .base import PyGSPGraph
-from .graphs import kNNGraph, TraditionalGraph, MNNGraph, LandmarkGraph
+from . import base
+from . import graphs
 
 
 def Graph(data,
@@ -138,7 +137,7 @@ def Graph(data,
     ------
     ValueError : if selected parameters are incompatible.
     """
-    set_logging(verbose)
+    tasklogger.set_level(verbose)
     if sample_idx is not None and len(np.unique(sample_idx)) == 1:
         warnings.warn("Only one unique sample. "
                       "Not using MNNGraph")
@@ -159,7 +158,7 @@ def Graph(data,
 
     # set base graph type
     if graphtype == "knn":
-        base = kNNGraph
+        basegraph = graphs.kNNGraph
         if precomputed is not None:
             raise ValueError("kNNGraph does not support precomputed "
                              "values. Use `graphtype='exact'` or "
@@ -170,13 +169,13 @@ def Graph(data,
                              "`sample_idx=None`")
 
     elif graphtype == "mnn":
-        base = MNNGraph
+        basegraph = graphs.MNNGraph
         if precomputed is not None:
             raise ValueError("MNNGraph does not support precomputed "
                              "values. Use `graphtype='exact'` and "
                              "`sample_idx=None` or `precomputed=None`")
     elif graphtype == "exact":
-        base = TraditionalGraph
+        basegraph = graphs.TraditionalGraph
         if sample_idx is not None:
             raise ValueError("TraditionalGraph does not support batch "
                              "correction. Use `graphtype='mnn'` or "
@@ -186,32 +185,24 @@ def Graph(data,
                          "['knn', 'mnn', 'exact', 'auto']")
 
     # set add landmarks if necessary
-    parent_classes = [base]
+    parent_classes = [basegraph]
     msg = "Building {} graph".format(graphtype)
     if n_landmark is not None:
-        parent_classes.append(LandmarkGraph)
+        parent_classes.append(graphs.LandmarkGraph)
         msg = msg + " with landmarks"
     if use_pygsp:
-        parent_classes.append(PyGSPGraph)
+        parent_classes.append(base.PyGSPGraph)
         if len(parent_classes) > 2:
             msg = msg + " with PyGSP inheritance"
         else:
             msg = msg + " and PyGSP inheritance"
 
-    log_debug(msg)
+    tasklogger.log_debug(msg)
 
-    # Python3 syntax only
-    # class Graph(*parent_classes):
-    #     pass
-    if len(parent_classes) == 1:
-        Graph = parent_classes[0]
-    elif len(parent_classes) == 2:
-        class Graph(parent_classes[0], parent_classes[1]):
-            pass
-    elif len(parent_classes) == 3:
-        class Graph(parent_classes[0], parent_classes[1], parent_classes[2]):
-            pass
-    else:
+    class_names = [p.__name__.replace("Graph", "") for p in parent_classes]
+    try:
+        Graph = eval("graphs." + "".join(class_names) + "Graph")
+    except NameError:
         raise RuntimeError("unknown graph classes {}".format(parent_classes))
 
     params = kwargs
@@ -224,7 +215,7 @@ def Graph(data,
                 pass
 
     # build graph and return
-    log_debug("Initializing {} with arguments {}".format(
+    tasklogger.log_debug("Initializing {} with arguments {}".format(
         parent_classes,
         ", ".join(["{}='{}'".format(key, value)
                    for key, value in params.items()

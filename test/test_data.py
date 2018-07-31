@@ -183,3 +183,17 @@ def test_inverse_transform_sparse_no_pca():
     assert_raises(ValueError, G.inverse_transform, sp.csr_matrix(G.data)[:, 0])
     assert_raises(ValueError, G.inverse_transform,
                   sp.csr_matrix(G.data)[:, :15])
+
+
+#############
+# Test API
+#############
+
+
+def test_set_params():
+    G = graphtools.base.Data(data, n_pca=20)
+    assert G.get_params() == {'n_pca': 20, 'random_state': None}
+    G.set_params(random_state=13)
+    assert G.random_state == 13
+    assert_raises(ValueError, G.set_params, n_pca=10)
+    G.set_params(n_pca=G.n_pca)

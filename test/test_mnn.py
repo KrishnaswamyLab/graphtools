@@ -222,3 +222,50 @@ def test_verbose():
     build_graph(X, sample_idx=sample_idx,
                 kernel_symm='gamma', gamma=0.5,
                 n_pca=None, verbose=True)
+
+
+def test_set_params():
+    X, sample_idx = generate_swiss_roll()
+    G = build_graph(X, sample_idx=sample_idx,
+                    kernel_symm='gamma', gamma=0.5,
+                    n_pca=None,
+                    thresh=1e-4)
+    assert G.get_params() == {
+        'n_pca': None,
+        'random_state': 42,
+        'kernel_symm': 'gamma',
+        'gamma': 0.5,
+        'beta': 1,
+        'adaptive_k': 'sqrt',
+        'knn': 3,
+        'decay': 10,
+        'distance': 'euclidean',
+        'thresh': 1e-4,
+        'n_jobs': 1
+    }
+    G.set_params(n_jobs=4)
+    assert G.n_jobs == 4
+    for graph in G.subgraphs:
+        assert graph.n_jobs == 4
+        assert graph.knn_tree.n_jobs == 4
+    G.set_params(random_state=13)
+    assert G.random_state == 13
+    for graph in G.subgraphs:
+        assert graph.random_state == 13
+    G.set_params(verbose=2)
+    assert G.verbose == 2
+    for graph in G.subgraphs:
+        assert graph.verbose == 2
+    G.set_params(verbose=0)
+    assert_raises(ValueError, G.set_params, knn=15)
+    assert_raises(ValueError, G.set_params, decay=15)
+    assert_raises(ValueError, G.set_params, distance='manhattan')
+    assert_raises(ValueError, G.set_params, thresh=1e-3)
+    assert_raises(ValueError, G.set_params, beta=0.2)
+    assert_raises(ValueError, G.set_params, adaptive_k='min')
+    G.set_params(knn=G.knn,
+                 decay=G.decay,
+                 thresh=G.thresh,
+                 distance=G.distance,
+                 beta=G.beta,
+                 adaptive_k=G.adaptive_k)
