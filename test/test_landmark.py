@@ -5,6 +5,7 @@ from load_tests import (
     data,
     digits,
     build_graph,
+    assert_raises,
     raises,
     warns,
     generate_swiss_roll
@@ -118,7 +119,34 @@ def test_landmark_mnn_pygsp_graph():
 # TODO: add interpolation tests
 
 
+#############
+# Test API
+#############
+
 def test_verbose():
     print()
     print("Verbose test: Landmark")
     build_graph(data, decay=None, n_landmark=500, verbose=True).landmark_op
+
+
+def test_set_params():
+    G = build_graph(data, n_landmark=500, decay=None)
+    G.landmark_op
+    assert G.get_params == {'n_pca': 20,
+                            'random_state': 42,
+                            'kernel_symm': '+',
+                            'gamma': None,
+                            'n_landmark': 500,
+                            'knn': 3,
+                            'decay': None,
+                            'distance':
+                            'euclidean',
+                            'thresh': 0,
+                            'n_jobs': -1,
+                            'verbose': 0}
+    G.set_params(n_landmark=300)
+    assert G.landmark_op.shape == (300, 300)
+    G.set_params(n_landmark=G.n_landmark, n_svd=G.n_svd)
+    assert hasattr(G, "_landmark_op")
+    G.set_params(n_svd=50)
+    assert not hasattr(G, "_landmark_op")

@@ -124,6 +124,8 @@ class kNNGraph(DataGraph):
             raise ValueError("Cannot update thresh. Please create a new graph")
         if 'n_jobs' in params:
             self.n_jobs = params['n_jobs']
+            if hasattr(self, "_knn_tree"):
+                self.knn_tree.set_params(n_jobs=self.n_jobs)
         if 'random_state' in params:
             self.random_state = params['random_state']
         if 'verbose' in params:
@@ -857,6 +859,7 @@ class MNNGraph(DataGraph):
                  decay=None,
                  distance='euclidean',
                  thresh=1e-4,
+                 n_jobs=1,
                  **kwargs):
         self.beta = beta
         self.sample_idx = sample_idx
@@ -867,6 +870,7 @@ class MNNGraph(DataGraph):
         self.decay = decay
         self.distance = distance
         self.thresh = thresh
+        self.n_jobs = n_jobs
         self.weighted_knn = self._weight_knn()
 
         if sample_idx is None:
@@ -950,8 +954,12 @@ class MNNGraph(DataGraph):
         """
         params = super().get_params()
         params.update({'beta': self.beta,
-                       'adaptive_k': self.adaptive_k})
-        params.update(self.knn_args)
+                       'adaptive_k': self.adaptive_k,
+                       'knn': self.knn,
+                       'decay': self.decay,
+                       'distance': self.distance,
+                       'thresh': self.thresh,
+                       'n_jobs': self.n_jobs})
         return params
 
     def set_params(self, **params):
@@ -990,15 +998,14 @@ class MNNGraph(DataGraph):
         knn_kernel_args = ['knn', 'decay', 'distance', 'thresh']
         knn_other_args = ['n_jobs', 'random_state', 'verbose']
         for arg in knn_kernel_args:
-            if arg in params and (arg not in self.knn_args or
-                                  params[arg] != self.knn_args[arg]):
+            if arg in params and params[arg] != getattr(self, arg):
                 raise ValueError("Cannot update {}. "
                                  "Please create a new graph".format(arg))
         for arg in knn_other_args:
-            self.__setattr__(arg, params[arg])
-
-        # update subgraph parameters
-        [g.set_params(**knn_other_args) for g in self.subgraphs]
+            if arg in params:
+                self.__setattr__(arg, params[arg])
+                for g in self.subgraphs:
+                    g.set_params(**{arg: params[arg]})
 
         # update superclass parameters
         super().set_params(**params)
@@ -1034,6 +1041,7 @@ class MNNGraph(DataGraph):
                           thresh=self.thresh,
                           verbose=self.verbose,
                           random_state=self.random_state,
+                          n_jobs=self.n_jobs,
                           initialize=False)
             self.subgraphs.append(graph)  # append to list of subgraphs
         tasklogger.log_complete("subgraphs")
