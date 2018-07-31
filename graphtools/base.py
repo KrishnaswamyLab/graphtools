@@ -65,6 +65,9 @@ class Base(object):
 
         return parameters
 
+    def set_params(self, **kwargs):
+        return self
+
 
 class Data(Base):
     """Parent class that handles the import and dimensionality reduction of data
@@ -202,6 +205,7 @@ class Data(Base):
             raise ValueError("Cannot update n_pca. Please create a new graph")
         if 'random_state' in params:
             self.random_state = params['random_state']
+        super().set_params(**params)
         return self
 
     def transform(self, Y):
@@ -441,6 +445,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
                 params['kernel_symm'] != self.kernel_symm:
             raise ValueError(
                 "Cannot update kernel_symm. Please create a new graph")
+        super().set_params(**params)
         return self
 
     @property

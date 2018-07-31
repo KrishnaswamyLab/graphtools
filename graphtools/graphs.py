@@ -681,14 +681,14 @@ class TraditionalGraph(DataGraph):
             raise ValueError("Cannot update precomputed. "
                              "Please create a new graph")
         if 'distance' in params and params['distance'] != self.distance and \
-                self.precomputed is not None:
+                self.precomputed is None:
             raise ValueError("Cannot update distance. "
                              "Please create a new graph")
         if 'knn' in params and params['knn'] != self.knn and \
-                self.precomputed is not None:
+                self.precomputed is None:
             raise ValueError("Cannot update knn. Please create a new graph")
         if 'decay' in params and params['decay'] != self.decay and \
-                self.precomputed is not None:
+                self.precomputed is None:
             raise ValueError("Cannot update decay. Please create a new graph")
         # update superclass parameters
         super().set_params(**params)
