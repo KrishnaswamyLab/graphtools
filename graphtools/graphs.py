@@ -942,7 +942,7 @@ class MNNGraph(DataGraph):
         elif self.adaptive_k == 'sqrt':
             # the samples are sqrt'd first, then smallest has k
             knn_weight = np.sqrt(self.n_cells / np.min(self.n_cells))
-        elif self.adaptive_k == 'none':
+        elif self.adaptive_k is None:
             knn_weight = np.repeat(1, len(self.n_cells))
         weighted_knn = np.round(self.knn * knn_weight).astype(np.int32)
         if len(weighted_knn) == 1:
