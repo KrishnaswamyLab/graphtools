@@ -834,13 +834,13 @@ class MNNGraph(DataGraph):
 
     data : array-like, shape=[n_samples,n_features]
         accepted types: `numpy.ndarray`,
-        `scipy.sparse.spmatrix`.,
+        `scipy.sparse.spmatrix`,
         `pandas.DataFrame`, `pandas.SparseDataFrame`.
 
-    sample_idx: array-like, shape=[n_samples]
+    sample_idx : array-like, shape=[n_samples]
         Batch index
 
-    beta: `float`, optional (default: 1)
+    beta : `float`, optional (default: 1)
         Downweight within-batch affinities by beta
 
     adaptive_k : {'min', 'mean', 'sqrt', `None`} (default: 'sqrt')
@@ -849,7 +849,7 @@ class MNNGraph(DataGraph):
 
     Attributes
     ----------
-    subgraphs : list of :class:`~graphtools.graphs.kNNGraph`s
+    subgraphs : list of `graphtools.graphs.kNNGraph`
         Graphs representing each batch separately
     """
 
