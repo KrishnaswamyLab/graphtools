@@ -849,7 +849,7 @@ class MNNGraph(DataGraph):
 
     Attributes
     ----------
-    subgraphs : list of :class:`~graphtools.graphs.kNNGraph`s
+    subgraphs : list of `graphtools.graphs.kNNGraph`s
         Graphs representing each batch separately
     """
 
