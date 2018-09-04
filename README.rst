@@ -30,6 +30,10 @@ graphtools is available on `pip`. Install by running the following in a terminal
 
         pip install --user graphtools
 
+Or, to install the latest version from github::
+
+        pip install --user git+git://github.com/KrishnaswamyLab/graphtools.git
+
 Usage example
 -------------
 
