@@ -348,7 +348,7 @@ def test_set_params():
     assert G.get_params() == {'n_pca': 20,
                               'random_state': 42,
                               'kernel_symm': '+',
-                              'gamma': None,
+                              'theta': None,
                               'knn': 3,
                               'decay': 10,
                               'distance': 'euclidean',

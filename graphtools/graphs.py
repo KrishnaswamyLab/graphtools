@@ -886,33 +886,33 @@ class MNNGraph(DataGraph):
 
         super().__init__(data, n_pca=n_pca, **kwargs)
 
-    def _check_symmetrization(self, kernel_symm, gamma):
-        if kernel_symm == 'gamma' and gamma is not None and \
-                not isinstance(gamma, numbers.Number):
-            # matrix gamma
+    def _check_symmetrization(self, kernel_symm, theta):
+        if kernel_symm == 'theta' and theta is not None and \
+                not isinstance(theta, numbers.Number):
+            # matrix theta
             try:
-                gamma.shape
+                theta.shape
             except AttributeError:
-                raise ValueError("gamma {} not recognized. "
+                raise ValueError("theta {} not recognized. "
                                  "Expected a float between 0 and 1 "
                                  "or a [n_batch,n_batch] matrix of "
-                                 "floats between 0 and 1".format(gamma))
-            if not np.shape(gamma) == (len(self.samples),
+                                 "floats between 0 and 1".format(theta))
+            if not np.shape(theta) == (len(self.samples),
                                        len(self.samples)):
                 raise ValueError(
-                    "Matrix gamma must be of shape "
+                    "Matrix theta must be of shape "
                     "({}), got ({})".format(
                         (len(self.samples),
-                         len(self.samples)), gamma.shape))
-            elif np.max(gamma) > 1 or np.min(gamma) < 0:
+                         len(self.samples)), theta.shape))
+            elif np.max(theta) > 1 or np.min(theta) < 0:
                 raise ValueError(
-                    "Values in matrix gamma must be between"
+                    "Values in matrix theta must be between"
                     " 0 and 1, got values between {} and {}".format(
-                        np.max(gamma), np.min(gamma)))
-            elif np.any(gamma != gamma.T):
-                raise ValueError("gamma must be a symmetric matrix")
+                        np.max(theta), np.min(theta)))
+            elif np.any(theta != theta.T):
+                raise ValueError("theta must be a symmetric matrix")
         else:
-            super()._check_symmetrization(kernel_symm, gamma)
+            super()._check_symmetrization(kernel_symm, theta)
 
     def _weight_knn(self, sample_size=None):
         """Select adaptive values of knn
@@ -1070,14 +1070,14 @@ class MNNGraph(DataGraph):
         return K
 
     def symmetrize_kernel(self, K):
-        if self.kernel_symm == 'gamma' and self.gamma is not None and \
-                not isinstance(self.gamma, numbers.Number):
-            # matrix gamma
+        if self.kernel_symm == 'theta' and self.theta is not None and \
+                not isinstance(self.theta, numbers.Number):
+            # matrix theta
             # Gamma can be a matrix with specific values transitions for
             # each batch. This allows for technical replicates and
             # experimental samples to be corrected simultaneously
-            tasklogger.log_debug("Using gamma symmetrization. "
-                                 "Gamma:\n{}".format(self.gamma))
+            tasklogger.log_debug("Using theta symmetrization. "
+                                 "Gamma:\n{}".format(self.theta))
             for i, sample_i in enumerate(self.samples):
                 for j, sample_j in enumerate(self.samples):
                     if j < i:
@@ -1086,9 +1086,9 @@ class MNNGraph(DataGraph):
                                    self.sample_idx == sample_j)]
                     Kji = K[np.ix_(self.sample_idx == sample_j,
                                    self.sample_idx == sample_i)]
-                    Kij_symm = self.gamma[i, j] * \
+                    Kij_symm = self.theta[i, j] * \
                         elementwise_minimum(Kij, Kji.T) + \
-                        (1 - self.gamma[i, j]) * \
+                        (1 - self.theta[i, j]) * \
                         elementwise_maximum(Kij, Kji.T)
                     K = set_submatrix(K, self.sample_idx == sample_i,
                                       self.sample_idx == sample_j, Kij_symm)
@@ -1100,7 +1100,7 @@ class MNNGraph(DataGraph):
             K = super().symmetrize_kernel(K)
         return K
 
-    def build_kernel_to_data(self, Y, gamma=None):
+    def build_kernel_to_data(self, Y, theta=None):
         """Build transition matrix from new data to the graph
 
         Creates a transition matrix such that `Y` can be approximated by
@@ -1120,8 +1120,8 @@ class MNNGraph(DataGraph):
             to the existing data. `n_features` must match
             either the ambient or PCA dimensions
 
-        gamma : array-like or `None`, optional (default: `None`)
-            if `self.gamma` is a matrix, gamma values must be explicitly
+        theta : array-like or `None`, optional (default: `None`)
+            if `self.theta` is a matrix, theta values must be explicitly
             specified between `Y` and each sample in `self.data`
 
         Returns
@@ -1131,15 +1131,15 @@ class MNNGraph(DataGraph):
             Transition matrix from `Y` to `self.data`
         """
         raise NotImplementedError
-        tasklogger.log_warning("building MNN kernel to gamma is experimental")
-        if not isinstance(self.gamma, str) and \
-                not isinstance(self.gamma, numbers.Number):
-            if gamma is None:
+        tasklogger.log_warning("building MNN kernel to theta is experimental")
+        if not isinstance(self.theta, str) and \
+                not isinstance(self.theta, numbers.Number):
+            if theta is None:
                 raise ValueError(
-                    "self.gamma is a matrix but gamma is not provided.")
-            elif len(gamma) != len(self.samples):
+                    "self.theta is a matrix but theta is not provided.")
+            elif len(theta) != len(self.samples):
                 raise ValueError(
-                    "gamma should have one value for every sample")
+                    "theta should have one value for every sample")
 
         Y = self._check_extension_shape(Y)
         kernel_xy = []
@@ -1156,26 +1156,26 @@ class MNNGraph(DataGraph):
         kernel_yx = sparse.vstack(kernel_yx)  # n_cells_x x n_cells_y
 
         # symmetrize
-        if gamma is not None:
+        if theta is not None:
             # Gamma can be a vector with specific values transitions for
             # each batch. This allows for technical replicates and
             # experimental samples to be corrected simultaneously
             K = np.empty_like(kernel_xy)
             for i, sample in enumerate(self.samples):
                 sample_idx = self.sample_idx == sample
-                K[:, sample_idx] = gamma[i] * \
+                K[:, sample_idx] = theta[i] * \
                     kernel_xy[:, sample_idx].minimum(
                         kernel_yx[sample_idx, :].T) + \
-                    (1 - gamma[i]) * \
+                    (1 - theta[i]) * \
                     kernel_xy[:, sample_idx].maximum(
                         kernel_yx[sample_idx, :].T)
-        if self.gamma == "+":
+        if self.theta == "+":
             K = (kernel_xy + kernel_yx.T) / 2
-        elif self.gamma == "*":
+        elif self.theta == "*":
             K = kernel_xy.multiply(kernel_yx.T)
         else:
-            K = self.gamma * kernel_xy.minimum(kernel_yx.T) + \
-                (1 - self.gamma) * kernel_xy.maximum(kernel_yx.T)
+            K = self.theta * kernel_xy.minimum(kernel_yx.T) + \
+                (1 - self.theta) * kernel_xy.maximum(kernel_yx.T)
         return K
 
 

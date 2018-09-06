@@ -16,7 +16,7 @@ def Graph(data,
           distance='euclidean',
           thresh=1e-4,
           kernel_symm='+',
-          gamma=None,
+          theta=None,
           n_landmark=None,
           n_svd=100,
           beta=1,
@@ -75,12 +75,12 @@ def Graph(data,
         Defines method of MNN symmetrization.
         '+'  : additive
         '*'  : multiplicative
-        'gamma' : min-max
+        'theta' : min-max
         'none' : no symmetrization
 
-    gamma: float (default: None)
-        Min-max symmetrization constant or matrix. Only used if kernel_symm='gamma'.
-        K = `gamma * min(K, K.T) + (1 - gamma) * max(K, K.T)`
+    theta: float (default: None)
+        Min-max symmetrization constant or matrix. Only used if kernel_symm='theta'.
+        K = `theta * min(K, K.T) + (1 - theta) * max(K, K.T)`
 
     precomputed : {'distance', 'affinity', 'adjacency', `None`}, optional (default: `None`)
         If the graph is precomputed, this variable denotes which graph

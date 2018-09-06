@@ -184,7 +184,7 @@ def test_set_params():
         'n_pca': 20,
         'random_state': 42,
         'kernel_symm': '+',
-        'gamma': None,
+        'theta': None,
         'knn': 3,
         'decay': None,
         'distance': 'euclidean',
@@ -204,11 +204,11 @@ def test_set_params():
     assert_raises(ValueError, G.set_params, decay=10)
     assert_raises(ValueError, G.set_params, distance='manhattan')
     assert_raises(ValueError, G.set_params, thresh=1e-3)
-    assert_raises(ValueError, G.set_params, gamma=0.99)
+    assert_raises(ValueError, G.set_params, theta=0.99)
     assert_raises(ValueError, G.set_params, kernel_symm='*')
     G.set_params(knn=G.knn,
                  decay=G.decay,
                  thresh=G.thresh,
                  distance=G.distance,
-                 gamma=G.gamma,
+                 theta=G.theta,
                  kernel_symm=G.kernel_symm)

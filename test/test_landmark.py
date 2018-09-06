@@ -135,7 +135,7 @@ def test_set_params():
     assert G.get_params() == {'n_pca': 20,
                               'random_state': 42,
                               'kernel_symm': '+',
-                              'gamma': None,
+                              'theta': None,
                               'n_landmark': 500,
                               'knn': 3,
                               'decay': None,
