@@ -148,7 +148,7 @@ def test_mnn_graph_float_theta():
                           distance=metric, sample_idx=sample_idx, thresh=0,
                           use_pygsp=True)
     assert G.N == G2.N
-    assert np.all(G.d == G2.d)
+    np.testing.assert_array_equal(G.dw, G2.dw)
     assert (G.W != G2.W).nnz == 0
     assert (G2.W != G.W).sum() == 0
     assert isinstance(G2, graphtools.graphs.MNNGraph)
@@ -202,7 +202,7 @@ def test_mnn_graph_matrix_theta():
                           distance=metric, sample_idx=sample_idx, thresh=0,
                           use_pygsp=True)
     assert G.N == G2.N
-    assert np.all(G.d == G2.d)
+    np.testing.assert_array_equal(G.dw, G2.dw)
     assert (G.W != G2.W).nnz == 0
     assert (G2.W != G.W).sum() == 0
     assert isinstance(G2, graphtools.graphs.MNNGraph)

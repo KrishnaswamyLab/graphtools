@@ -38,7 +38,7 @@ def generate_swiss_roll(n_samples=1000, noise=0.5, seed=42):
     t = 1.5 * np.pi * (1 + 2 * generator.rand(1, n_samples))
     x = t * np.cos(t)
     y = t * np.sin(t)
-    sample_idx = np.random.choice([0, 1], n_samples, replace=True)
+    sample_idx = generator.choice([0, 1], n_samples, replace=True)
     z = sample_idx
     t = np.squeeze(t)
     X = np.concatenate((x, y))
