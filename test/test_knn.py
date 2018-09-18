@@ -124,6 +124,48 @@ def test_sparse_alpha_knn_graph():
     assert(isinstance(G2, graphtools.graphs.kNNGraph))
 
 
+def test_knn_graph_fixed_bandwidth():
+    k = 3
+    decay = 5
+    bandwidth = 10
+    n_pca = 20
+    thresh = 1e-4
+    pca = PCA(n_pca, svd_solver='randomized', random_state=42).fit(data)
+    data_nu = pca.transform(data)
+    pdx = squareform(pdist(data_nu, metric='euclidean'))
+    K = np.exp(-1 * np.power(pdx / bandwidth, decay))
+    K[K < thresh] = 0
+    K = K + K.T
+    W = np.divide(K, 2)
+    np.fill_diagonal(W, 0)
+    G = pygsp.graphs.Graph(W)
+    G2 = build_graph(data, n_pca=n_pca,
+                     decay=decay, bandwidth=bandwidth,
+                     knn=k, random_state=42,
+                     thresh=thresh,
+                     use_pygsp=True)
+    assert(isinstance(G2, graphtools.graphs.kNNGraph))
+    np.testing.assert_array_equal(G.N, G2.N)
+    np.testing.assert_array_equal(G.d, G2.d)
+    np.testing.assert_array_equal((G.W != G2.W).nnz, 0)
+    bandwidth = np.random.gamma(20, 0.5, len(data))
+    K = np.exp(-1 * (pdx.T / bandwidth).T**decay)
+    K[K < thresh] = 0
+    K = K + K.T
+    W = np.divide(K, 2)
+    np.fill_diagonal(W, 0)
+    G = pygsp.graphs.Graph(W)
+    G2 = build_graph(data, n_pca=n_pca,
+                     decay=decay, bandwidth=bandwidth,
+                     knn=k, random_state=42,
+                     thresh=thresh,
+                     use_pygsp=True)
+    assert(isinstance(G2, graphtools.graphs.kNNGraph))
+    np.testing.assert_array_equal(G.N, G2.N)
+    np.testing.assert_array_equal(G.d, G2.d)
+    np.testing.assert_array_equal((G.W != G2.W).nnz, 0)
+
+
 @warns(UserWarning)
 def test_knn_graph_sparse_no_pca():
     build_graph(sp.coo_matrix(data), n_pca=None,  # n_pca,
@@ -187,6 +229,7 @@ def test_set_params():
         'theta': None,
         'knn': 3,
         'decay': None,
+        'bandwidth': None,
         'distance': 'euclidean',
         'thresh': 0,
         'n_jobs': -1,

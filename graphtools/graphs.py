@@ -35,6 +35,12 @@ class kNNGraph(DataGraph):
     decay : `int` or `None`, optional (default: `None`)
         Rate of alpha decay to use. If `None`, alpha decay is not used.
 
+    bandwidth : `float`, list-like or `None`, optional (default: `None`)
+        Fixed bandwidth to use. If given, overrides `knn`. Can be a single
+        bandwidth or a list-like (shape=[n_samples]) or bandwidths for each
+        sample.
+        TODO: implement `callable` bandwidth
+
     distance : `str`, optional (default: `'euclidean'`)
         Any metric from `scipy.spatial.distance` can be used
         distance metric for building kNN graph.
@@ -55,10 +61,11 @@ class kNNGraph(DataGraph):
     """
 
     def __init__(self, data, knn=5, decay=None,
-                 distance='euclidean',
+                 bandwidth=None, distance='euclidean',
                  thresh=1e-4, n_pca=None, **kwargs):
         self.knn = knn
         self.decay = decay
+        self.bandwidth = bandwidth
         self.distance = distance
         self.thresh = thresh
 
@@ -82,6 +89,7 @@ class kNNGraph(DataGraph):
         params = super().get_params()
         params.update({'knn': self.knn,
                        'decay': self.decay,
+                       'bandwidth': self.bandwidth,
                        'distance': self.distance,
                        'thresh': self.thresh,
                        'n_jobs': self.n_jobs,
@@ -101,6 +109,7 @@ class kNNGraph(DataGraph):
         Invalid parameters: (these would require modifying the kernel matrix)
         - knn
         - decay
+        - bandwidth
         - distance
         - thresh
 
@@ -116,6 +125,9 @@ class kNNGraph(DataGraph):
             raise ValueError("Cannot update knn. Please create a new graph")
         if 'decay' in params and params['decay'] != self.decay:
             raise ValueError("Cannot update decay. Please create a new graph")
+        if 'bandwidth' in params and params['bandwidth'] != self.bandwidth:
+            raise ValueError(
+                "Cannot update bandwidth. Please create a new graph")
         if 'distance' in params and params['distance'] != self.distance:
             raise ValueError("Cannot update distance. "
                              "Please create a new graph")
@@ -184,7 +196,7 @@ class kNNGraph(DataGraph):
         K = self.build_kernel_to_data(self.data_nu)
         return K
 
-    def build_kernel_to_data(self, Y, knn=None):
+    def build_kernel_to_data(self, Y, knn=None, bandwidth=None):
         """Build a kernel from new input data `Y` to the `self.data`
 
         Parameters
@@ -197,6 +209,9 @@ class kNNGraph(DataGraph):
 
         knn : `int` or `None`, optional (default: `None`)
             If `None`, defaults to `self.knn`
+
+        bandwidth : `int` or `None`, optional (default: `None`)
+            If `None`, defaults to `self.bandwidth`
 
         Returns
         -------
@@ -212,6 +227,8 @@ class kNNGraph(DataGraph):
         """
         if knn is None:
             knn = self.knn
+        if bandwidth is None:
+            bandwidth = self.bandwidth
         if knn > self.data.shape[0]:
             warnings.warn("Cannot set knn ({k}) to be greater than "
                           "data.shape[0] ({n}). Setting knn={n}".format(
@@ -247,7 +264,8 @@ class kNNGraph(DataGraph):
                     RuntimeWarning)
             tasklogger.log_complete("KNN search")
             tasklogger.log_start("affinities")
-            bandwidth = distances[:, knn - 1]
+            if bandwidth is None:
+                bandwidth = distances[:, knn - 1]
             radius = bandwidth * np.power(-1 * np.log(self.thresh),
                                           1 / self.decay)
             update_idx = np.argwhere(
@@ -266,8 +284,9 @@ class kNNGraph(DataGraph):
                 for i, idx in enumerate(update_idx):
                     distances[idx] = dist_new[i]
                     indices[idx] = ind_new[i]
-                update_idx = [i for i, d in enumerate(distances)
-                              if np.max(d) < radius[i]]
+                update_idx = [i for i, d in enumerate(distances) if np.max(d) <
+                              (radius if isinstance(bandwidth, numbers.Number)
+                               else radius[i])]
                 tasklogger.log_debug("search_knn = {}; {} remaining".format(
                     search_knn,
                     len(update_idx)))
@@ -281,12 +300,18 @@ class kNNGraph(DataGraph):
                 # give up - radius search
                 dist_new, ind_new = knn_tree.radius_neighbors(
                     Y[update_idx, :],
-                    radius=np.max(radius[update_idx]))
+                    radius=radius
+                    if isinstance(bandwidth, numbers.Number)
+                    else np.max(radius[update_idx]))
                 for i, idx in enumerate(update_idx):
                     distances[idx] = dist_new[i]
                     indices[idx] = ind_new[i]
-            data = np.concatenate([distances[i] / bandwidth[i]
-                                   for i in range(len(distances))])
+            if isinstance(bandwidth, numbers.Number):
+                data = np.concatenate(distances) / bandwidth
+            else:
+                data = np.concatenate([distances[i] / bandwidth[i]
+                                       for i in range(len(distances))])
+
             indices = np.concatenate(indices)
             indptr = np.concatenate(
                 [[0], np.cumsum([len(d) for d in distances])])
@@ -590,6 +615,12 @@ class TraditionalGraph(DataGraph):
     decay : `int` or `None`, optional (default: `None`)
         Rate of alpha decay to use. If `None`, alpha decay is not used.
 
+    bandwidth : `float`, list-like or `None`, optional (default: `None`)
+        Fixed bandwidth to use. If given, overrides `knn`. Can be a single
+        bandwidth or a list-like (shape=[n_samples]) or bandwidths for each
+        sample.
+        TODO: implement `callable` bandwidth
+
     distance : `str`, optional (default: `'euclidean'`)
         Any metric from `scipy.spatial.distance` can be used
         distance metric for building kNN graph.
@@ -613,8 +644,11 @@ class TraditionalGraph(DataGraph):
         Only one of `precomputed` and `n_pca` can be set.
     """
 
-    def __init__(self, data, knn=5, decay=10,
-                 distance='euclidean', n_pca=None,
+    def __init__(self, data,
+                 knn=5, decay=10,
+                 bandwidth=None,
+                 distance='euclidean',
+                 n_pca=None,
                  thresh=1e-4,
                  precomputed=None, **kwargs):
         if precomputed is not None and n_pca is not None:
@@ -640,6 +674,7 @@ class TraditionalGraph(DataGraph):
                                  "non-negative".format(precomputed))
         self.knn = knn
         self.decay = decay
+        self.bandwidth = bandwidth
         self.distance = distance
         self.thresh = thresh
         self.precomputed = precomputed
@@ -653,6 +688,7 @@ class TraditionalGraph(DataGraph):
         params = super().get_params()
         params.update({'knn': self.knn,
                        'decay': self.decay,
+                       'bandwidth': self.bandwidth,
                        'distance': self.distance,
                        'precomputed': self.precomputed})
         return params
@@ -667,6 +703,7 @@ class TraditionalGraph(DataGraph):
         - distance
         - knn
         - decay
+        - bandwidth
 
         Parameters
         ----------
@@ -690,6 +727,10 @@ class TraditionalGraph(DataGraph):
         if 'decay' in params and params['decay'] != self.decay and \
                 self.precomputed is None:
             raise ValueError("Cannot update decay. Please create a new graph")
+        if 'bandwidth' in params and params['bandwidth'] != self.bandwidth and \
+                self.precomputed is None:
+            raise ValueError(
+                "Cannot update bandwidth. Please create a new graph")
         # update superclass parameters
         super().set_params(**params)
         return self
@@ -752,9 +793,12 @@ class TraditionalGraph(DataGraph):
                     "precomputed='{}' not recognized. "
                     "Choose from ['affinity', 'adjacency', 'distance', "
                     "None]".format(self.precomputed))
-            knn_dist = np.partition(pdx, self.knn, axis=1)[:, :self.knn]
-            epsilon = np.max(knn_dist, axis=1)
-            pdx = (pdx.T / epsilon).T
+            if self.bandwidth is None:
+                knn_dist = np.partition(pdx, self.knn, axis=1)[:, :self.knn]
+                bandwidth = np.max(knn_dist, axis=1)
+            else:
+                bandwidth = self.bandwidth
+            pdx = (pdx.T / bandwidth).T
             K = np.exp(-1 * np.power(pdx, self.decay))
             # handle nan
             K = np.where(np.isnan(K), 1, K)
@@ -773,7 +817,7 @@ class TraditionalGraph(DataGraph):
             K[K < self.thresh] = 0
         return K
 
-    def build_kernel_to_data(self, Y, knn=None):
+    def build_kernel_to_data(self, Y, knn=None, bandwidth=None):
         """Build transition matrix from new data to the graph
 
         Creates a transition matrix such that `Y` can be approximated by
@@ -805,15 +849,18 @@ class TraditionalGraph(DataGraph):
         """
         if knn is None:
             knn = self.knn
+        if bandwidth is None:
+            bandwidth = self.bandwidth
         if self.precomputed is not None:
             raise ValueError("Cannot extend kernel on precomputed graph")
         else:
             tasklogger.log_start("affinities")
             Y = self._check_extension_shape(Y)
             pdx = cdist(Y, self.data_nu, metric=self.distance)
-            knn_dist = np.partition(pdx, knn, axis=1)[:, :knn]
-            epsilon = np.max(knn_dist, axis=1)
-            pdx = (pdx.T / epsilon).T
+            if bandwidth is None:
+                knn_dist = np.partition(pdx, knn, axis=1)[:, :knn]
+                bandwidth = np.max(knn_dist, axis=1)
+            pdx = (pdx.T / bandwidth).T
             K = np.exp(-1 * pdx**self.decay)
             # handle nan
             K = np.where(np.isnan(K), 1, K)
@@ -957,6 +1004,7 @@ class MNNGraph(DataGraph):
                        'adaptive_k': self.adaptive_k,
                        'knn': self.knn,
                        'decay': self.decay,
+                       'bandwidth': self.bandwidth,
                        'distance': self.distance,
                        'thresh': self.thresh,
                        'n_jobs': self.n_jobs})
