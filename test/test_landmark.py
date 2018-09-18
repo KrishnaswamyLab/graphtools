@@ -132,18 +132,19 @@ def test_verbose():
 def test_set_params():
     G = build_graph(data, n_landmark=500, decay=None)
     G.landmark_op
-    assert G.get_params() == {'n_pca': 20,
-                              'random_state': 42,
-                              'kernel_symm': '+',
-                              'theta': None,
-                              'n_landmark': 500,
-                              'knn': 3,
-                              'decay': None,
-                              'distance':
-                              'euclidean',
-                              'thresh': 0,
-                              'n_jobs': -1,
-                              'verbose': 0}
+    assert G.get_params() == {
+        'n_pca': 20,
+        'random_state': 42,
+        'kernel_symm': '+',
+        'theta': None,
+        'n_landmark': 500,
+        'knn': 3,
+        'decay': None,
+        'bandwidth': None,
+        'distance': 'euclidean',
+        'thresh': 0,
+        'n_jobs': -1,
+        'verbose': 0}
     G.set_params(n_landmark=300)
     assert G.landmark_op.shape == (300, 300)
     G.set_params(n_landmark=G.n_landmark, n_svd=G.n_svd)

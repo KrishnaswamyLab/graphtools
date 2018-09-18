@@ -163,7 +163,7 @@ def test_knn_graph_fixed_bandwidth():
     assert(isinstance(G2, graphtools.graphs.kNNGraph))
     np.testing.assert_array_equal(G.N, G2.N)
     np.testing.assert_array_equal(G.d, G2.d)
-    np.testing.assert_array_equal((G.W != G2.W).nnz, 0)
+    np.testing.assert_allclose(G.W.toarray(), G2.W.toarray(), atol=1e-4)
 
 
 @warns(UserWarning)
