@@ -904,6 +904,7 @@ class MNNGraph(DataGraph):
                  knn=5, beta=1, n_pca=None,
                  adaptive_k='sqrt',
                  decay=None,
+                 bandwidth=None,
                  distance='euclidean',
                  thresh=1e-4,
                  n_jobs=1,
@@ -916,6 +917,7 @@ class MNNGraph(DataGraph):
         self.knn = knn
         self.decay = decay
         self.distance = distance
+        self.bandwidth = bandwidth
         self.thresh = thresh
         self.n_jobs = n_jobs
         self.weighted_knn = self._weight_knn()
@@ -1043,7 +1045,7 @@ class MNNGraph(DataGraph):
                 "Cannot update adaptive_k. Please create a new graph")
 
         # knn arguments
-        knn_kernel_args = ['knn', 'decay', 'distance', 'thresh']
+        knn_kernel_args = ['knn', 'decay', 'distance', 'thresh', 'bandwidth']
         knn_other_args = ['n_jobs', 'random_state', 'verbose']
         for arg in knn_kernel_args:
             if arg in params and params[arg] != getattr(self, arg):
@@ -1085,6 +1087,7 @@ class MNNGraph(DataGraph):
             graph = Graph(data, n_pca=None,
                           knn=self.weighted_knn[i],
                           decay=self.decay,
+                          bandwidth=self.bandwidth,
                           distance=self.distance,
                           thresh=self.thresh,
                           verbose=self.verbose,

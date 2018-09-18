@@ -239,6 +239,7 @@ def test_set_params():
         'adaptive_k': 'sqrt',
         'knn': 3,
         'decay': 10,
+        'bandwidth': None,
         'distance': 'euclidean',
         'thresh': 1e-4,
         'n_jobs': 1
