@@ -360,8 +360,14 @@ class LandmarkGraph(DataGraph):
     transitions : array-like, shape=[n_samples, n_landmark]
         Transition probabilities between samples and landmarks.
 
-    _clusters : array-like, shape=[n_samples]
+    clusters : array-like, shape=[n_samples]
         Private attribute. Cluster assignments for each sample.
+
+    Examples
+    --------
+    >>> G = graphtools.Graph(data, n_landmark=1000)
+    >>> X_landmark = transform(G.landmark_op)
+    >>> X_full = G.interpolate(X_landmark)
     """
 
     def __init__(self, data, n_landmark=2000, n_svd=100, **kwargs):
@@ -457,6 +463,23 @@ class LandmarkGraph(DataGraph):
             return self._landmark_op
 
     @property
+    def clusters(self):
+        """Cluster assignments for each sample.
+
+        Compute or return the cluster assignments
+
+        Returns
+        -------
+        clusters : list-like, shape=[n_samples]
+            Cluster assignments for each sample.
+        """
+        try:
+            return self._clusters
+        except AttributeError:
+            self.build_landmark_op()
+            return self._clusters
+
+    @property
     def transitions(self):
         """Transition matrix from samples to landmarks
 
@@ -475,13 +498,13 @@ class LandmarkGraph(DataGraph):
             return self._transitions
 
     def _landmarks_to_data(self):
-        landmarks = np.unique(self._clusters)
+        landmarks = np.unique(self.clusters)
         if sparse.issparse(self.kernel):
             pmn = sparse.vstack(
-                [sparse.csr_matrix(self.kernel[self._clusters == i, :].sum(
+                [sparse.csr_matrix(self.kernel[self.clusters == i, :].sum(
                     axis=0)) for i in landmarks])
         else:
-            pmn = np.array([np.sum(self.kernel[self._clusters == i, :], axis=0)
+            pmn = np.array([np.sum(self.kernel[self.clusters == i, :], axis=0)
                             for i in landmarks])
         return pmn
 
@@ -557,12 +580,12 @@ class LandmarkGraph(DataGraph):
         kernel = self.build_kernel_to_data(data, **kwargs)
         if sparse.issparse(kernel):
             pnm = sparse.hstack(
-                [sparse.csr_matrix(kernel[:, self._clusters == i].sum(
-                    axis=1)) for i in np.unique(self._clusters)])
+                [sparse.csr_matrix(kernel[:, self.clusters == i].sum(
+                    axis=1)) for i in np.unique(self.clusters)])
         else:
             pnm = np.array([np.sum(
-                kernel[:, self._clusters == i],
-                axis=1).T for i in np.unique(self._clusters)]).transpose()
+                kernel[:, self.clusters == i],
+                axis=1).T for i in np.unique(self.clusters)]).transpose()
         pnm = normalize(pnm, norm='l1', axis=1)
         return pnm
 
