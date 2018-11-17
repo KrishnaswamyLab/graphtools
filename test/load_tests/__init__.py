@@ -16,6 +16,7 @@ def reset_warnings():
     warnings.resetwarnings()
     warnings.simplefilter("error")
     ignore_numpy_warning()
+    ignore_igraph_warning()
 
 
 def ignore_numpy_warning():
@@ -23,6 +24,14 @@ def ignore_numpy_warning():
         "ignore", category=PendingDeprecationWarning,
         message="the matrix subclass is not the recommended way to represent "
         "matrices or deal with linear algebra ")
+
+
+def ignore_igraph_warning():
+    warnings.filterwarnings(
+        "ignore", category=DeprecationWarning,
+        message="The SafeConfigParser class has been renamed to ConfigParser "
+        "in Python 3.2. This alias will be removed in future versions. Use "
+        "ConfigParser directly instead")
 
 
 reset_warnings()
