@@ -535,9 +535,41 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         """
         raise NotImplementedError
 
-    def to_pygsp(self):
+    def to_pygsp(self, **kwargs):
+        """Convert to a PyGSP graph
+
+        For use only when the user means to create the graph using
+        the flag `use_pygsp=True`, and doesn't wish to recompute the kernel.
+        Creates a graphtools.graphs.TraditionalGraph with a precomputed
+        affinity matrix which also inherits from pygsp.graphs.Graph.
+
+        Parameters
+        ----------
+        kwargs
+            keyword arguments for graphtools.Graph
+
+        Returns
+        -------
+        G : graphtools.base.PyGSPGraph, graphtools.graphs.TraditionalGraph
+        """
         from . import api
-        return api.Graph(self.K, precomputed="affinity", use_pygsp=True)
+        if 'precomputed' in kwargs:
+            if kwargs['precomputed'] != 'affinity':
+                warnings.warn(
+                    "Cannot build PyGSPGraph with precomputed={}. "
+                    "Using 'affinity' instead.".format(kwargs['precomputed']),
+                    UserWarning)
+            del kwargs['precomputed']
+        if 'use_pygsp' in kwargs:
+            if kwargs['use_pygsp'] is not True:
+                warnings.warn(
+                    "Cannot build PyGSPGraph with use_pygsp={}. "
+                    "Use True instead.".format(kwargs['use_pygsp']),
+                    UserWarning)
+            del kwargs['use_pygsp']
+        return api.Graph(self.K,
+                         precomputed="affinity", use_pygsp=True,
+                         **kwargs)
 
 
 class PyGSPGraph(with_metaclass(abc.ABCMeta, pygsp.graphs.Graph, Base)):

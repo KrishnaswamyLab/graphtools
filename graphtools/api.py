@@ -231,7 +231,28 @@ def Graph(data,
 
 
 def from_igraph(G, **kwargs):
-    if 'precomputed' in kwargs and kwargs['precomputed'] != 'adjacency':
-        raise ValueError("Cannot build graph from igraph with precomputed={}. "
-                         "Use 'adjacency' instead.".format(kwargs['precomputed']))
-    return Graph(sparse.coo_matrix(G.get_adjacency().data), precomputed='adjacency', **kwargs)
+    """Convert an igraph.Graph to a graphtools.Graph
+
+    Creates a graphtools.graphs.TraditionalGraph with a
+    precomputed adjacency matrix
+
+    Parameters
+    ----------
+    G : igraph.Graph
+        Graph to be converted
+    kwargs
+        keyword arguments for graphtools.Graph
+
+    Returns
+    -------
+    G : graphtools.graphs.TraditionalGraph
+    """
+    if 'precomputed' in kwargs:
+        if kwargs['precomputed'] != 'adjacency':
+            warnings.warn(
+                "Cannot build graph from igraph with precomputed={}. "
+                "Use 'adjacency' instead.".format(kwargs['precomputed']),
+                UserWarning)
+        del kwargs['precomputed']
+    return Graph(sparse.coo_matrix(G.get_adjacency().data),
+                 precomputed='adjacency', **kwargs)
