@@ -12,6 +12,7 @@ from load_tests import (
     raises,
     cdist,
 )
+from scipy.linalg import norm
 
 
 #####################################################
@@ -116,7 +117,7 @@ def test_mnn_graph_float_theta():
     k = 10
     a = 20
     metric = 'euclidean'
-    beta = 0
+    beta = 0.5
     samples = np.unique(sample_idx)
 
     K = np.zeros((len(X), len(X)))
@@ -133,17 +134,32 @@ def test_mnn_graph_float_theta():
             pdxe_ij = pdx_ij / e_ij[:, np.newaxis]  # normalize
             k_ij = np.exp(-1 * (pdxe_ij ** a))  # apply alpha-decaying kernel
             if si == sj:
-                K.iloc[sample_idx == si, sample_idx == sj] = k_ij * \
-                    (1 - beta)  # fill out values in K for NN on diagonal
+                K.iloc[sample_idx == si, sample_idx == sj] = (
+                    k_ij + k_ij.T) / 2
             else:
                 # fill out values in K for NN on diagonal
                 K.iloc[sample_idx == si, sample_idx == sj] = k_ij
+    Kn = K.copy()
+    for i in samples:
+        curr_K = K.iloc[sample_idx == i, sample_idx == i]
+        i_norm = norm(curr_K, 1, axis=1)
+        for j in samples:
+            if i == j:
+                continue
+            else:
+                curr_K = K.iloc[sample_idx == i, sample_idx == j]
+                curr_norm = norm(curr_K, 1, axis=1)
+                scale = np.minimum(
+                    np.ones(len(curr_norm)), i_norm / curr_norm) * beta
+                Kn.iloc[sample_idx == i, sample_idx == j] = (
+                    curr_K.T * scale).T
 
+    K = Kn
     W = np.array((theta * np.minimum(K, K.T)) +
                  ((1 - theta) * np.maximum(K, K.T)))
     np.fill_diagonal(W, 0)
     G = pygsp.graphs.Graph(W)
-    G2 = graphtools.Graph(X, knn=k + 1, decay=a, beta=1 - beta,
+    G2 = graphtools.Graph(X, knn=k + 1, decay=a, beta=beta,
                           kernel_symm='theta', theta=theta,
                           distance=metric, sample_idx=sample_idx, thresh=0,
                           use_pygsp=True)
@@ -179,11 +195,27 @@ def test_mnn_graph_matrix_theta():
             pdxe_ij = pdx_ij / e_ij[:, np.newaxis]  # normalize
             k_ij = np.exp(-1 * (pdxe_ij ** a))  # apply alpha-decaying kernel
             if si == sj:
-                K.iloc[sample_idx == si, sample_idx == sj] = k_ij * \
-                    (1 - beta)  # fill out values in K for NN on diagonal
+                K.iloc[sample_idx == si, sample_idx == sj] = (
+                    k_ij + k_ij.T) / 2
             else:
                 # fill out values in K for NN on diagonal
                 K.iloc[sample_idx == si, sample_idx == sj] = k_ij
+    Kn = K.copy()
+    for i in samples:
+        curr_K = K.iloc[sample_idx == i, sample_idx == i]
+        i_norm = norm(curr_K, 1, axis=1)
+        for j in samples:
+            if i == j:
+                continue
+            else:
+                curr_K = K.iloc[sample_idx == i, sample_idx == j]
+                curr_norm = norm(curr_K, 1, axis=1)
+                scale = np.minimum(
+                    np.ones(len(curr_norm)), i_norm / curr_norm) * beta
+                Kn.iloc[sample_idx == i, sample_idx == j] = (
+                    curr_K.T * scale).T
+
+    K = Kn
 
     K = np.array(K)
 
@@ -197,7 +229,7 @@ def test_mnn_graph_matrix_theta():
                  ((1 - matrix_theta) * np.maximum(K, K.T)))
     np.fill_diagonal(W, 0)
     G = pygsp.graphs.Graph(W)
-    G2 = graphtools.Graph(X, knn=k + 1, decay=a, beta=1 - beta,
+    G2 = graphtools.Graph(X, knn=k + 1, decay=a, beta=beta,
                           kernel_symm='theta', theta=theta,
                           distance=metric, sample_idx=sample_idx, thresh=0,
                           use_pygsp=True)

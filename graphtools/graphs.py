@@ -911,9 +911,9 @@ class MNNGraph(DataGraph):
         Batch index
 
     beta : `float`, optional (default: 1)
-        Downweight within-batch affinities by beta
+        Downweight between-batch affinities by beta
 
-    adaptive_k : {'min', 'mean', 'sqrt', `None`} (default: 'sqrt')
+    adaptive_k : {'min', 'mean', 'sqrt', `None`} (default: None)
         Weights MNN kernel adaptively using the number of cells in
         each sample according to the selected method.
 
@@ -925,7 +925,7 @@ class MNNGraph(DataGraph):
 
     def __init__(self, data, sample_idx,
                  knn=5, beta=1, n_pca=None,
-                 adaptive_k='sqrt',
+                 adaptive_k=None,
                  decay=None,
                  bandwidth=None,
                  distance='euclidean',
@@ -1116,7 +1116,7 @@ class MNNGraph(DataGraph):
                           verbose=self.verbose,
                           random_state=self.random_state,
                           n_jobs=self.n_jobs,
-                          initialize=False)
+                          initialize=True)
             self.subgraphs.append(graph)  # append to list of subgraphs
         tasklogger.log_complete("subgraphs")
 
@@ -1126,16 +1126,25 @@ class MNNGraph(DataGraph):
         else:
             K = np.zeros([self.data_nu.shape[0], self.data_nu.shape[0]])
         for i, X in enumerate(self.subgraphs):
+            K = set_submatrix(K, self.sample_idx == self.samples[i],
+                              self.sample_idx == self.samples[i], X.K)
+            within_batch_norm = np.array(np.sum(X.K, 1)).flatten()
             for j, Y in enumerate(self.subgraphs):
+                if i == j:
+                    continue
                 tasklogger.log_start(
                     "kernel from sample {} to {}".format(self.samples[i],
                                                          self.samples[j]))
                 Kij = Y.build_kernel_to_data(
                     X.data_nu,
                     knn=self.weighted_knn[i])
-                if i == j:
-                    # downweight within-batch affinities by beta
-                    Kij = Kij * self.beta
+                between_batch_norm = np.array(np.sum(Kij, 1)).flatten()
+                scale = np.minimum(1, within_batch_norm /
+                                   between_batch_norm) * self.beta
+                if sparse.issparse(Kij):
+                    Kij = Kij.multiply(scale[:, None])
+                else:
+                    Kij = Kij * scale[:, None]
                 K = set_submatrix(K, self.sample_idx == self.samples[i],
                                   self.sample_idx == self.samples[j], Kij)
                 tasklogger.log_complete(
@@ -1147,11 +1156,11 @@ class MNNGraph(DataGraph):
         if self.kernel_symm == 'theta' and self.theta is not None and \
                 not isinstance(self.theta, numbers.Number):
             # matrix theta
-            # Gamma can be a matrix with specific values transitions for
+            # Theta can be a matrix with specific values transitions for
             # each batch. This allows for technical replicates and
             # experimental samples to be corrected simultaneously
             tasklogger.log_debug("Using theta symmetrization. "
-                                 "Gamma:\n{}".format(self.theta))
+                                 "Theta:\n{}".format(self.theta))
             for i, sample_i in enumerate(self.samples):
                 for j, sample_j in enumerate(self.samples):
                     if j < i:
