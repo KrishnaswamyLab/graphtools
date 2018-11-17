@@ -268,7 +268,7 @@ def test_set_params():
         'kernel_symm': 'theta',
         'theta': 0.5,
         'beta': 1,
-        'adaptive_k': 'sqrt',
+        'adaptive_k': None,
         'knn': 3,
         'decay': 10,
         'bandwidth': None,
