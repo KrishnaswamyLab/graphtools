@@ -10,7 +10,7 @@ from . import graphs
 def Graph(data,
           n_pca=None,
           sample_idx=None,
-          adaptive_k='sqrt',
+          adaptive_k=None,
           precomputed=None,
           knn=5,
           decay=10,
@@ -90,12 +90,12 @@ def Graph(data,
         Only one of `precomputed` and `n_pca` can be set.
 
     beta: float, optional(default: 1)
-        Multiply within - batch connections by(1 - beta)
+        Multiply between - batch connections by beta
 
     sample_idx: array-like
         Batch index for MNN kernel
 
-    adaptive_k : `{'min', 'mean', 'sqrt', 'none'}` (default: 'sqrt')
+    adaptive_k : `{'min', 'mean', 'sqrt', 'none'}` (default: None)
         Weights MNN kernel adaptively using the number of cells in
         each sample according to the selected method.
 
