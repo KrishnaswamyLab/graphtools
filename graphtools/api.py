@@ -1,6 +1,7 @@
 import numpy as np
 import warnings
 import tasklogger
+from scipy import sparse
 
 from . import base
 from . import graphs
@@ -222,3 +223,10 @@ def Graph(data,
                    for key, value in params.items()
                    if key != "data"])))
     return Graph(**params)
+
+
+def from_igraph(G, **kwargs):
+    if 'precomputed' in kwargs and kwargs['precomputed'] != 'adjacency':
+        raise ValueError("Cannot build graph from igraph with precomputed={}. "
+                         "Use 'adjacency' instead.".format(kwargs['precomputed']))
+    return Graph(sparse.coo_matrix(G.get_adjacency().data), precomputed='adjacency', **kwargs)

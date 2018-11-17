@@ -27,6 +27,7 @@ from .utils import (elementwise_minimum,
                     elementwise_maximum,
                     set_diagonal)
 
+
 class Base(object):
     """Class that deals with key-word arguments but is otherwise
     just an object.
@@ -533,6 +534,10 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
             with no non-negative entries.
         """
         raise NotImplementedError
+
+    def to_pygsp(self):
+        from . import api
+        return api.Graph(self.K, precomputed="affinity", use_pygsp=True)
 
 
 class PyGSPGraph(with_metaclass(abc.ABCMeta, pygsp.graphs.Graph, Base)):

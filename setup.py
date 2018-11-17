@@ -15,7 +15,8 @@ test_requires = [
     'nose2',
     'pandas',
     'coverage',
-    'coveralls'
+    'coveralls',
+    'python-igraph'
 ]
 
 if sys.version_info[0] == 3:
