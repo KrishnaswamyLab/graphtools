@@ -38,7 +38,7 @@ class kNNGraph(DataGraph):
 
     bandwidth : `float`, list-like or `None`, optional (default: `None`)
         Fixed bandwidth to use. If given, overrides `knn`. Can be a single
-        bandwidth or a list-like (shape=[n_samples]) or bandwidths for each
+        bandwidth or a list-like (shape=[n_samples]) of bandwidths for each
         sample.
         TODO: implement `callable` bandwidth
 
@@ -641,7 +641,7 @@ class TraditionalGraph(DataGraph):
 
     bandwidth : `float`, list-like or `None`, optional (default: `None`)
         Fixed bandwidth to use. If given, overrides `knn`. Can be a single
-        bandwidth or a list-like (shape=[n_samples]) or bandwidths for each
+        bandwidth or a list-like (shape=[n_samples]) of bandwidths for each
         sample.
         TODO: implement `callable` bandwidth
 

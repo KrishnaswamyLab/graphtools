@@ -63,6 +63,11 @@ def Graph(data,
     decay : `int` or `None`, optional (default: 10)
         Rate of alpha decay to use. If `None`, alpha decay is not used.
 
+    bandwidth : `float`, list-like or `None`, optional (default: `None`)
+        Fixed bandwidth to use. If given, overrides `knn`. Can be a single
+        bandwidth or a list-like (shape=[n_samples]) of bandwidths for each
+        sample.
+
     distance : `str`, optional (default: `'euclidean'`)
         Any metric from `scipy.spatial.distance` can be used
         distance metric for building kNN graph.

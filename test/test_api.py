@@ -4,6 +4,8 @@ from load_tests import (
     build_graph,
     raises,
 )
+import warnings
+
 import igraph
 import numpy as np
 import graphtools
