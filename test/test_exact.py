@@ -1,3 +1,4 @@
+from __future__ import print_function
 from load_tests import (
     graphtools,
     np,
@@ -80,6 +81,15 @@ def test_duplicate_data():
     build_graph(np.vstack([data, data[:10]]),
                 n_pca=20,
                 decay=10,
+                thresh=0)
+
+
+@warns(UserWarning)
+def test_k_too_large():
+    build_graph(data,
+                n_pca=20,
+                decay=10,
+                knn=len(data) + 1,
                 thresh=0)
 
 

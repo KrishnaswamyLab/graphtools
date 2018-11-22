@@ -1,3 +1,4 @@
+from __future__ import print_function
 from load_tests import (
     nose2,
     data,

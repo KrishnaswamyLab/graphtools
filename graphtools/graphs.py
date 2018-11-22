@@ -64,24 +64,25 @@ class kNNGraph(DataGraph):
     def __init__(self, data, knn=5, decay=None,
                  bandwidth=None, distance='euclidean',
                  thresh=1e-4, n_pca=None, **kwargs):
-        self.knn = knn
-        self.decay = decay
-        self.bandwidth = bandwidth
-        self.distance = distance
-        self.thresh = thresh
 
         if decay is not None and thresh <= 0:
             raise ValueError("Cannot instantiate a kNNGraph with `decay=None` "
                              "and `thresh=0`. Use a TraditionalGraph instead.")
         if knn > data.shape[0]:
             warnings.warn("Cannot set knn ({k}) to be greater than "
-                          "data.shape[0] ({n}). Setting knn={n}".format(
+                          "n_samples ({n}). Setting knn={n}".format(
                               k=knn, n=data.shape[0]))
+            knn = data.shape[0]
         if n_pca is None and data.shape[1] > 500:
             warnings.warn("Building a kNNGraph on data of shape {} is "
                           "expensive. Consider setting n_pca.".format(
                               data.shape), UserWarning)
 
+        self.knn = knn
+        self.decay = decay
+        self.bandwidth = bandwidth
+        self.distance = distance
+        self.thresh = thresh
         super().__init__(data, n_pca=n_pca, **kwargs)
 
     def get_params(self):
@@ -232,7 +233,7 @@ class kNNGraph(DataGraph):
             bandwidth = self.bandwidth
         if knn > self.data.shape[0]:
             warnings.warn("Cannot set knn ({k}) to be greater than "
-                          "data.shape[0] ({n}). Setting knn={n}".format(
+                          "n_samples ({n}). Setting knn={n}".format(
                               k=knn, n=self.data.shape[0]))
 
         Y = self._check_extension_shape(Y)
@@ -675,15 +676,20 @@ class TraditionalGraph(DataGraph):
                  n_pca=None,
                  thresh=1e-4,
                  precomputed=None, **kwargs):
+        if decay is None and precomputed not in ['affinity', 'adjacency']:
+            # decay high enough is basically a binary kernel
+            raise ValueError("`decay` must be provided for a TraditionalGraph"
+                             ". For kNN kernel, use kNNGraph.")
         if precomputed is not None and n_pca is not None:
             # the data itself is a matrix of distances / affinities
             n_pca = None
             warnings.warn("n_pca cannot be given on a precomputed graph."
                           " Setting n_pca=None", RuntimeWarning)
-        if decay is None and precomputed not in ['affinity', 'adjacency']:
-            # decay high enough is basically a binary kernel
-            raise ValueError("`decay` must be provided for a TraditionalGraph"
-                             ". For kNN kernel, use kNNGraph.")
+        if knn > data.shape[0]:
+            warnings.warn("Cannot set knn ({k}) to be greater than or equal to"
+                          " n_samples ({n}). Setting knn={n}".format(
+                              k=knn, n=data.shape[0] - 1))
+            knn = data.shape[0] - 1
         if precomputed is not None:
             if precomputed not in ["distance", "affinity", "adjacency"]:
                 raise ValueError("Precomputed value {} not recognized. "
