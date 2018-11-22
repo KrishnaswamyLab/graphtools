@@ -6,6 +6,8 @@
 
   sudo: required
 
+  cache: packages
+
   addons:
     apt:
       packages:
