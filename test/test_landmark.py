@@ -42,6 +42,15 @@ def test_landmark_exact_graph():
     assert(G.landmark_op.shape == (n_landmark, n_landmark))
     assert(isinstance(G, graphtools.graphs.TraditionalGraph))
     assert(isinstance(G, graphtools.graphs.LandmarkGraph))
+    assert(G.transitions.shape == (data.shape[0], n_landmark))
+    assert(G.clusters.shape == data.shape[0])
+    assert(len(np.unique(G.clusters)) <= n_landmark)
+    signal = np.random.normal(0, 1, [n_landmark, 10])
+    interpolated_signal = G.interpolate(signal)
+    assert interpolated_signal.shape == (data.shape[0], signal.shape[1])
+    G._reset_landmarks()
+    # no error on double delete
+    G._reset_landmarks()
 
 
 def test_landmark_knn_graph():
@@ -49,6 +58,7 @@ def test_landmark_knn_graph():
     # knn graph
     G = build_graph(data, n_landmark=n_landmark, n_pca=20,
                     decay=None, knn=5, random_state=42)
+    assert(G.transitions.shape == (data.shape[0], n_landmark))
     assert(G.landmark_op.shape == (n_landmark, n_landmark))
     assert(isinstance(G, graphtools.graphs.kNNGraph))
     assert(isinstance(G, graphtools.graphs.LandmarkGraph))
@@ -62,6 +72,7 @@ def test_landmark_mnn_graph():
                     thresh=1e-5, n_pca=None,
                     decay=10, knn=5, random_state=42,
                     sample_idx=sample_idx)
+    assert(G.clusters.shape == data.shape[0])
     assert(G.landmark_op.shape == (n_landmark, n_landmark))
     assert(isinstance(G, graphtools.graphs.MNNGraph))
     assert(isinstance(G, graphtools.graphs.LandmarkGraph))

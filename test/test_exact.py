@@ -68,6 +68,13 @@ def test_precomputed_negative():
                 n_pca=None)
 
 
+@raises(ValueError)
+def test_precomputed_invalid():
+    build_graph(np.random.uniform(0, 1, [200, 200]),
+                precomputed='invalid',
+                n_pca=None)
+
+
 @warns(RuntimeWarning)
 def test_duplicate_data():
     build_graph(np.vstack([data, data[:10]]),
@@ -400,6 +407,7 @@ def test_set_params():
     assert_raises(ValueError, G.set_params, decay=15)
     assert_raises(ValueError, G.set_params, distance='manhattan')
     assert_raises(ValueError, G.set_params, precomputed='distance')
+    assert_raises(ValueError, G.set_params, bandwidth=5)
     G.set_params(knn=G.knn,
                  decay=G.decay,
                  distance=G.distance,

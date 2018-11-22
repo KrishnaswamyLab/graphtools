@@ -75,6 +75,26 @@ def test_mnn_with_vector_theta():
         theta=np.linspace(0, 1, n_sample - 1))
 
 
+@raises(ValueError)
+def test_mnn_with_unbounded_theta():
+    build_graph(
+        data, thresh=0, n_pca=20,
+        decay=10, knn=5, random_state=42,
+        sample_idx=digits['target'],
+        kernel_symm='theta',
+        theta=2)
+
+
+@raises(ValueError)
+def test_mnn_with_string_theta():
+    build_graph(
+        data, thresh=0, n_pca=20,
+        decay=10, knn=5, random_state=42,
+        sample_idx=digits['target'],
+        kernel_symm='theta',
+        theta='invalid')
+
+
 @warns(FutureWarning)
 def test_mnn_with_gamma():
     build_graph(
@@ -93,6 +113,25 @@ def test_mnn_with_kernel_symm_gamma():
         sample_idx=digits['target'],
         kernel_symm='gamma',
         theta=0.9)
+
+
+@warns(UserWarning)
+def test_mnn_with_theta_and_kernel_symm_not_theta():
+    build_graph(
+        data, thresh=0, n_pca=20,
+        decay=10, knn=5, random_state=42,
+        sample_idx=digits['target'],
+        kernel_symm='+',
+        theta=0.9)
+
+
+@warns(UserWarning)
+def test_mnn_with_kernel_symmm_theta_and_no_theta():
+    build_graph(
+        data, thresh=0, n_pca=20,
+        decay=10, knn=5, random_state=42,
+        sample_idx=digits['target'],
+        kernel_symm='theta')
 
 
 def test_mnn_with_non_zero_indexed_sample_idx():

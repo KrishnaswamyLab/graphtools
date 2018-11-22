@@ -45,6 +45,24 @@ def test_duplicate_data():
                 thresh=1e-4)
 
 
+@warns(UserWarning)
+def test_balltree_cosine():
+    build_graph(data,
+                n_pca=20,
+                decay=10,
+                distance='cosine',
+                thresh=1e-4)
+
+
+@warns(UserWarning)
+def test_k_too_large():
+    build_graph(data,
+                n_pca=20,
+                decay=10,
+                knn=len(data) + 1,
+                thresh=1e-4)
+
+
 #####################################################
 # Check kernel
 #####################################################
@@ -253,6 +271,7 @@ def test_set_params():
     assert_raises(ValueError, G.set_params, thresh=1e-3)
     assert_raises(ValueError, G.set_params, theta=0.99)
     assert_raises(ValueError, G.set_params, kernel_symm='*')
+    assert_raises(ValueError, G.set_params, bandwidth=5)
     G.set_params(knn=G.knn,
                  decay=G.decay,
                  thresh=G.thresh,
