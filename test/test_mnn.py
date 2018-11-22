@@ -10,6 +10,7 @@ from load_tests import (
     generate_swiss_roll,
     assert_raises,
     raises,
+    warns,
     cdist,
 )
 from scipy.linalg import norm
@@ -72,6 +73,26 @@ def test_mnn_with_vector_theta():
         sample_idx=digits['target'],
         kernel_symm='theta',
         theta=np.linspace(0, 1, n_sample - 1))
+
+
+@warns(FutureWarning)
+def test_mnn_with_gamma():
+    build_graph(
+        data, thresh=0, n_pca=20,
+        decay=10, knn=5, random_state=42,
+        sample_idx=digits['target'],
+        kernel_symm='theta',
+        gamma=0.9)
+
+
+@warns(FutureWarning)
+def test_mnn_with_kernel_symm_gamma():
+    build_graph(
+        data, thresh=0, n_pca=20,
+        decay=10, knn=5, random_state=42,
+        sample_idx=digits['target'],
+        kernel_symm='gamma',
+        theta=0.9)
 
 
 def test_mnn_with_non_zero_indexed_sample_idx():

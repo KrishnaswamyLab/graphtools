@@ -338,7 +338,16 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
 
     def __init__(self, kernel_symm='+',
                  theta=None,
+                 gamma=None,
                  initialize=True, **kwargs):
+        if gamma is not None:
+            warnings.warn("gamma is deprecated. "
+                          "Setting theta={}".format(gamma), FutureWarning)
+            theta = gamma
+        if kernel_symm == 'gamma':
+            warnings.warn("kernel_symm='gamma' is deprecated. "
+                          "Setting kernel_symm='theta'", FutureWarning)
+            kernel_symm = 'theta'
         self.kernel_symm = kernel_symm
         self.theta = theta
         self._check_symmetrization(kernel_symm, theta)
