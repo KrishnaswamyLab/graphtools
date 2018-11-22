@@ -6,7 +6,7 @@
 
   sudo: required
 
-  cache: packages
+  cache: pip
 
   addons:
     apt:
