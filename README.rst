@@ -37,6 +37,14 @@ Alternatively, graphtools can be installed using `Conda <https://conda.io/docs/>
 
     conda install -c conda-forge graphtools
 
+Or, to install the latest version from github::
+
+        pip install --user git+git://github.com/KrishnaswamyLab/graphtools.git
+        
+Alternatively, graphtools can be installed using [Conda](https://conda.io/docs/) (most easily obtained via the [Miniconda Python distribution](https://conda.io/miniconda.html)):
+
+        conda install -c conda-forge graphtools
+
 Usage example
 -------------
 
