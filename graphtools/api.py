@@ -1,6 +1,7 @@
 import numpy as np
 import warnings
 import tasklogger
+from scipy import sparse
 
 from . import base
 from . import graphs
@@ -9,14 +10,15 @@ from . import graphs
 def Graph(data,
           n_pca=None,
           sample_idx=None,
-          adaptive_k='sqrt',
+          adaptive_k=None,
           precomputed=None,
           knn=5,
           decay=10,
+          bandwidth=None,
           distance='euclidean',
           thresh=1e-4,
           kernel_symm='+',
-          gamma=None,
+          theta=None,
           n_landmark=None,
           n_svd=100,
           beta=1,
@@ -61,6 +63,11 @@ def Graph(data,
     decay : `int` or `None`, optional (default: 10)
         Rate of alpha decay to use. If `None`, alpha decay is not used.
 
+    bandwidth : `float`, list-like or `None`, optional (default: `None`)
+        Fixed bandwidth to use. If given, overrides `knn`. Can be a single
+        bandwidth or a list-like (shape=[n_samples]) of bandwidths for each
+        sample.
+
     distance : `str`, optional (default: `'euclidean'`)
         Any metric from `scipy.spatial.distance` can be used
         distance metric for building kNN graph.
@@ -75,12 +82,12 @@ def Graph(data,
         Defines method of MNN symmetrization.
         '+'  : additive
         '*'  : multiplicative
-        'gamma' : min-max
+        'theta' : min-max
         'none' : no symmetrization
 
-    gamma: float (default: None)
-        Min-max symmetrization constant or matrix. Only used if kernel_symm='gamma'.
-        K = `gamma * min(K, K.T) + (1 - gamma) * max(K, K.T)`
+    theta: float (default: None)
+        Min-max symmetrization constant or matrix. Only used if kernel_symm='theta'.
+        K = `theta * min(K, K.T) + (1 - theta) * max(K, K.T)`
 
     precomputed : {'distance', 'affinity', 'adjacency', `None`}, optional (default: `None`)
         If the graph is precomputed, this variable denotes which graph
@@ -88,12 +95,12 @@ def Graph(data,
         Only one of `precomputed` and `n_pca` can be set.
 
     beta: float, optional(default: 1)
-        Multiply within - batch connections by(1 - beta)
+        Multiply between - batch connections by beta
 
     sample_idx: array-like
         Batch index for MNN kernel
 
-    adaptive_k : `{'min', 'mean', 'sqrt', 'none'}` (default: 'sqrt')
+    adaptive_k : `{'min', 'mean', 'sqrt', 'none'}` (default: None)
         Weights MNN kernel adaptively using the number of cells in
         each sample according to the selected method.
 
@@ -221,3 +228,31 @@ def Graph(data,
                    for key, value in params.items()
                    if key != "data"])))
     return Graph(**params)
+
+
+def from_igraph(G, **kwargs):
+    """Convert an igraph.Graph to a graphtools.Graph
+
+    Creates a graphtools.graphs.TraditionalGraph with a
+    precomputed adjacency matrix
+
+    Parameters
+    ----------
+    G : igraph.Graph
+        Graph to be converted
+    kwargs
+        keyword arguments for graphtools.Graph
+
+    Returns
+    -------
+    G : graphtools.graphs.TraditionalGraph
+    """
+    if 'precomputed' in kwargs:
+        if kwargs['precomputed'] != 'adjacency':
+            warnings.warn(
+                "Cannot build graph from igraph with precomputed={}. "
+                "Use 'adjacency' instead.".format(kwargs['precomputed']),
+                UserWarning)
+        del kwargs['precomputed']
+    return Graph(sparse.coo_matrix(G.get_adjacency().data),
+                 precomputed='adjacency', **kwargs)

@@ -1,3 +1,4 @@
+from __future__ import print_function
 from load_tests import (
     graphtools,
     np,
@@ -42,6 +43,24 @@ def test_duplicate_data():
     build_graph(np.vstack([data, data[:10]]),
                 n_pca=20,
                 decay=10,
+                thresh=1e-4)
+
+
+@warns(UserWarning)
+def test_balltree_cosine():
+    build_graph(data,
+                n_pca=20,
+                decay=10,
+                distance='cosine',
+                thresh=1e-4)
+
+
+@warns(UserWarning)
+def test_k_too_large():
+    build_graph(data,
+                n_pca=20,
+                decay=10,
+                knn=len(data) + 1,
                 thresh=1e-4)
 
 
@@ -124,6 +143,52 @@ def test_sparse_alpha_knn_graph():
     assert(isinstance(G2, graphtools.graphs.kNNGraph))
 
 
+def test_knn_graph_fixed_bandwidth():
+    k = 3
+    decay = 5
+    bandwidth = 10
+    n_pca = 20
+    thresh = 1e-4
+    pca = PCA(n_pca, svd_solver='randomized', random_state=42).fit(data)
+    data_nu = pca.transform(data)
+    pdx = squareform(pdist(data_nu, metric='euclidean'))
+    K = np.exp(-1 * np.power(pdx / bandwidth, decay))
+    K[K < thresh] = 0
+    K = K + K.T
+    W = np.divide(K, 2)
+    np.fill_diagonal(W, 0)
+    G = pygsp.graphs.Graph(W)
+    G2 = build_graph(data, n_pca=n_pca,
+                     decay=decay, bandwidth=bandwidth,
+                     knn=k, random_state=42,
+                     thresh=thresh,
+                     use_pygsp=True)
+    assert(isinstance(G2, graphtools.graphs.kNNGraph))
+    np.testing.assert_array_equal(G.N, G2.N)
+    np.testing.assert_array_equal(G.d, G2.d)
+    np.testing.assert_allclose(
+        (G.W - G2.W).data,
+        np.zeros_like((G.W - G2.W).data), atol=1e-14)
+    bandwidth = np.random.gamma(20, 0.5, len(data))
+    K = np.exp(-1 * (pdx.T / bandwidth).T**decay)
+    K[K < thresh] = 0
+    K = K + K.T
+    W = np.divide(K, 2)
+    np.fill_diagonal(W, 0)
+    G = pygsp.graphs.Graph(W)
+    G2 = build_graph(data, n_pca=n_pca,
+                     decay=decay, bandwidth=bandwidth,
+                     knn=k, random_state=42,
+                     thresh=thresh,
+                     use_pygsp=True)
+    assert(isinstance(G2, graphtools.graphs.kNNGraph))
+    np.testing.assert_array_equal(G.N, G2.N)
+    np.testing.assert_allclose(G.dw, G2.dw, atol=1e-14)
+    np.testing.assert_allclose(
+        (G.W - G2.W).data,
+        np.zeros_like((G.W - G2.W).data), atol=1e-14)
+
+
 @warns(UserWarning)
 def test_knn_graph_sparse_no_pca():
     build_graph(sp.coo_matrix(data), n_pca=None,  # n_pca,
@@ -184,9 +249,10 @@ def test_set_params():
         'n_pca': 20,
         'random_state': 42,
         'kernel_symm': '+',
-        'gamma': None,
+        'theta': None,
         'knn': 3,
         'decay': None,
+        'bandwidth': None,
         'distance': 'euclidean',
         'thresh': 0,
         'n_jobs': -1,
@@ -204,11 +270,12 @@ def test_set_params():
     assert_raises(ValueError, G.set_params, decay=10)
     assert_raises(ValueError, G.set_params, distance='manhattan')
     assert_raises(ValueError, G.set_params, thresh=1e-3)
-    assert_raises(ValueError, G.set_params, gamma=0.99)
+    assert_raises(ValueError, G.set_params, theta=0.99)
     assert_raises(ValueError, G.set_params, kernel_symm='*')
+    assert_raises(ValueError, G.set_params, bandwidth=5)
     G.set_params(knn=G.knn,
                  decay=G.decay,
                  thresh=G.thresh,
                  distance=G.distance,
-                 gamma=G.gamma,
+                 theta=G.theta,
                  kernel_symm=G.kernel_symm)

@@ -311,12 +311,12 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         Defines method of MNN symmetrization.
         '+'  : additive
         '*'  : multiplicative
-        'gamma' : min-max
+        'theta' : min-max
         'none' : no symmetrization
 
-    gamma: float (default: 0.5)
+    theta: float (default: 0.5)
         Min-max symmetrization constant.
-        K = `gamma * min(K, K.T) + (1 - gamma) * max(K, K.T)`
+        K = `theta * min(K, K.T) + (1 - theta) * max(K, K.T)`
 
     initialize : `bool`, optional (default : `True`)
         if false, don't create the kernel matrix.
@@ -337,11 +337,20 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
     """
 
     def __init__(self, kernel_symm='+',
+                 theta=None,
                  gamma=None,
                  initialize=True, **kwargs):
+        if gamma is not None:
+            warnings.warn("gamma is deprecated. "
+                          "Setting theta={}".format(gamma), FutureWarning)
+            theta = gamma
+        if kernel_symm == 'gamma':
+            warnings.warn("kernel_symm='gamma' is deprecated. "
+                          "Setting kernel_symm='theta'", FutureWarning)
+            kernel_symm = 'theta'
         self.kernel_symm = kernel_symm
-        self.gamma = gamma
-        self._check_symmetrization(kernel_symm, gamma)
+        self.theta = theta
+        self._check_symmetrization(kernel_symm, theta)
 
         if initialize:
             tasklogger.log_debug("Initializing kernel...")
@@ -350,25 +359,25 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
             tasklogger.log_debug("Not initializing kernel.")
         super().__init__(**kwargs)
 
-    def _check_symmetrization(self, kernel_symm, gamma):
-        if kernel_symm not in ['+', '*', 'gamma', None]:
+    def _check_symmetrization(self, kernel_symm, theta):
+        if kernel_symm not in ['+', '*', 'theta', None]:
             raise ValueError(
                 "kernel_symm '{}' not recognized. Choose from "
-                "'+', '*', 'gamma', or 'none'.".format(kernel_symm))
-        elif kernel_symm != 'gamma' and gamma is not None:
-            warnings.warn("kernel_symm='{}' but gamma is not None. "
-                          "Setting kernel_symm='gamma'.".format(kernel_symm))
-            self.kernel_symm = kernel_symm = 'gamma'
+                "'+', '*', 'theta', or 'none'.".format(kernel_symm))
+        elif kernel_symm != 'theta' and theta is not None:
+            warnings.warn("kernel_symm='{}' but theta is not None. "
+                          "Setting kernel_symm='theta'.".format(kernel_symm))
+            self.kernel_symm = kernel_symm = 'theta'
 
-        if kernel_symm == 'gamma':
-            if gamma is None:
-                warnings.warn("kernel_symm='gamma' but gamma not given. "
-                              "Defaulting to gamma=0.5.")
-                self.gamma = gamma = 0.5
-            elif not isinstance(gamma, numbers.Number) or \
-                    gamma < 0 or gamma > 1:
-                raise ValueError("gamma {} not recognized. Expected "
-                                 "a float between 0 and 1".format(gamma))
+        if kernel_symm == 'theta':
+            if theta is None:
+                warnings.warn("kernel_symm='theta' but theta not given. "
+                              "Defaulting to theta=0.5.")
+                self.theta = theta = 0.5
+            elif not isinstance(theta, numbers.Number) or \
+                    theta < 0 or theta > 1:
+                raise ValueError("theta {} not recognized. Expected "
+                                 "a float between 0 and 1".format(theta))
 
     def _build_kernel(self):
         """Private method to build kernel matrix
@@ -400,26 +409,26 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         elif self.kernel_symm == "*":
             tasklogger.log_debug("Using multiplication symmetrization.")
             K = K.multiply(K.T)
-        elif self.kernel_symm == 'gamma':
+        elif self.kernel_symm == 'theta':
             tasklogger.log_debug(
-                "Using gamma symmetrization (gamma = {}).".format(self.gamma))
-            K = self.gamma * elementwise_minimum(K, K.T) + \
-                (1 - self.gamma) * elementwise_maximum(K, K.T)
+                "Using theta symmetrization (theta = {}).".format(self.theta))
+            K = self.theta * elementwise_minimum(K, K.T) + \
+                (1 - self.theta) * elementwise_maximum(K, K.T)
         elif self.kernel_symm is None:
             tasklogger.log_debug("Using no symmetrization.")
             pass
         else:
             # this should never happen
             raise ValueError(
-                "Expected kernel_symm in ['+', '*', 'gamma' or None]. "
-                "Got {}".format(self.gamma))
+                "Expected kernel_symm in ['+', '*', 'theta' or None]. "
+                "Got {}".format(self.theta))
         return K
 
     def get_params(self):
         """Get parameters from this object
         """
         return {'kernel_symm': self.kernel_symm,
-                'gamma': self.gamma}
+                'theta': self.theta}
 
     def set_params(self, **params):
         """Set parameters on this object
@@ -429,7 +438,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         Valid parameters:
         Invalid parameters: (these would require modifying the kernel matrix)
         - kernel_symm
-        - gamma
+        - theta
 
         Parameters
         ----------
@@ -439,8 +448,8 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         -------
         self
         """
-        if 'gamma' in params and params['gamma'] != self.gamma:
-            raise ValueError("Cannot update gamma. Please create a new graph")
+        if 'theta' in params and params['theta'] != self.theta:
+            raise ValueError("Cannot update theta. Please create a new graph")
         if 'kernel_symm' in params and \
                 params['kernel_symm'] != self.kernel_symm:
             raise ValueError(
@@ -534,6 +543,42 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
             with no non-negative entries.
         """
         raise NotImplementedError
+
+    def to_pygsp(self, **kwargs):
+        """Convert to a PyGSP graph
+
+        For use only when the user means to create the graph using
+        the flag `use_pygsp=True`, and doesn't wish to recompute the kernel.
+        Creates a graphtools.graphs.TraditionalGraph with a precomputed
+        affinity matrix which also inherits from pygsp.graphs.Graph.
+
+        Parameters
+        ----------
+        kwargs
+            keyword arguments for graphtools.Graph
+
+        Returns
+        -------
+        G : graphtools.base.PyGSPGraph, graphtools.graphs.TraditionalGraph
+        """
+        from . import api
+        if 'precomputed' in kwargs:
+            if kwargs['precomputed'] != 'affinity':
+                warnings.warn(
+                    "Cannot build PyGSPGraph with precomputed={}. "
+                    "Using 'affinity' instead.".format(kwargs['precomputed']),
+                    UserWarning)
+            del kwargs['precomputed']
+        if 'use_pygsp' in kwargs:
+            if kwargs['use_pygsp'] is not True:
+                warnings.warn(
+                    "Cannot build PyGSPGraph with use_pygsp={}. "
+                    "Use True instead.".format(kwargs['use_pygsp']),
+                    UserWarning)
+            del kwargs['use_pygsp']
+        return api.Graph(self.K,
+                         precomputed="affinity", use_pygsp=True,
+                         **kwargs)
 
 
 class PyGSPGraph(with_metaclass(abc.ABCMeta, pygsp.graphs.Graph, Base)):

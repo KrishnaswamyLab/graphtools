@@ -5,6 +5,9 @@ graphtools
 .. image:: https://img.shields.io/pypi/v/graphtools.svg
     :target: https://pypi.org/project/graphtools/
     :alt: Latest PyPi version
+.. image:: https://anaconda.org/conda-forge/tasklogger/badges/version.svg
+    :target: https://anaconda.org/conda-forge/tasklogger/
+    :alt: Latest Conda version
 .. image:: https://api.travis-ci.com/KrishnaswamyLab/graphtools.svg?branch=master
     :target: https://travis-ci.com/KrishnaswamyLab/graphtools
     :alt: Travis CI Build
@@ -28,7 +31,11 @@ Installation
 
 graphtools is available on `pip`. Install by running the following in a terminal::
 
-        pip install --user graphtools
+    pip install --user graphtools
+
+Alternatively, graphtools can be installed using `Conda <https://conda.io/docs/>`_ (most easily obtained via the `Miniconda Python distribution <https://conda.io/miniconda.html>`_)::
+
+    conda install -c conda-forge graphtools
 
 Or, to install the latest version from github::
 
@@ -45,14 +52,14 @@ The `graphtools.Graph` class provides an all-in-one interface for k-nearest neig
 
 Use it as follows::
 
-        from sklearn import datasets
-        import graphtools
-        digits = datasets.load_digits()
-        G = graphtools.Graph(digits['data'])
-        K = G.kernel
-        P = G.diff_op
-        G = graphtools.Graph(digits['data'], n_landmark=300)
-        L = G.landmark_op
+    from sklearn import datasets
+    import graphtools
+    digits = datasets.load_digits()
+    G = graphtools.Graph(digits['data'])
+    K = G.kernel
+    P = G.diff_op
+    G = graphtools.Graph(digits['data'], n_landmark=300)
+    L = G.landmark_op
 
 Help
 ----

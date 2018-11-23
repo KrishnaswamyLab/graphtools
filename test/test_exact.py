@@ -1,3 +1,4 @@
+from __future__ import print_function
 from load_tests import (
     graphtools,
     np,
@@ -68,11 +69,27 @@ def test_precomputed_negative():
                 n_pca=None)
 
 
+@raises(ValueError)
+def test_precomputed_invalid():
+    build_graph(np.random.uniform(0, 1, [200, 200]),
+                precomputed='invalid',
+                n_pca=None)
+
+
 @warns(RuntimeWarning)
 def test_duplicate_data():
     build_graph(np.vstack([data, data[:10]]),
                 n_pca=20,
                 decay=10,
+                thresh=0)
+
+
+@warns(UserWarning)
+def test_k_too_large():
+    build_graph(data,
+                n_pca=20,
+                decay=10,
+                knn=len(data) + 1,
                 thresh=0)
 
 
@@ -289,6 +306,48 @@ def test_truncated_exact_graph_no_pca():
     assert(isinstance(G2, graphtools.graphs.TraditionalGraph))
 
 
+def test_exact_graph_fixed_bandwidth():
+    decay = 5
+    bandwidth = 2
+    n_pca = 20
+    pca = PCA(n_pca, svd_solver='randomized', random_state=42).fit(data)
+    data_nu = pca.transform(data)
+    pdx = squareform(pdist(data_nu, metric='euclidean'))
+    K = np.exp(-1 * (pdx / bandwidth)**decay)
+    K = K + K.T
+    W = np.divide(K, 2)
+    np.fill_diagonal(W, 0)
+    G = pygsp.graphs.Graph(W)
+    G2 = build_graph(data, n_pca=n_pca,
+                     graphtype='exact',
+                     decay=decay, bandwidth=bandwidth,
+                     random_state=42,
+                     thresh=0,
+                     use_pygsp=True)
+    assert(isinstance(G2, graphtools.graphs.TraditionalGraph))
+    assert(G.N == G2.N)
+    assert(np.all(G.d == G2.d))
+    assert((G2.W != G.W).sum() == 0)
+    assert((G.W != G2.W).nnz == 0)
+    bandwidth = np.random.gamma(5, 0.5, len(data))
+    K = np.exp(-1 * (pdx.T / bandwidth).T**decay)
+    K = K + K.T
+    W = np.divide(K, 2)
+    np.fill_diagonal(W, 0)
+    G = pygsp.graphs.Graph(W)
+    G2 = build_graph(data, n_pca=n_pca,
+                     graphtype='exact',
+                     decay=decay, bandwidth=bandwidth,
+                     random_state=42,
+                     thresh=0,
+                     use_pygsp=True)
+    assert(isinstance(G2, graphtools.graphs.TraditionalGraph))
+    assert(G.N == G2.N)
+    assert(np.all(G.d == G2.d))
+    assert((G2.W != G.W).sum() == 0)
+    assert((G.W != G2.W).nnz == 0)
+
+
 #####################################################
 # Check interpolation
 #####################################################
@@ -348,15 +407,17 @@ def test_set_params():
     assert G.get_params() == {'n_pca': 20,
                               'random_state': 42,
                               'kernel_symm': '+',
-                              'gamma': None,
+                              'theta': None,
                               'knn': 3,
                               'decay': 10,
+                              'bandwidth': None,
                               'distance': 'euclidean',
                               'precomputed': None}
     assert_raises(ValueError, G.set_params, knn=15)
     assert_raises(ValueError, G.set_params, decay=15)
     assert_raises(ValueError, G.set_params, distance='manhattan')
     assert_raises(ValueError, G.set_params, precomputed='distance')
+    assert_raises(ValueError, G.set_params, bandwidth=5)
     G.set_params(knn=G.knn,
                  decay=G.decay,
                  distance=G.distance,

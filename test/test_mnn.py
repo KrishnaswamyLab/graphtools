@@ -1,3 +1,4 @@
+from __future__ import print_function
 from load_tests import (
     graphtools,
     np,
@@ -10,8 +11,10 @@ from load_tests import (
     generate_swiss_roll,
     assert_raises,
     raises,
+    warns,
     cdist,
 )
+from scipy.linalg import norm
 
 
 #####################################################
@@ -49,38 +52,97 @@ def test_build_mnn_with_precomputed():
 
 
 @raises(ValueError)
-def test_mnn_with_square_gamma_wrong_length():
+def test_mnn_with_square_theta_wrong_length():
     n_sample = len(np.unique(digits['target']))
-    # square matrix gamma of the wrong size
+    # square matrix theta of the wrong size
     build_graph(
         data, thresh=0, n_pca=20,
         decay=10, knn=5, random_state=42,
         sample_idx=digits['target'],
-        kernel_symm='gamma',
-        gamma=np.tile(np.linspace(0, 1, n_sample - 1),
+        kernel_symm='theta',
+        theta=np.tile(np.linspace(0, 1, n_sample - 1),
                       n_sample).reshape(n_sample - 1, n_sample))
 
 
 @raises(ValueError)
-def test_mnn_with_vector_gamma():
+def test_mnn_with_vector_theta():
     n_sample = len(np.unique(digits['target']))
-    # vector gamma
+    # vector theta
+    build_graph(
+        data, thresh=0, n_pca=20,
+        decay=10, knn=5, random_state=42,
+        sample_idx=digits['target'],
+        kernel_symm='theta',
+        theta=np.linspace(0, 1, n_sample - 1))
+
+
+@raises(ValueError)
+def test_mnn_with_unbounded_theta():
+    build_graph(
+        data, thresh=0, n_pca=20,
+        decay=10, knn=5, random_state=42,
+        sample_idx=digits['target'],
+        kernel_symm='theta',
+        theta=2)
+
+
+@raises(ValueError)
+def test_mnn_with_string_theta():
+    build_graph(
+        data, thresh=0, n_pca=20,
+        decay=10, knn=5, random_state=42,
+        sample_idx=digits['target'],
+        kernel_symm='theta',
+        theta='invalid')
+
+
+@warns(FutureWarning)
+def test_mnn_with_gamma():
+    build_graph(
+        data, thresh=0, n_pca=20,
+        decay=10, knn=5, random_state=42,
+        sample_idx=digits['target'],
+        kernel_symm='theta',
+        gamma=0.9)
+
+
+@warns(FutureWarning)
+def test_mnn_with_kernel_symm_gamma():
     build_graph(
         data, thresh=0, n_pca=20,
         decay=10, knn=5, random_state=42,
         sample_idx=digits['target'],
         kernel_symm='gamma',
-        gamma=np.linspace(0, 1, n_sample - 1))
+        theta=0.9)
+
+
+@warns(UserWarning)
+def test_mnn_with_theta_and_kernel_symm_not_theta():
+    build_graph(
+        data, thresh=0, n_pca=20,
+        decay=10, knn=5, random_state=42,
+        sample_idx=digits['target'],
+        kernel_symm='+',
+        theta=0.9)
+
+
+@warns(UserWarning)
+def test_mnn_with_kernel_symmm_theta_and_no_theta():
+    build_graph(
+        data, thresh=0, n_pca=20,
+        decay=10, knn=5, random_state=42,
+        sample_idx=digits['target'],
+        kernel_symm='theta')
 
 
 def test_mnn_with_non_zero_indexed_sample_idx():
     X, sample_idx = generate_swiss_roll()
     G = build_graph(X, sample_idx=sample_idx,
-                    kernel_symm='gamma', gamma=0.5,
+                    kernel_symm='theta', theta=0.5,
                     n_pca=None, use_pygsp=True)
     sample_idx += 1
     G2 = build_graph(X, sample_idx=sample_idx,
-                     kernel_symm='gamma', gamma=0.5,
+                     kernel_symm='theta', theta=0.5,
                      n_pca=None, use_pygsp=True)
     assert G.N == G2.N
     assert np.all(G.d == G2.d)
@@ -92,11 +154,11 @@ def test_mnn_with_non_zero_indexed_sample_idx():
 def test_mnn_with_string_sample_idx():
     X, sample_idx = generate_swiss_roll()
     G = build_graph(X, sample_idx=sample_idx,
-                    kernel_symm='gamma', gamma=0.5,
+                    kernel_symm='theta', theta=0.5,
                     n_pca=None, use_pygsp=True)
     sample_idx = np.where(sample_idx == 0, 'a', 'b')
     G2 = build_graph(X, sample_idx=sample_idx,
-                     kernel_symm='gamma', gamma=0.5,
+                     kernel_symm='theta', theta=0.5,
                      n_pca=None, use_pygsp=True)
     assert G.N == G2.N
     assert np.all(G.d == G2.d)
@@ -110,13 +172,13 @@ def test_mnn_with_string_sample_idx():
 #####################################################
 
 
-def test_mnn_graph_float_gamma():
+def test_mnn_graph_float_theta():
     X, sample_idx = generate_swiss_roll()
-    gamma = 0.9
+    theta = 0.9
     k = 10
     a = 20
     metric = 'euclidean'
-    beta = 0
+    beta = 0.5
     samples = np.unique(sample_idx)
 
     K = np.zeros((len(X), len(X)))
@@ -133,31 +195,46 @@ def test_mnn_graph_float_gamma():
             pdxe_ij = pdx_ij / e_ij[:, np.newaxis]  # normalize
             k_ij = np.exp(-1 * (pdxe_ij ** a))  # apply alpha-decaying kernel
             if si == sj:
-                K.iloc[sample_idx == si, sample_idx == sj] = k_ij * \
-                    (1 - beta)  # fill out values in K for NN on diagonal
+                K.iloc[sample_idx == si, sample_idx == sj] = (
+                    k_ij + k_ij.T) / 2
             else:
                 # fill out values in K for NN on diagonal
                 K.iloc[sample_idx == si, sample_idx == sj] = k_ij
+    Kn = K.copy()
+    for i in samples:
+        curr_K = K.iloc[sample_idx == i, sample_idx == i]
+        i_norm = norm(curr_K, 1, axis=1)
+        for j in samples:
+            if i == j:
+                continue
+            else:
+                curr_K = K.iloc[sample_idx == i, sample_idx == j]
+                curr_norm = norm(curr_K, 1, axis=1)
+                scale = np.minimum(
+                    np.ones(len(curr_norm)), i_norm / curr_norm) * beta
+                Kn.iloc[sample_idx == i, sample_idx == j] = (
+                    curr_K.T * scale).T
 
-    W = np.array((gamma * np.minimum(K, K.T)) +
-                 ((1 - gamma) * np.maximum(K, K.T)))
+    K = Kn
+    W = np.array((theta * np.minimum(K, K.T)) +
+                 ((1 - theta) * np.maximum(K, K.T)))
     np.fill_diagonal(W, 0)
     G = pygsp.graphs.Graph(W)
-    G2 = graphtools.Graph(X, knn=k + 1, decay=a, beta=1 - beta,
-                          kernel_symm='gamma', gamma=gamma,
+    G2 = graphtools.Graph(X, knn=k + 1, decay=a, beta=beta,
+                          kernel_symm='theta', theta=theta,
                           distance=metric, sample_idx=sample_idx, thresh=0,
                           use_pygsp=True)
     assert G.N == G2.N
-    assert np.all(G.d == G2.d)
+    np.testing.assert_array_equal(G.dw, G2.dw)
     assert (G.W != G2.W).nnz == 0
     assert (G2.W != G.W).sum() == 0
     assert isinstance(G2, graphtools.graphs.MNNGraph)
 
 
-def test_mnn_graph_matrix_gamma():
+def test_mnn_graph_matrix_theta():
     X, sample_idx = generate_swiss_roll()
     bs = 0.8
-    gamma = np.array([[1, bs],  # 0
+    theta = np.array([[1, bs],  # 0
                       [bs,  1]])  # 3
     k = 10
     a = 20
@@ -179,30 +256,46 @@ def test_mnn_graph_matrix_gamma():
             pdxe_ij = pdx_ij / e_ij[:, np.newaxis]  # normalize
             k_ij = np.exp(-1 * (pdxe_ij ** a))  # apply alpha-decaying kernel
             if si == sj:
-                K.iloc[sample_idx == si, sample_idx == sj] = k_ij * \
-                    (1 - beta)  # fill out values in K for NN on diagonal
+                K.iloc[sample_idx == si, sample_idx == sj] = (
+                    k_ij + k_ij.T) / 2
             else:
                 # fill out values in K for NN on diagonal
                 K.iloc[sample_idx == si, sample_idx == sj] = k_ij
+    Kn = K.copy()
+    for i in samples:
+        curr_K = K.iloc[sample_idx == i, sample_idx == i]
+        i_norm = norm(curr_K, 1, axis=1)
+        for j in samples:
+            if i == j:
+                continue
+            else:
+                curr_K = K.iloc[sample_idx == i, sample_idx == j]
+                curr_norm = norm(curr_K, 1, axis=1)
+                scale = np.minimum(
+                    np.ones(len(curr_norm)), i_norm / curr_norm) * beta
+                Kn.iloc[sample_idx == i, sample_idx == j] = (
+                    curr_K.T * scale).T
+
+    K = Kn
 
     K = np.array(K)
 
-    matrix_gamma = pd.DataFrame(np.zeros((len(sample_idx), len(sample_idx))))
+    matrix_theta = pd.DataFrame(np.zeros((len(sample_idx), len(sample_idx))))
     for ix, si in enumerate(set(sample_idx)):
         for jx, sj in enumerate(set(sample_idx)):
-            matrix_gamma.iloc[sample_idx == si,
-                              sample_idx == sj] = gamma[ix, jx]
+            matrix_theta.iloc[sample_idx == si,
+                              sample_idx == sj] = theta[ix, jx]
 
-    W = np.array((matrix_gamma * np.minimum(K, K.T)) +
-                 ((1 - matrix_gamma) * np.maximum(K, K.T)))
+    W = np.array((matrix_theta * np.minimum(K, K.T)) +
+                 ((1 - matrix_theta) * np.maximum(K, K.T)))
     np.fill_diagonal(W, 0)
     G = pygsp.graphs.Graph(W)
-    G2 = graphtools.Graph(X, knn=k + 1, decay=a, beta=1 - beta,
-                          kernel_symm='gamma', gamma=gamma,
+    G2 = graphtools.Graph(X, knn=k + 1, decay=a, beta=beta,
+                          kernel_symm='theta', theta=theta,
                           distance=metric, sample_idx=sample_idx, thresh=0,
                           use_pygsp=True)
     assert G.N == G2.N
-    assert np.all(G.d == G2.d)
+    np.testing.assert_array_equal(G.dw, G2.dw)
     assert (G.W != G2.W).nnz == 0
     assert (G2.W != G.W).sum() == 0
     assert isinstance(G2, graphtools.graphs.MNNGraph)
@@ -220,25 +313,26 @@ def test_verbose():
     print()
     print("Verbose test: MNN")
     build_graph(X, sample_idx=sample_idx,
-                kernel_symm='gamma', gamma=0.5,
+                kernel_symm='theta', theta=0.5,
                 n_pca=None, verbose=True)
 
 
 def test_set_params():
     X, sample_idx = generate_swiss_roll()
     G = build_graph(X, sample_idx=sample_idx,
-                    kernel_symm='gamma', gamma=0.5,
+                    kernel_symm='theta', theta=0.5,
                     n_pca=None,
                     thresh=1e-4)
     assert G.get_params() == {
         'n_pca': None,
         'random_state': 42,
-        'kernel_symm': 'gamma',
-        'gamma': 0.5,
+        'kernel_symm': 'theta',
+        'theta': 0.5,
         'beta': 1,
-        'adaptive_k': 'sqrt',
+        'adaptive_k': None,
         'knn': 3,
         'decay': 10,
+        'bandwidth': None,
         'distance': 'euclidean',
         'thresh': 1e-4,
         'n_jobs': 1

@@ -16,6 +16,7 @@ def reset_warnings():
     warnings.resetwarnings()
     warnings.simplefilter("error")
     ignore_numpy_warning()
+    ignore_igraph_warning()
 
 
 def ignore_numpy_warning():
@@ -23,6 +24,14 @@ def ignore_numpy_warning():
         "ignore", category=PendingDeprecationWarning,
         message="the matrix subclass is not the recommended way to represent "
         "matrices or deal with linear algebra ")
+
+
+def ignore_igraph_warning():
+    warnings.filterwarnings(
+        "ignore", category=DeprecationWarning,
+        message="The SafeConfigParser class has been renamed to ConfigParser "
+        "in Python 3.2. This alias will be removed in future versions. Use "
+        "ConfigParser directly instead")
 
 
 reset_warnings()
@@ -38,7 +47,7 @@ def generate_swiss_roll(n_samples=1000, noise=0.5, seed=42):
     t = 1.5 * np.pi * (1 + 2 * generator.rand(1, n_samples))
     x = t * np.cos(t)
     y = t * np.sin(t)
-    sample_idx = np.random.choice([0, 1], n_samples, replace=True)
+    sample_idx = generator.choice([0, 1], n_samples, replace=True)
     z = sample_idx
     t = np.squeeze(t)
     X = np.concatenate((x, y))

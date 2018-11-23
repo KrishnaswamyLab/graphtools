@@ -8,14 +8,15 @@ install_requires = [
     'pygsp>=0.5.1',
     'scikit-learn>=0.19.1',
     'future',
-    'tasklogger>=0.2',
+    'tasklogger>=0.4.0',
 ]
 
 test_requires = [
     'nose2',
     'pandas',
     'coverage',
-    'coveralls'
+    'coveralls',
+    'python-igraph'
 ]
 
 if sys.version_info[0] == 3:
