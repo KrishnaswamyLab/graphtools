@@ -44,7 +44,8 @@ class kNNGraph(DataGraph):
 
     distance : `str`, optional (default: `'euclidean'`)
         Any metric from `scipy.spatial.distance` can be used
-        distance metric for building kNN graph.
+        distance metric for building kNN graph. Custom distance
+        functions of form `f(x, y) = d` are also accepted.
         TODO: actually sklearn.neighbors has even more choices
 
     thresh : `float`, optional (default: `1e-4`)
