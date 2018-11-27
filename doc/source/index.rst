@@ -8,6 +8,10 @@ graphtools
 
 .. raw:: html
 
+    <a href="https://anaconda.org/conda-forge/graphtools/"><img src="https://anaconda.org/conda-forge/graphtools/badges/version.svg" alt="Latest Conda version"></a>
+
+.. raw:: html
+
     <a href="https://travis-ci.com/KrishnaswamyLab/graphtools"><img src="https://api.travis-ci.com/KrishnaswamyLab/graphtools.svg?branch=master" alt="Travis CI Build"></a>
 
 .. raw:: html

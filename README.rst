@@ -5,8 +5,8 @@ graphtools
 .. image:: https://img.shields.io/pypi/v/graphtools.svg
     :target: https://pypi.org/project/graphtools/
     :alt: Latest PyPi version
-.. image:: https://anaconda.org/conda-forge/tasklogger/badges/version.svg
-    :target: https://anaconda.org/conda-forge/tasklogger/
+.. image:: https://anaconda.org/conda-forge/graphtools/badges/version.svg
+    :target: https://anaconda.org/conda-forge/graphtools/
     :alt: Latest Conda version
 .. image:: https://api.travis-ci.com/KrishnaswamyLab/graphtools.svg?branch=master
     :target: https://travis-ci.com/KrishnaswamyLab/graphtools
