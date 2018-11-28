@@ -17,6 +17,7 @@ def reset_warnings():
     warnings.simplefilter("error")
     ignore_numpy_warning()
     ignore_igraph_warning()
+    ignore_joblib_warning()
 
 
 def ignore_numpy_warning():
@@ -32,6 +33,13 @@ def ignore_igraph_warning():
         message="The SafeConfigParser class has been renamed to ConfigParser "
         "in Python 3.2. This alias will be removed in future versions. Use "
         "ConfigParser directly instead")
+
+
+def ignore_joblib_warning():
+    warnings.filterwarnings(
+        "ignore", category=DeprecationWarning,
+        message="check_pickle is deprecated in joblib 0.12 and will be removed"
+        " in 0.13")
 
 
 reset_warnings()
