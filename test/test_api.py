@@ -1,12 +1,10 @@
 from __future__ import print_function
 from load_tests import (
-    nose2,
     data,
     build_graph,
     raises,
     warns,
 )
-import warnings
 
 import igraph
 import numpy as np
@@ -21,6 +19,19 @@ def test_from_igraph():
         e = np.random.choice(n, 2, replace=False)
         K[e[0], e[1]] = K[e[1], e[0]] = 1
     g = igraph.Graph.Adjacency(K.tolist())
+    G = graphtools.from_igraph(g, attribute=None)
+    G2 = graphtools.Graph(K, precomputed='adjacency')
+    assert np.all(G.K == G2.K)
+
+
+def test_from_igraph_weighted():
+    n = 100
+    m = 500
+    K = np.zeros((n, n))
+    for _ in range(m):
+        e = np.random.choice(n, 2, replace=False)
+        K[e[0], e[1]] = K[e[1], e[0]] = np.random.uniform(0, 1)
+    g = igraph.Graph.Weighted_Adjacency(K.tolist())
     G = graphtools.from_igraph(g)
     G2 = graphtools.Graph(K, precomputed='adjacency')
     assert np.all(G.K == G2.K)
@@ -35,7 +46,19 @@ def test_from_igraph_invalid_precomputed():
         e = np.random.choice(n, 2, replace=False)
         K[e[0], e[1]] = K[e[1], e[0]] = 1
     g = igraph.Graph.Adjacency(K.tolist())
-    G = graphtools.from_igraph(g, precomputed='affinity')
+    G = graphtools.from_igraph(g, attribute=None, precomputed='affinity')
+
+
+@warns(UserWarning)
+def test_from_igraph_invalid_attribute():
+    n = 100
+    m = 500
+    K = np.zeros((n, n))
+    for _ in range(m):
+        e = np.random.choice(n, 2, replace=False)
+        K[e[0], e[1]] = K[e[1], e[0]] = 1
+    g = igraph.Graph.Adjacency(K.tolist())
+    G = graphtools.from_igraph(g, attribute="invalid")
 
 
 def test_to_pygsp():
@@ -43,6 +66,14 @@ def test_to_pygsp():
     G2 = G.to_pygsp()
     assert isinstance(G2, graphtools.graphs.PyGSPGraph)
     assert np.all(G2.K == G.K)
+
+
+def test_to_igraph():
+    G = build_graph(data, use_pygsp=True)
+    G2 = G.to_igraph()
+    assert isinstance(G2, igraph.Graph)
+    assert np.all(np.array(G2.get_adjacency(
+        attribute="weight").data) == G.W)
 
 
 @warns(UserWarning)
