@@ -44,3 +44,9 @@ def set_diagonal(X, diag):
 def set_submatrix(X, i, j, values):
     X[np.ix_(i, j)] = values
     return X
+
+
+def to_dense(X):
+    if sparse.issparse(X):
+        X = X.toarray()
+    return X

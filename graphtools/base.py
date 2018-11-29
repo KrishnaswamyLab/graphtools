@@ -23,9 +23,7 @@ except (ImportError, SyntaxError):
     # anndata not installed
     pass
 
-from .utils import (elementwise_minimum,
-                    elementwise_maximum,
-                    set_diagonal)
+from . import utils
 
 
 class Base(object):
@@ -318,6 +316,10 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         Min-max symmetrization constant.
         K = `theta * min(K, K.T) + (1 - theta) * max(K, K.T)`
 
+    anisotropy : float, optional (default: 0)
+        Level of anisotropy between 0 and 1
+        (alpha in Coifman & Lafon, 2006)
+
     initialize : `bool`, optional (default : `True`)
         if false, don't create the kernel matrix.
 
@@ -336,8 +338,10 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
     diff_op : synonym for `P`
     """
 
-    def __init__(self, kernel_symm='+',
+    def __init__(self,
+                 kernel_symm='+',
                  theta=None,
+                 anisotropy=0,
                  gamma=None,
                  initialize=True, **kwargs):
         if gamma is not None:
@@ -351,6 +355,10 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         self.kernel_symm = kernel_symm
         self.theta = theta
         self._check_symmetrization(kernel_symm, theta)
+        if not (isinstance(anisotropy, numbers.Real) and 0 <= anisotropy <= 1):
+            raise ValueError("Expected 0 <= anisotropy <= 1. "
+                             "Got {}".format(anisotropy))
+        self.anisotropy = anisotropy
 
         if initialize:
             tasklogger.log_debug("Initializing kernel...")
@@ -395,6 +403,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         """
         kernel = self.build_kernel()
         kernel = self.symmetrize_kernel(kernel)
+        kernel = self.apply_anisotropy(kernel)
         if (kernel - kernel.T).max() > 1e-5:
             warnings.warn("K should be symmetric", RuntimeWarning)
         if np.any(kernel.diagonal == 0):
@@ -412,8 +421,8 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         elif self.kernel_symm == 'theta':
             tasklogger.log_debug(
                 "Using theta symmetrization (theta = {}).".format(self.theta))
-            K = self.theta * elementwise_minimum(K, K.T) + \
-                (1 - self.theta) * elementwise_maximum(K, K.T)
+            K = self.theta * utils.elementwise_minimum(K, K.T) + \
+                (1 - self.theta) * utils.elementwise_maximum(K, K.T)
         elif self.kernel_symm is None:
             tasklogger.log_debug("Using no symmetrization.")
             pass
@@ -424,11 +433,27 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
                 "Got {}".format(self.theta))
         return K
 
+    def apply_anisotropy(self, K):
+        if self.anisotropy == 0:
+            # do nothing
+            return K
+        else:
+            if sparse.issparse(K):
+                d = np.array(K.sum(1)).flatten()
+                K = K.tocoo()
+                K.data = K.data / ((d[K.row] * d[K.col]) ** self.anisotropy)
+                K = K.tocsr()
+            else:
+                d = K.sum(1)
+                K = K / (np.outer(d, d) ** self.anisotropy)
+        return K
+
     def get_params(self):
         """Get parameters from this object
         """
         return {'kernel_symm': self.kernel_symm,
-                'theta': self.theta}
+                'theta': self.theta,
+                'anisotropy': self.anisotropy}
 
     def set_params(self, **params):
         """Set parameters on this object
@@ -450,6 +475,9 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         """
         if 'theta' in params and params['theta'] != self.theta:
             raise ValueError("Cannot update theta. Please create a new graph")
+        if 'anisotropy' in params and params['anisotropy'] != self.anisotropy:
+            raise ValueError(
+                "Cannot update anisotropy. Please create a new graph")
         if 'kernel_symm' in params and \
                 params['kernel_symm'] != self.kernel_symm:
             raise ValueError(
@@ -580,6 +608,30 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
                          precomputed="affinity", use_pygsp=True,
                          **kwargs)
 
+    def to_igraph(self, attribute="weight", **kwargs):
+        """Convert to an igraph Graph
+
+        Uses the igraph.Graph.Weighted_Adjacency constructor
+
+        Parameters
+        ----------
+        attribute : str, optional (default: "weight")
+        kwargs : additional arguments for igraph.Graph.Weighted_Adjacency
+        """
+        try:
+            import igraph as ig
+        except ImportError:
+            raise ImportError("Please install igraph with "
+                              "`pip install --user python-igraph`.")
+        try:
+            W = self.W
+        except AttributeError:
+            # not a pygsp graph
+            W = self.K.copy()
+            W = utils.set_diagonal(W, 0)
+        return ig.Graph.Weighted_Adjacency(utils.to_dense(W).tolist(),
+                                           attr=attribute, **kwargs)
+
 
 class PyGSPGraph(with_metaclass(abc.ABCMeta, pygsp.graphs.Graph, Base)):
     """Interface between BaseGraph and PyGSP.
@@ -634,7 +686,7 @@ class PyGSPGraph(with_metaclass(abc.ABCMeta, pygsp.graphs.Graph, Base)):
 
         weight = kernel.copy()
         self._diagonal = weight.diagonal().copy()
-        weight = set_diagonal(weight, 0)
+        weight = utils.set_diagonal(weight, 0)
         return weight
 
 

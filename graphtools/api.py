@@ -15,6 +15,7 @@ def Graph(data,
           knn=5,
           decay=10,
           bandwidth=None,
+          anisotropy=0,
           distance='euclidean',
           thresh=1e-4,
           kernel_symm='+',
@@ -67,6 +68,10 @@ def Graph(data,
         Fixed bandwidth to use. If given, overrides `knn`. Can be a single
         bandwidth or a list-like (shape=[n_samples]) of bandwidths for each
         sample.
+
+    anisotropy : float, optional (default: 0)
+        Level of anisotropy between 0 and 1
+        (alpha in Coifman & Lafon, 2006)
 
     distance : `str`, optional (default: `'euclidean'`)
         Any metric from `scipy.spatial.distance` can be used

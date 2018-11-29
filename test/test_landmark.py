@@ -150,6 +150,7 @@ def test_set_params():
         'kernel_symm': '+',
         'theta': None,
         'n_landmark': 500,
+        'anisotropy': 0,
         'knn': 3,
         'decay': None,
         'bandwidth': None,

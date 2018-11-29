@@ -349,6 +349,51 @@ def test_exact_graph_fixed_bandwidth():
 
 
 #####################################################
+# Check anisotropy
+#####################################################
+
+def test_exact_graph_anisotropy():
+    k = 3
+    a = 13
+    n_pca = 20
+    anisotropy = 0.9
+    data_small = data[np.random.choice(
+        len(data), len(data) // 2, replace=False)]
+    pca = PCA(n_pca, svd_solver='randomized', random_state=42).fit(data_small)
+    data_small_nu = pca.transform(data_small)
+    pdx = squareform(pdist(data_small_nu, metric='euclidean'))
+    knn_dist = np.partition(pdx, k, axis=1)[:, :k]
+    epsilon = np.max(knn_dist, axis=1)
+    weighted_pdx = (pdx.T / epsilon).T
+    K = np.exp(-1 * weighted_pdx**a)
+    K = K + K.T
+    K = np.divide(K, 2)
+    d = K.sum(1)
+    W = K / (np.outer(d, d) ** anisotropy)
+    np.fill_diagonal(W, 0)
+    G = pygsp.graphs.Graph(W)
+    G2 = build_graph(data_small, thresh=0, n_pca=n_pca,
+                     decay=a, knn=k, random_state=42,
+                     use_pygsp=True, anisotropy=anisotropy)
+    assert(isinstance(G2, graphtools.graphs.TraditionalGraph))
+    assert(G.N == G2.N)
+    assert(np.all(G.d == G2.d))
+    assert((G2.W != G.W).sum() == 0)
+    assert((G.W != G2.W).nnz == 0)
+    assert_raises(ValueError, build_graph,
+                  data_small, thresh=0, n_pca=n_pca,
+                  decay=a, knn=k, random_state=42,
+                  use_pygsp=True, anisotropy=-1)
+    assert_raises(ValueError, build_graph,
+                  data_small, thresh=0, n_pca=n_pca,
+                  decay=a, knn=k, random_state=42,
+                  use_pygsp=True, anisotropy=2)
+    assert_raises(ValueError, build_graph,
+                  data_small, thresh=0, n_pca=n_pca,
+                  decay=a, knn=k, random_state=42,
+                  use_pygsp=True, anisotropy='invalid')
+
+#####################################################
 # Check interpolation
 #####################################################
 
@@ -409,6 +454,7 @@ def test_set_params():
                               'kernel_symm': '+',
                               'theta': None,
                               'knn': 3,
+                              'anisotropy': 0,
                               'decay': 10,
                               'bandwidth': None,
                               'distance': 'euclidean',
