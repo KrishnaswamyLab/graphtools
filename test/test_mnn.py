@@ -328,6 +328,7 @@ def test_set_params():
         'random_state': 42,
         'kernel_symm': 'theta',
         'theta': 0.5,
+        'anisotropy': 0,
         'beta': 1,
         'adaptive_k': None,
         'knn': 3,

@@ -15,6 +15,7 @@ def Graph(data,
           knn=5,
           decay=10,
           bandwidth=None,
+          anisotropy=0,
           distance='euclidean',
           thresh=1e-4,
           kernel_symm='+',
@@ -67,6 +68,10 @@ def Graph(data,
         Fixed bandwidth to use. If given, overrides `knn`. Can be a single
         bandwidth or a list-like (shape=[n_samples]) of bandwidths for each
         sample.
+
+    anisotropy : float, optional (default: 0)
+        Level of anisotropy between 0 and 1
+        (alpha in Coifman & Lafon, 2006)
 
     distance : `str`, optional (default: `'euclidean'`)
         Any metric from `scipy.spatial.distance` can be used
@@ -230,7 +235,7 @@ def Graph(data,
     return Graph(**params)
 
 
-def from_igraph(G, **kwargs):
+def from_igraph(G, attribute="weight", **kwargs):
     """Convert an igraph.Graph to a graphtools.Graph
 
     Creates a graphtools.graphs.TraditionalGraph with a
@@ -240,6 +245,9 @@ def from_igraph(G, **kwargs):
     ----------
     G : igraph.Graph
         Graph to be converted
+    attribute : str, optional (default: "weight")
+        attribute containing edge weights, if any.
+        If None, unweighted graph is built
     kwargs
         keyword arguments for graphtools.Graph
 
@@ -254,5 +262,13 @@ def from_igraph(G, **kwargs):
                 "Use 'adjacency' instead.".format(kwargs['precomputed']),
                 UserWarning)
         del kwargs['precomputed']
-    return Graph(sparse.coo_matrix(G.get_adjacency().data),
+    try:
+        K = G.get_adjacency(attribute=attribute).data
+    except ValueError as e:
+        if str(e) == "Attribute does not exist":
+            warnings.warn("Edge attribute {} not found. "
+                          "Returning unweighted graph".format(attribute),
+                          UserWarning)
+        K = G.get_adjacency(attribute=None).data
+    return Graph(sparse.coo_matrix(K),
                  precomputed='adjacency', **kwargs)

@@ -1,4 +1,4 @@
-from __future__ import print_function
+from __future__ import print_function, division
 from load_tests import (
     graphtools,
     np,
@@ -197,6 +197,42 @@ def test_knn_graph_sparse_no_pca():
 
 
 #####################################################
+# Check anisotropy
+#####################################################
+
+def test_knn_graph_anisotropy():
+    k = 3
+    a = 13
+    n_pca = 20
+    anisotropy = 0.9
+    thresh = 1e-4
+    data_small = data[np.random.choice(
+        len(data), len(data) // 2, replace=False)]
+    pca = PCA(n_pca, svd_solver='randomized', random_state=42).fit(data_small)
+    data_small_nu = pca.transform(data_small)
+    pdx = squareform(pdist(data_small_nu, metric='euclidean'))
+    knn_dist = np.partition(pdx, k, axis=1)[:, :k]
+    epsilon = np.max(knn_dist, axis=1)
+    weighted_pdx = (pdx.T / epsilon).T
+    K = np.exp(-1 * weighted_pdx**a)
+    K[K < thresh] = 0
+    K = K + K.T
+    K = np.divide(K, 2)
+    d = K.sum(1)
+    W = K / (np.outer(d, d) ** anisotropy)
+    np.fill_diagonal(W, 0)
+    G = pygsp.graphs.Graph(W)
+    G2 = build_graph(data_small, n_pca=n_pca,
+                     thresh=thresh,
+                     decay=a, knn=k, random_state=42,
+                     use_pygsp=True, anisotropy=anisotropy)
+    assert(isinstance(G2, graphtools.graphs.kNNGraph))
+    assert(G.N == G2.N)
+    assert(np.all(G.d == G2.d))
+    np.testing.assert_allclose((G2.W - G.W).data, 0, atol=1e-14, rtol=1e-14)
+
+
+#####################################################
 # Check interpolation
 #####################################################
 
@@ -250,6 +286,7 @@ def test_set_params():
         'random_state': 42,
         'kernel_symm': '+',
         'theta': None,
+        'anisotropy': 0,
         'knn': 3,
         'decay': None,
         'bandwidth': None,
@@ -272,10 +309,12 @@ def test_set_params():
     assert_raises(ValueError, G.set_params, thresh=1e-3)
     assert_raises(ValueError, G.set_params, theta=0.99)
     assert_raises(ValueError, G.set_params, kernel_symm='*')
+    assert_raises(ValueError, G.set_params, anisotropy=0.7)
     assert_raises(ValueError, G.set_params, bandwidth=5)
     G.set_params(knn=G.knn,
                  decay=G.decay,
                  thresh=G.thresh,
                  distance=G.distance,
                  theta=G.theta,
+                 anisotropy=G.anisotropy,
                  kernel_symm=G.kernel_symm)
