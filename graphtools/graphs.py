@@ -36,11 +36,12 @@ class kNNGraph(DataGraph):
     decay : `int` or `None`, optional (default: `None`)
         Rate of alpha decay to use. If `None`, alpha decay is not used.
 
-    bandwidth : `float`, list-like or `None`, optional (default: `None`)
+    bandwidth : `float`, list-like,`callable`, or `None`, optional (default: `None`)
         Fixed bandwidth to use. If given, overrides `knn`. Can be a single
-        bandwidth or a list-like (shape=[n_samples]) of bandwidths for each
-        sample.
-        TODO: implement `callable` bandwidth
+        bandwidth, list-like (shape=[n_samples]) of bandwidths for each
+        sample, or a `callable` that takes in a square matrix and returns a
+        a single value or list-like(shape=[n_samples])
+
 
     distance : `str`, optional (default: `'euclidean'`)
         Any metric from `scipy.spatial.distance` can be used
@@ -213,7 +214,7 @@ class kNNGraph(DataGraph):
         knn : `int` or `None`, optional (default: `None`)
             If `None`, defaults to `self.knn`
 
-        bandwidth : `int` or `None`, optional (default: `None`)
+        bandwidth : `int`, `callable`, or `None`, optional (default: `None`)
             If `None`, defaults to `self.bandwidth`
 
         Returns
@@ -269,6 +270,8 @@ class kNNGraph(DataGraph):
             tasklogger.log_start("affinities")
             if bandwidth is None:
                 bandwidth = distances[:, knn - 1]
+            elif callable(bandwidth):
+                bandwidth = bandwidth(distances)
             radius = bandwidth * np.power(-1 * np.log(self.thresh),
                                           1 / self.decay)
             update_idx = np.argwhere(
@@ -641,11 +644,12 @@ class TraditionalGraph(DataGraph):
     decay : `int` or `None`, optional (default: `None`)
         Rate of alpha decay to use. If `None`, alpha decay is not used.
 
-    bandwidth : `float`, list-like or `None`, optional (default: `None`)
+    bandwidth : `float`, list-like,`callable`, or `None`, optional (default: `None`)
         Fixed bandwidth to use. If given, overrides `knn`. Can be a single
-        bandwidth or a list-like (shape=[n_samples]) of bandwidths for each
-        sample.
-        TODO: implement `callable` bandwidth
+        bandwidth, list-like (shape=[n_samples]) of bandwidths for each
+        sample, or a `callable` that takes in a square matrix and returns a
+        a single value or list-like(shape=[n_samples])
+
 
     distance : `str`, optional (default: `'euclidean'`)
         Any metric from `scipy.spatial.distance` can be used
@@ -827,6 +831,8 @@ class TraditionalGraph(DataGraph):
             if self.bandwidth is None:
                 knn_dist = np.partition(pdx, self.knn, axis=1)[:, :self.knn]
                 bandwidth = np.max(knn_dist, axis=1)
+            elif callable(self.bandwidth):
+                bandwidth = self.bandwidth(pdx)
             else:
                 bandwidth = self.bandwidth
             pdx = (pdx.T / bandwidth).T
@@ -891,6 +897,8 @@ class TraditionalGraph(DataGraph):
             if bandwidth is None:
                 knn_dist = np.partition(pdx, knn, axis=1)[:, :knn]
                 bandwidth = np.max(knn_dist, axis=1)
+            elif callable(bandwidth):
+                bandwidth = bandwidth(pdx)
             pdx = (pdx.T / bandwidth).T
             K = np.exp(-1 * pdx**self.decay)
             # handle nan
