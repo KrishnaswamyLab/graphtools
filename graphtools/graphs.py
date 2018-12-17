@@ -36,12 +36,15 @@ class kNNGraph(DataGraph):
     decay : `int` or `None`, optional (default: `None`)
         Rate of alpha decay to use. If `None`, alpha decay is not used.
 
-    bandwidth : `float`, list-like,`callable`, or `None`, optional (default: `None`)
+    bandwidth : `float`, list-like,`callable`, or `None`,
+                optional (default: `None`)
         Fixed bandwidth to use. If given, overrides `knn`. Can be a single
         bandwidth, list-like (shape=[n_samples]) of bandwidths for each
         sample, or a `callable` that takes in a square matrix and returns a
         a single value or list-like(shape=[n_samples])
 
+    bandwidth_fac : `float`, optional (default : 1.0)
+        Rescaling factor for bandwidth.
 
     distance : `str`, optional (default: `'euclidean'`)
         Any metric from `scipy.spatial.distance` can be used
@@ -64,7 +67,7 @@ class kNNGraph(DataGraph):
     """
 
     def __init__(self, data, knn=5, decay=None,
-                 bandwidth=None, distance='euclidean',
+                 bandwidth=None, bandwidth_fac=1.0, distance='euclidean',
                  thresh=1e-4, n_pca=None, **kwargs):
 
         if decay is not None and thresh <= 0:
@@ -83,6 +86,7 @@ class kNNGraph(DataGraph):
         self.knn = knn
         self.decay = decay
         self.bandwidth = bandwidth
+        self.bandwidth_fac = bandwidth_fac
         self.distance = distance
         self.thresh = thresh
         super().__init__(data, n_pca=n_pca, **kwargs)
@@ -94,6 +98,7 @@ class kNNGraph(DataGraph):
         params.update({'knn': self.knn,
                        'decay': self.decay,
                        'bandwidth': self.bandwidth,
+                       'bandwidth_fac': self.bandwidth_fac,
                        'distance': self.distance,
                        'thresh': self.thresh,
                        'n_jobs': self.n_jobs,
@@ -114,6 +119,7 @@ class kNNGraph(DataGraph):
         - knn
         - decay
         - bandwidth
+        - bandwidth_fac
         - distance
         - thresh
 
@@ -132,6 +138,10 @@ class kNNGraph(DataGraph):
         if 'bandwidth' in params and params['bandwidth'] != self.bandwidth:
             raise ValueError(
                 "Cannot update bandwidth. Please create a new graph")
+        if 'bandwidth_fac' in params and \
+                params['bandwidth_fac'] != self.bandwidth_fac:
+            raise ValueError(
+                "Cannot update bandwidth_fac. Please create a new graph")
         if 'distance' in params and params['distance'] != self.distance:
             raise ValueError("Cannot update distance. "
                              "Please create a new graph")
@@ -200,7 +210,8 @@ class kNNGraph(DataGraph):
         K = self.build_kernel_to_data(self.data_nu)
         return K
 
-    def build_kernel_to_data(self, Y, knn=None, bandwidth=None):
+    def build_kernel_to_data(self, Y, knn=None, bandwidth=None,
+                             bandwidth_fac=None):
         """Build a kernel from new input data `Y` to the `self.data`
 
         Parameters
@@ -214,8 +225,12 @@ class kNNGraph(DataGraph):
         knn : `int` or `None`, optional (default: `None`)
             If `None`, defaults to `self.knn`
 
-        bandwidth : `int`, `callable`, or `None`, optional (default: `None`)
+        bandwidth : `float`, `callable`, or `None`, optional (default: `None`)
             If `None`, defaults to `self.bandwidth`
+
+        bandwidth_fac : `float`, optional (default : `None`)
+            Rescaling factor for bandwidth.
+            If `None`, defaults to self.bandwidth_fac
 
         Returns
         -------
@@ -233,6 +248,8 @@ class kNNGraph(DataGraph):
             knn = self.knn
         if bandwidth is None:
             bandwidth = self.bandwidth
+        if bandwidth_fac is None:
+            bandwidth_fac = self.bandwidth_fac
         if knn > self.data.shape[0]:
             warnings.warn("Cannot set knn ({k}) to be greater than "
                           "n_samples ({n}). Setting knn={n}".format(
@@ -272,6 +289,9 @@ class kNNGraph(DataGraph):
                 bandwidth = distances[:, knn - 1]
             elif callable(bandwidth):
                 bandwidth = bandwidth(distances)
+
+            bandwidth = bandwidth * bandwidth_fac
+
             radius = bandwidth * np.power(-1 * np.log(self.thresh),
                                           1 / self.decay)
             update_idx = np.argwhere(
@@ -650,6 +670,8 @@ class TraditionalGraph(DataGraph):
         sample, or a `callable` that takes in a square matrix and returns a
         a single value or list-like(shape=[n_samples])
 
+    bandwidth_fac : `float`, optional (default : 1.0)
+        Rescaling factor for bandwidth.
 
     distance : `str`, optional (default: `'euclidean'`)
         Any metric from `scipy.spatial.distance` can be used
@@ -677,6 +699,7 @@ class TraditionalGraph(DataGraph):
     def __init__(self, data,
                  knn=5, decay=10,
                  bandwidth=None,
+                 bandwidth_fac=1.0,
                  distance='euclidean',
                  n_pca=None,
                  thresh=1e-4,
@@ -710,6 +733,7 @@ class TraditionalGraph(DataGraph):
         self.knn = knn
         self.decay = decay
         self.bandwidth = bandwidth
+        self.bandwidth_fac = bandwidth_fac
         self.distance = distance
         self.thresh = thresh
         self.precomputed = precomputed
@@ -724,6 +748,7 @@ class TraditionalGraph(DataGraph):
         params.update({'knn': self.knn,
                        'decay': self.decay,
                        'bandwidth': self.bandwidth,
+                       'bandwidth_fac': self.bandwidth_fac,
                        'distance': self.distance,
                        'precomputed': self.precomputed})
         return params
@@ -739,6 +764,7 @@ class TraditionalGraph(DataGraph):
         - knn
         - decay
         - bandwidth
+        - bandwidth_fac
 
         Parameters
         ----------
@@ -762,10 +788,15 @@ class TraditionalGraph(DataGraph):
         if 'decay' in params and params['decay'] != self.decay and \
                 self.precomputed is None:
             raise ValueError("Cannot update decay. Please create a new graph")
-        if 'bandwidth' in params and params['bandwidth'] != self.bandwidth and \
+        if 'bandwidth' in params and \
+            params['bandwidth'] != self.bandwidth and \
                 self.precomputed is None:
             raise ValueError(
                 "Cannot update bandwidth. Please create a new graph")
+        if 'bandwidth_fac' in params and \
+                params['bandwidth_fac'] != self.bandwidth_fac:
+            raise ValueError(
+                "Cannot update bandwidth_fac. Please create a new graph")
         # update superclass parameters
         super().set_params(**params)
         return self
@@ -835,6 +866,7 @@ class TraditionalGraph(DataGraph):
                 bandwidth = self.bandwidth(pdx)
             else:
                 bandwidth = self.bandwidth
+            bandwidth = bandwidth * self.bandwidth_fac
             pdx = (pdx.T / bandwidth).T
             K = np.exp(-1 * np.power(pdx, self.decay))
             # handle nan
@@ -854,7 +886,7 @@ class TraditionalGraph(DataGraph):
             K[K < self.thresh] = 0
         return K
 
-    def build_kernel_to_data(self, Y, knn=None, bandwidth=None):
+    def build_kernel_to_data(self, Y, knn=None, bandwidth=None, bandwidth_fac=None):
         """Build transition matrix from new data to the graph
 
         Creates a transition matrix such that `Y` can be approximated by
@@ -888,6 +920,8 @@ class TraditionalGraph(DataGraph):
             knn = self.knn
         if bandwidth is None:
             bandwidth = self.bandwidth
+        if bandwidth_fac is None:
+            bandwidth_fac = self.bandwidth_fac
         if self.precomputed is not None:
             raise ValueError("Cannot extend kernel on precomputed graph")
         else:
@@ -899,6 +933,7 @@ class TraditionalGraph(DataGraph):
                 bandwidth = np.max(knn_dist, axis=1)
             elif callable(bandwidth):
                 bandwidth = bandwidth(pdx)
+            bandwidth = bandwidth_fac * bandwidth
             pdx = (pdx.T / bandwidth).T
             K = np.exp(-1 * pdx**self.decay)
             # handle nan
