@@ -64,6 +64,21 @@ def test_k_too_large():
                 thresh=1e-4)
 
 
+@warns(UserWarning)
+def test_bandwidth_no_decay():
+    build_graph(data,
+                n_pca=20,
+                decay=None,
+                bandwidth=3,
+                thresh=1e-4)
+
+
+@raises(ValueError)
+def test_exact_no_knn_no_bandwidth():
+    build_graph(data, graphtype='exact',
+                knn=None, bandwidth=None)
+
+
 #####################################################
 # Check kernel
 #####################################################

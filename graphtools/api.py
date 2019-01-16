@@ -15,7 +15,7 @@ def Graph(data,
           knn=5,
           decay=10,
           bandwidth=None,
-          bandwidth_fac = 1.0,
+          bandwidth_fac=1.0,
           anisotropy=0,
           distance='euclidean',
           thresh=1e-4,
@@ -165,12 +165,18 @@ def Graph(data,
         if sample_idx is not None:
             # only mnn does batch correction
             graphtype = "mnn"
-        elif precomputed is None and (decay is None or thresh > 0):
+        elif precomputed is not None:
             # precomputed requires exact graph
-            # no decay or threshold decay require knngraph
-            graphtype = "knn"
-        else:
             graphtype = "exact"
+        elif decay is None:
+            # knn kernel
+            graphtype = "knn"
+        elif thresh == 0:
+            # compute full distance matrix
+            graphtype = "exact"
+        else:
+            # decay kernel with nonzero threshold - knn is more efficient
+            graphtype = "knn"
 
     # set base graph type
     if graphtype == "knn":

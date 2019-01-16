@@ -63,6 +63,12 @@ def test_exact_no_decay():
 
 
 @raises(ValueError)
+def test_exact_no_knn_no_bandwidth():
+    build_graph(data, graphtype='exact',
+                knn=None, bandwidth=None)
+
+
+@raises(ValueError)
 def test_precomputed_negative():
     build_graph(np.random.normal(0, 1, [200, 200]),
                 precomputed='distance',
@@ -307,7 +313,8 @@ def test_truncated_exact_graph_no_pca():
 
 
 def test_exact_graph_fixed_bandwidth():
-    decay = 5
+    decay = 2
+    knn = None
     bandwidth = 2
     n_pca = 20
     pca = PCA(n_pca, svd_solver='randomized', random_state=42).fit(data)
@@ -319,7 +326,7 @@ def test_exact_graph_fixed_bandwidth():
     np.fill_diagonal(W, 0)
     G = pygsp.graphs.Graph(W)
     G2 = build_graph(data, n_pca=n_pca,
-                     graphtype='exact',
+                     graphtype='exact', knn=knn,
                      decay=decay, bandwidth=bandwidth,
                      random_state=42,
                      thresh=0,
@@ -336,7 +343,7 @@ def test_exact_graph_fixed_bandwidth():
     np.fill_diagonal(W, 0)
     G = pygsp.graphs.Graph(W)
     G2 = build_graph(data, n_pca=n_pca,
-                     graphtype='exact',
+                     graphtype='exact', knn=knn,
                      decay=decay, bandwidth=bandwidth,
                      random_state=42,
                      thresh=0,

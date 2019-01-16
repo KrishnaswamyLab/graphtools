@@ -7,6 +7,7 @@ from scipy.spatial.distance import squareform
 from sklearn.utils.extmath import randomized_svd
 from sklearn.preprocessing import normalize
 from sklearn.cluster import MiniBatchKMeans
+from sklearn.utils.graph import graph_shortest_path
 from scipy import sparse
 import numbers
 import warnings
@@ -73,6 +74,15 @@ class kNNGraph(DataGraph):
         if decay is not None and thresh <= 0:
             raise ValueError("Cannot instantiate a kNNGraph with `decay=None` "
                              "and `thresh=0`. Use a TraditionalGraph instead.")
+        if decay is None and bandwidth is not None:
+            warnings.warn("`bandwidth` is not used when `decay=None`.",
+                          UserWarning)
+        if knn is None and bandwidth is None:
+            raise ValueError(
+                "Either `knn` or `bandwidth` must be provided.")
+        elif knn is None and bandwidth is not None:
+            # implementation requires a knn value
+            knn = 5
         if knn > data.shape[0]:
             warnings.warn("Cannot set knn ({k}) to be greater than "
                           "n_samples ({n}). Setting knn={n}".format(
@@ -353,6 +363,40 @@ class kNNGraph(DataGraph):
             K = K.tocsr()
             tasklogger.log_complete("affinities")
         return K
+
+    def shortest_path(self, method='auto'):
+        """
+        Find the length of the shortest path between every pair of vertices on the graph
+
+        Parameters
+        ----------
+        method : string ['auto'|'FW'|'D']
+            method to use.  Options are
+            'auto' : attempt to choose the best method for the current problem
+            'FW' : Floyd-Warshall algorithm.  O[N^3]
+            'D' : Dijkstra's algorithm with Fibonacci stacks.  O[(k+log(N))N^2]
+        Returns
+        -------
+        D : np.ndarray, float, shape = [N,N]
+            D[i,j] gives the shortest distance from point i to point j
+            along the graph. If no path exists, the distance is np.inf
+        Notes
+        -----
+        Currently, shortest paths can only be calculated on kNNGraphs with
+        `decay=None`
+        """
+        if self.decay is None:
+            D = self.K
+        else:
+            raise NotImplementedError(
+                "Graph shortest path currently only "
+                "implemented for kNNGraph with `decay=None`.")
+        P = graph_shortest_path(D, method=method)
+        # sklearn returns 0 if no path exists
+        P[np.where(P == 0)] = np.inf
+        # diagonal should actually be zero
+        P[(np.arange(P.shape[0]), np.arange(P.shape[0]))] = 0
+        return P
 
 
 class LandmarkGraph(DataGraph):
@@ -706,14 +750,18 @@ class TraditionalGraph(DataGraph):
                  precomputed=None, **kwargs):
         if decay is None and precomputed not in ['affinity', 'adjacency']:
             # decay high enough is basically a binary kernel
-            raise ValueError("`decay` must be provided for a TraditionalGraph"
-                             ". For kNN kernel, use kNNGraph.")
+            raise ValueError(
+                "`decay` must be provided for a "
+                "TraditionalGraph. For kNN kernel, use kNNGraph.")
         if precomputed is not None and n_pca is not None:
             # the data itself is a matrix of distances / affinities
             n_pca = None
             warnings.warn("n_pca cannot be given on a precomputed graph."
                           " Setting n_pca=None", RuntimeWarning)
-        if knn > data.shape[0]:
+        if knn is None and bandwidth is None:
+            raise ValueError(
+                "Either `knn` or `bandwidth` must be provided.")
+        if knn is not None and knn > data.shape[0]:
             warnings.warn("Cannot set knn ({k}) to be greater than or equal to"
                           " n_samples ({n}). Setting knn={n}".format(
                               k=knn, n=data.shape[0] - 1))

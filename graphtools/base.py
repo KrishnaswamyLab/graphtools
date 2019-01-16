@@ -6,6 +6,7 @@ import pygsp
 from sklearn.utils.fixes import signature
 from sklearn.decomposition import PCA, TruncatedSVD
 from sklearn.preprocessing import normalize
+from sklearn.utils.graph import graph_shortest_path
 from scipy import sparse
 import warnings
 import numbers
