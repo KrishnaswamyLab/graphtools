@@ -90,6 +90,14 @@ def test_duplicate_data():
                 thresh=0)
 
 
+@warns(RuntimeWarning)
+def test_many_duplicate_data():
+    build_graph(np.vstack([data, data]),
+                n_pca=20,
+                decay=10,
+                thresh=0)
+
+
 @warns(UserWarning)
 def test_k_too_large():
     build_graph(data,

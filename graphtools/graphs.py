@@ -281,18 +281,28 @@ class kNNGraph(DataGraph):
                 Y, n_neighbors=search_knn)
             if np.any(distances[:, 1] == 0):
                 has_duplicates = distances[:, 1] == 0
-                idx = np.argwhere((distances == 0) & has_duplicates[:, None])
-                duplicate_ids = np.array(
-                    [[indices[i[0], i[1]], i[0]]
-                     for i in idx if indices[i[0], i[1]] < i[0]])
-                duplicate_ids = duplicate_ids[np.argsort(duplicate_ids[:, 0])]
-                duplicate_names = ", ".join(["{} and {}".format(i[0], i[1])
-                                             for i in duplicate_ids])
-                warnings.warn(
-                    "Detected zero distance between samples {}. "
-                    "Consider removing duplicates to avoid errors in "
-                    "downstream processing.".format(duplicate_names),
-                    RuntimeWarning)
+                if np.sum(distances[:, 1:]) < 20:
+                    idx = np.argwhere((distances == 0) &
+                                      has_duplicates[:, None])
+                    duplicate_ids = np.array(
+                        [[indices[i[0], i[1]], i[0]]
+                         for i in idx if indices[i[0], i[1]] < i[0]])
+                    duplicate_ids = duplicate_ids[
+                        np.argsort(duplicate_ids[:, 0])]
+                    duplicate_names = ", ".join(["{} and {}".format(i[0], i[1])
+                                                 for i in duplicate_ids])
+                    warnings.warn(
+                        "Detected zero distance between samples {}. "
+                        "Consider removing duplicates to avoid errors in "
+                        "downstream processing.".format(duplicate_names),
+                        RuntimeWarning)
+                else:
+                    warnings.warn(
+                        "Detected zero distance between {} pairs of samples. "
+                        "Consider removing duplicates to avoid errors in "
+                        "downstream processing.".format(
+                            np.sum(np.sum(distances[:, 1:]))),
+                        RuntimeWarning)
             tasklogger.log_complete("KNN search")
             tasklogger.log_start("affinities")
             if bandwidth is None:
