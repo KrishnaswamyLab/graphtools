@@ -74,8 +74,8 @@ def test_to_igraph():
     assert isinstance(G2, igraph.Graph)
     assert np.all(np.array(G2.get_adjacency(
         attribute="weight").data) == G.W)
-    G = build_graph(data, use_pygsp=False)
-    G2 = G.to_igraph()
+    G3 = build_graph(data, use_pygsp=False)
+    G2 = G3.to_igraph()
     assert isinstance(G2, igraph.Graph)
     assert np.all(np.array(G2.get_adjacency(
         attribute="weight").data) == G.W)
