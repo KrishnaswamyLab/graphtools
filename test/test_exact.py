@@ -363,6 +363,51 @@ def test_exact_graph_fixed_bandwidth():
     assert((G.W != G2.W).nnz == 0)
 
 
+def test_exact_graph_callable_bandwidth():
+    decay = 2
+    knn = 5
+    bandwidth = lambda x: 2
+    n_pca = 20
+    pca = PCA(n_pca, svd_solver='randomized', random_state=42).fit(data)
+    data_nu = pca.transform(data)
+    pdx = squareform(pdist(data_nu, metric='euclidean'))
+    knn_dist = np.partition(pdx, knn, axis=1)[:, :knn]
+    epsilon = np.max(knn_dist, axis=1)
+    K = np.exp(-1 * (pdx / bandwidth(epsilon))**decay)
+    K = K + K.T
+    W = np.divide(K, 2)
+    np.fill_diagonal(W, 0)
+    G = pygsp.graphs.Graph(W)
+    G2 = build_graph(data, n_pca=n_pca,
+                     graphtype='exact', knn=knn,
+                     decay=decay, bandwidth=bandwidth,
+                     random_state=42,
+                     thresh=0,
+                     use_pygsp=True)
+    assert(isinstance(G2, graphtools.graphs.TraditionalGraph))
+    assert(G.N == G2.N)
+    assert(np.all(G.d == G2.d))
+    assert((G2.W != G.W).sum() == 0)
+    assert((G.W != G2.W).nnz == 0)
+    bandwidth = lambda x: 2 * x
+    K = np.exp(-1 * (pdx / bandwidth(epsilon))**decay)
+    K = K + K.T
+    W = np.divide(K, 2)
+    np.fill_diagonal(W, 0)
+    G = pygsp.graphs.Graph(W)
+    G2 = build_graph(data, n_pca=n_pca,
+                     graphtype='exact', knn=knn,
+                     decay=decay, bandwidth=bandwidth,
+                     random_state=42,
+                     thresh=0,
+                     use_pygsp=True)
+    assert(isinstance(G2, graphtools.graphs.TraditionalGraph))
+    assert(G.N == G2.N)
+    assert(np.all(G.d == G2.d))
+    assert((G2.W != G.W).sum() == 0)
+    assert((G.W != G2.W).nnz == 0)
+
+
 #####################################################
 # Check anisotropy
 #####################################################
@@ -472,6 +517,7 @@ def test_set_params():
                               'anisotropy': 0,
                               'decay': 10,
                               'bandwidth': None,
+                              'bandwidth_scale': 1,
                               'distance': 'euclidean',
                               'precomputed': None}
     assert_raises(ValueError, G.set_params, knn=15)

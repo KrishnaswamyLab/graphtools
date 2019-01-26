@@ -204,6 +204,52 @@ def test_knn_graph_fixed_bandwidth():
         np.zeros_like((G.W - G2.W).data), atol=1e-14)
 
 
+def test_knn_graph_callable_bandwidth():
+    k = 3
+    decay = 5
+    bandwidth = lambda x: 2
+    n_pca = 20
+    thresh = 1e-4
+    pca = PCA(n_pca, svd_solver='randomized', random_state=42).fit(data)
+    data_nu = pca.transform(data)
+    pdx = squareform(pdist(data_nu, metric='euclidean'))
+    knn_dist = np.partition(pdx, k, axis=1)[:, :k]
+    epsilon = np.max(knn_dist, axis=1)
+    K = np.exp(-1 * np.power(pdx / bandwidth(epsilon), decay))
+    K[K < thresh] = 0
+    K = K + K.T
+    W = np.divide(K, 2)
+    np.fill_diagonal(W, 0)
+    G = pygsp.graphs.Graph(W)
+    G2 = build_graph(data, n_pca=n_pca, knn=k,
+                     decay=decay, bandwidth=bandwidth,
+                     random_state=42,
+                     thresh=thresh,
+                     use_pygsp=True)
+    assert(isinstance(G2, graphtools.graphs.TraditionalGraph))
+    assert(G.N == G2.N)
+    assert(np.all(G.d == G2.d))
+    assert((G2.W != G.W).sum() == 0)
+    assert((G.W != G2.W).nnz == 0)
+    bandwidth = lambda x: 2 * x
+    K = np.exp(-1 * np.power(pdx / bandwidth(epsilon), decay))
+    K[K < thresh] = 0
+    K = K + K.T
+    W = np.divide(K, 2)
+    np.fill_diagonal(W, 0)
+    G = pygsp.graphs.Graph(W)
+    G2 = build_graph(data, n_pca=n_pca, knn=k,
+                     decay=decay, bandwidth=bandwidth,
+                     random_state=42,
+                     thresh=thresh,
+                     use_pygsp=True)
+    assert(isinstance(G2, graphtools.graphs.TraditionalGraph))
+    assert(G.N == G2.N)
+    assert(np.all(G.d == G2.d))
+    assert((G2.W != G.W).sum() == 0)
+    assert((G.W != G2.W).nnz == 0)
+
+
 @warns(UserWarning)
 def test_knn_graph_sparse_no_pca():
     build_graph(sp.coo_matrix(data), n_pca=None,  # n_pca,
@@ -305,6 +351,7 @@ def test_set_params():
         'knn': 3,
         'decay': None,
         'bandwidth': None,
+        'bandwidth_scale': 1,
         'distance': 'euclidean',
         'thresh': 0,
         'n_jobs': -1,
