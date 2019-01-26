@@ -65,10 +65,11 @@ def Graph(data,
     decay : `int` or `None`, optional (default: 10)
         Rate of alpha decay to use. If `None`, alpha decay is not used.
 
-    bandwidth : `float`, list-like or `None`, optional (default: `None`)
+    bandwidth : `float`, list-like,`callable`, or `None`, optional (default: `None`)
         Fixed bandwidth to use. If given, overrides `knn`. Can be a single
-        bandwidth or a list-like (shape=[n_samples]) of bandwidths for each
-        sample.
+        bandwidth, list-like (shape=[n_samples]) of bandwidths for each
+        sample, or a `callable` that takes in a `n x m` matrix and returns a
+        a single value or list-like of length n (shape=[n_samples])
 
     bandwidth_scale : `float`, optional (default : 1.0)
         Rescaling factor for bandwidth.

@@ -469,7 +469,7 @@ def test_build_dense_exact_kernel_to_data(**kwargs):
 
 
 def test_build_dense_exact_callable_bw_kernel_to_data(**kwargs):
-    G = build_graph(data, decay=10, thresh=0, bandwidth=lambda x: x.mean(0))
+    G = build_graph(data, decay=10, thresh=0, bandwidth=lambda x: x.mean(1))
     n = G.data.shape[0]
     K = G.build_kernel_to_data(data[:n // 2, :])
     assert(K.shape == (n // 2, n))
