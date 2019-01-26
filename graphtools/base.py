@@ -635,7 +635,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
 
 
 class PyGSPGraph(with_metaclass(abc.ABCMeta, pygsp.graphs.Graph, Base)):
-    """Interface between BaseGraph and PyGSP.
+    """Interscalee between BaseGraph and PyGSP.
 
     All graphs should possess these matrices. We inherit a lot
     of functionality from pygsp.graphs.Graph.

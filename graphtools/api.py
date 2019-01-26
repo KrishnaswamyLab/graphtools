@@ -15,7 +15,7 @@ def Graph(data,
           knn=5,
           decay=10,
           bandwidth=None,
-          bandwidth_fac=1.0,
+          bandwidth_scale=1.0,
           anisotropy=0,
           distance='euclidean',
           thresh=1e-4,
@@ -70,8 +70,8 @@ def Graph(data,
         bandwidth or a list-like (shape=[n_samples]) of bandwidths for each
         sample.
 
-    bandwidth_fac : `float`, optional (default : 1.0)
-        Rescaling factor for bandwidth.
+    bandwidth_scale : `float`, optional (default : 1.0)
+        Rescaling scaletor for bandwidth.
 
     anisotropy : float, optional (default: 0)
         Level of anisotropy between 0 and 1
