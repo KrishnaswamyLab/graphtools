@@ -71,7 +71,7 @@ def Graph(data,
         sample.
 
     bandwidth_scale : `float`, optional (default : 1.0)
-        Rescaling scaletor for bandwidth.
+        Rescaling factor for bandwidth.
 
     anisotropy : float, optional (default: 0)
         Level of anisotropy between 0 and 1

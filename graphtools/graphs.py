@@ -45,7 +45,7 @@ class kNNGraph(DataGraph):
         a single value or list-like(shape=[n_samples])
 
     bandwidth_scale : `float`, optional (default : 1.0)
-        Rescaling scaletor for bandwidth.
+        Rescaling factor for bandwidth.
 
     distance : `str`, optional (default: `'euclidean'`)
         Any metric from `scipy.spatial.distance` can be used
@@ -239,7 +239,7 @@ class kNNGraph(DataGraph):
             If `None`, defaults to `self.bandwidth`
 
         bandwidth_scale : `float`, optional (default : `None`)
-            Rescaling scaletor for bandwidth.
+            Rescaling factor for bandwidth.
             If `None`, defaults to self.bandwidth_scale
 
         Returns
@@ -725,7 +725,7 @@ class TraditionalGraph(DataGraph):
         a single value or list-like(shape=[n_samples])
 
     bandwidth_scale : `float`, optional (default : 1.0)
-        Rescaling scaletor for bandwidth.
+        Rescaling factor for bandwidth.
 
     distance : `str`, optional (default: `'euclidean'`)
         Any metric from `scipy.spatial.distance` can be used
