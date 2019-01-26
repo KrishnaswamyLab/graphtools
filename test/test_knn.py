@@ -333,7 +333,7 @@ def test_shortest_path():
 def test_shortest_path_decay():
     data_small = data[np.random.choice(
         len(data), len(data) // 4, replace=False)]
-    G = build_graph(data_small, knn=5, decay=15)
+    G = build_graph(data_small, knn=5, decay=15, thresh=1e-4)
     G.shortest_path()
 
 
