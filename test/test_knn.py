@@ -85,7 +85,8 @@ def test_bandwidth_no_decay():
 @raises(ValueError)
 def test_knn_no_knn_no_bandwidth():
     build_graph(data, graphtype='knn',
-                knn=None, bandwidth=None)
+                knn=None, bandwidth=None,
+                thresh=1e-4)
 
 
 #####################################################
@@ -326,6 +327,14 @@ def test_shortest_path():
     # diagonal should actually be zero
     np.fill_diagonal(P, 0)
     np.testing.assert_equal(P, G.shortest_path())
+
+
+@raises(NotImplementedError)
+def test_shortest_path_decay():
+    data_small = data[np.random.choice(
+        len(data), len(data) // 4, replace=False)]
+    G = build_graph(data_small, knn=5, decay=15)
+    G.shortest_path()
 
 
 ####################
