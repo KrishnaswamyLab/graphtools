@@ -33,8 +33,11 @@ def dense_set_diagonal(X, diag):
 
 
 def sparse_set_diagonal(X, diag):
+    cls = type(X)
+    if not isinstance(X, (sparse.lil_matrix, sparse.dia_matrix)):
+        X = X.tocoo()
     X.setdiag(diag)
-    return X
+    return cls(X)
 
 
 def set_diagonal(X, diag):
