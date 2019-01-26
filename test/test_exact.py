@@ -468,6 +468,17 @@ def test_build_dense_exact_kernel_to_data(**kwargs):
     assert(np.sum(G.kernel != (K + K.T) / 2) == 0)
 
 
+def test_build_dense_exact_fixed_bw_kernel_to_data(**kwargs):
+    G = build_graph(data, decay=10, thresh=0, bandwidth=5)
+    n = G.data.shape[0]
+    K = G.build_kernel_to_data(data[:n // 2, :])
+    assert(K.shape == (n // 2, n))
+    K = G.build_kernel_to_data(G.data)
+    assert(np.sum(G.kernel != (K + K.T) / 2) == 0)
+    K = G.build_kernel_to_data(G.data_nu)
+    assert(np.sum(G.kernel != (K + K.T) / 2) == 0)
+
+
 def test_build_sparse_exact_kernel_to_data(**kwargs):
     G = build_graph(data, decay=10, thresh=0, sparse=True)
     n = G.data.shape[0]
@@ -524,6 +535,7 @@ def test_set_params():
     assert_raises(ValueError, G.set_params, distance='manhattan')
     assert_raises(ValueError, G.set_params, precomputed='distance')
     assert_raises(ValueError, G.set_params, bandwidth=5)
+    assert_raises(ValueError, G.set_params, bandwidth_scale=5)
     G.set_params(knn=G.knn,
                  decay=G.decay,
                  distance=G.distance,

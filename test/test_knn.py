@@ -1,4 +1,5 @@
 from __future__ import print_function, division
+from sklearn.utils.graph import graph_shortest_path
 from load_tests import (
     graphtools,
     np,
@@ -46,6 +47,14 @@ def test_duplicate_data():
                 thresh=1e-4)
 
 
+@warns(RuntimeWarning)
+def test_duplicate_data_many():
+    build_graph(np.vstack([data, data[:21]]),
+                n_pca=20,
+                decay=10,
+                thresh=1e-4)
+
+
 @warns(UserWarning)
 def test_balltree_cosine():
     build_graph(data,
@@ -74,8 +83,8 @@ def test_bandwidth_no_decay():
 
 
 @raises(ValueError)
-def test_exact_no_knn_no_bandwidth():
-    build_graph(data, graphtype='exact',
+def test_knn_no_knn_no_bandwidth():
+    build_graph(data, graphtype='knn',
                 knn=None, bandwidth=None)
 
 
@@ -161,7 +170,7 @@ def test_sparse_alpha_knn_graph():
 
 
 def test_knn_graph_fixed_bandwidth():
-    k = 3
+    k = None
     decay = 5
     bandwidth = 10
     bandwidth_scale = 1.3
@@ -301,6 +310,24 @@ def test_knn_interpolate():
                   G.interpolate(pca_data, transitions=transitions)))
 
 
+#################################################
+# Check extra functionality
+#################################################
+
+
+def test_shortest_path():
+    data_small = data[np.random.choice(
+        len(data), len(data) // 4, replace=False)]
+    G = build_graph(data_small, knn=5, decay=None)
+    K = G.K
+    P = graph_shortest_path(G.K)
+    # sklearn returns 0 if no path exists
+    P[np.where(P == 0)] = np.inf
+    # diagonal should actually be zero
+    np.fill_diagonal(P, 0)
+    np.testing.assert_equal(P, G.shortest_path())
+
+
 ####################
 # Test API
 ####################
@@ -345,6 +372,7 @@ def test_set_params():
     assert_raises(ValueError, G.set_params, kernel_symm='*')
     assert_raises(ValueError, G.set_params, anisotropy=0.7)
     assert_raises(ValueError, G.set_params, bandwidth=5)
+    assert_raises(ValueError, G.set_params, bandwidth_scale=5)
     G.set_params(knn=G.knn,
                  decay=G.decay,
                  thresh=G.thresh,

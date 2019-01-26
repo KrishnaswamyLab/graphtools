@@ -283,7 +283,7 @@ class kNNGraph(DataGraph):
                 Y, n_neighbors=search_knn)
             if np.any(distances[:, 1] == 0):
                 has_duplicates = distances[:, 1] == 0
-                if np.sum(distances[:, 1:]) < 20:
+                if np.sum(distances[:, 1:] == 0) < 20:
                     idx = np.argwhere((distances == 0) &
                                       has_duplicates[:, None])
                     duplicate_ids = np.array(
