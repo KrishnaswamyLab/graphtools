@@ -40,9 +40,8 @@ class kNNGraph(DataGraph):
     bandwidth : `float`, list-like,`callable`, or `None`,
                 optional (default: `None`)
         Fixed bandwidth to use. If given, overrides `knn`. Can be a single
-        bandwidth, list-like (shape=[n_samples]) of bandwidths for each
-        sample, or a `callable` that takes in a square matrix and returns a
-        a single value or list-like(shape=[n_samples])
+        bandwidth, or a list-like (shape=[n_samples]) of bandwidths for each
+        sample
 
     bandwidth_scale : `float`, optional (default : 1.0)
         Rescaling factor for bandwidth.
@@ -74,15 +73,18 @@ class kNNGraph(DataGraph):
         if decay is not None and thresh <= 0:
             raise ValueError("Cannot instantiate a kNNGraph with `decay=None` "
                              "and `thresh=0`. Use a TraditionalGraph instead.")
-        if decay is None and bandwidth is not None:
-            warnings.warn("`bandwidth` is not used when `decay=None`.",
-                          UserWarning)
+        if callable(bandwidth):
+            raise NotImplementedError("Callable bandwidth is only supported by"
+                                      " graphtools.graphs.TraditionalGraph.")
         if knn is None and bandwidth is None:
             raise ValueError(
                 "Either `knn` or `bandwidth` must be provided.")
         elif knn is None and bandwidth is not None:
             # implementation requires a knn value
             knn = 5
+        if decay is None and bandwidth is not None:
+            warnings.warn("`bandwidth` is not used when `decay=None`.",
+                          UserWarning)
         if knn > data.shape[0]:
             warnings.warn("Cannot set knn ({k}) to be greater than "
                           "n_samples ({n}). Setting knn={n}".format(
@@ -307,8 +309,6 @@ class kNNGraph(DataGraph):
             tasklogger.log_start("affinities")
             if bandwidth is None:
                 bandwidth = distances[:, knn - 1]
-            elif callable(bandwidth):
-                bandwidth = bandwidth(distances)
 
             bandwidth = bandwidth * bandwidth_scale
 

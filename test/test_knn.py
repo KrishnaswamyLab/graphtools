@@ -141,9 +141,10 @@ def test_sparse_alpha_knn_graph():
     k = 5
     a = 0.45
     thresh = 0.01
+    bandwidth_scale = 1.3
     pdx = squareform(pdist(data, metric='euclidean'))
     knn_dist = np.partition(pdx, k, axis=1)[:, :k]
-    epsilon = np.max(knn_dist, axis=1)
+    epsilon = np.max(knn_dist, axis=1) * bandwidth_scale
     pdx = (pdx.T / epsilon).T
     K = np.exp(-1 * pdx**a)
     K = K + K.T
@@ -152,6 +153,7 @@ def test_sparse_alpha_knn_graph():
     G = pygsp.graphs.Graph(W)
     G2 = build_graph(data, n_pca=None,  # n_pca,
                      decay=a, knn=k, thresh=thresh,
+                     bandwidth_scale=bandwidth_scale,
                      random_state=42, use_pygsp=True)
     assert(np.abs(G.W - G2.W).max() < thresh)
     assert(G.N == G2.N)
@@ -162,12 +164,13 @@ def test_knn_graph_fixed_bandwidth():
     k = 3
     decay = 5
     bandwidth = 10
+    bandwidth_scale = 1.3
     n_pca = 20
     thresh = 1e-4
     pca = PCA(n_pca, svd_solver='randomized', random_state=42).fit(data)
     data_nu = pca.transform(data)
     pdx = squareform(pdist(data_nu, metric='euclidean'))
-    K = np.exp(-1 * np.power(pdx / bandwidth, decay))
+    K = np.exp(-1 * np.power(pdx / (bandwidth * bandwidth_scale), decay))
     K[K < thresh] = 0
     K = K + K.T
     W = np.divide(K, 2)
@@ -175,6 +178,7 @@ def test_knn_graph_fixed_bandwidth():
     G = pygsp.graphs.Graph(W)
     G2 = build_graph(data, n_pca=n_pca,
                      decay=decay, bandwidth=bandwidth,
+                     bandwidth_scale=bandwidth_scale,
                      knn=k, random_state=42,
                      thresh=thresh,
                      use_pygsp=True)
@@ -185,7 +189,7 @@ def test_knn_graph_fixed_bandwidth():
         (G.W - G2.W).data,
         np.zeros_like((G.W - G2.W).data), atol=1e-14)
     bandwidth = np.random.gamma(20, 0.5, len(data))
-    K = np.exp(-1 * (pdx.T / bandwidth).T**decay)
+    K = np.exp(-1 * (pdx.T / (bandwidth * bandwidth_scale)).T**decay)
     K[K < thresh] = 0
     K = K + K.T
     W = np.divide(K, 2)
@@ -193,6 +197,7 @@ def test_knn_graph_fixed_bandwidth():
     G = pygsp.graphs.Graph(W)
     G2 = build_graph(data, n_pca=n_pca,
                      decay=decay, bandwidth=bandwidth,
+                     bandwidth_scale=bandwidth_scale,
                      knn=k, random_state=42,
                      thresh=thresh,
                      use_pygsp=True)
@@ -204,50 +209,17 @@ def test_knn_graph_fixed_bandwidth():
         np.zeros_like((G.W - G2.W).data), atol=1e-14)
 
 
+@raises(NotImplementedError)
 def test_knn_graph_callable_bandwidth():
     k = 3
     decay = 5
     bandwidth = lambda x: 2
     n_pca = 20
     thresh = 1e-4
-    pca = PCA(n_pca, svd_solver='randomized', random_state=42).fit(data)
-    data_nu = pca.transform(data)
-    pdx = squareform(pdist(data_nu, metric='euclidean'))
-    knn_dist = np.partition(pdx, k, axis=1)[:, :k]
-    epsilon = np.max(knn_dist, axis=1)
-    K = np.exp(-1 * np.power(pdx / bandwidth(epsilon), decay))
-    K[K < thresh] = 0
-    K = K + K.T
-    W = np.divide(K, 2)
-    np.fill_diagonal(W, 0)
-    G = pygsp.graphs.Graph(W)
-    G2 = build_graph(data, n_pca=n_pca, knn=k,
-                     decay=decay, bandwidth=bandwidth,
-                     random_state=42,
-                     thresh=thresh,
-                     use_pygsp=True)
-    assert(isinstance(G2, graphtools.graphs.TraditionalGraph))
-    assert(G.N == G2.N)
-    assert(np.all(G.d == G2.d))
-    assert((G2.W != G.W).sum() == 0)
-    assert((G.W != G2.W).nnz == 0)
-    bandwidth = lambda x: 2 * x
-    K = np.exp(-1 * np.power(pdx / bandwidth(epsilon), decay))
-    K[K < thresh] = 0
-    K = K + K.T
-    W = np.divide(K, 2)
-    np.fill_diagonal(W, 0)
-    G = pygsp.graphs.Graph(W)
-    G2 = build_graph(data, n_pca=n_pca, knn=k,
-                     decay=decay, bandwidth=bandwidth,
-                     random_state=42,
-                     thresh=thresh,
-                     use_pygsp=True)
-    assert(isinstance(G2, graphtools.graphs.TraditionalGraph))
-    assert(G.N == G2.N)
-    assert(np.all(G.d == G2.d))
-    assert((G2.W != G.W).sum() == 0)
-    assert((G.W != G2.W).nnz == 0)
+    build_graph(data, n_pca=n_pca, knn=k,
+                decay=decay, bandwidth=bandwidth,
+                random_state=42,
+                thresh=thresh, graphtype='knn')
 
 
 @warns(UserWarning)

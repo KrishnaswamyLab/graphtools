@@ -171,7 +171,7 @@ def Graph(data,
         elif decay is None:
             # knn kernel
             graphtype = "knn"
-        elif thresh == 0:
+        elif thresh == 0 or callable(bandwidth):
             # compute full distance matrix
             graphtype = "exact"
         else:
