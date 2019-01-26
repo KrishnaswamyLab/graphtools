@@ -1,4 +1,5 @@
 from __future__ import print_function, division
+from sklearn.utils.graph import graph_shortest_path
 from load_tests import (
     graphtools,
     np,
@@ -46,6 +47,14 @@ def test_duplicate_data():
                 thresh=1e-4)
 
 
+@warns(RuntimeWarning)
+def test_duplicate_data_many():
+    build_graph(np.vstack([data, data[:21]]),
+                n_pca=20,
+                decay=10,
+                thresh=1e-4)
+
+
 @warns(UserWarning)
 def test_balltree_cosine():
     build_graph(data,
@@ -61,6 +70,22 @@ def test_k_too_large():
                 n_pca=20,
                 decay=10,
                 knn=len(data) + 1,
+                thresh=1e-4)
+
+
+@warns(UserWarning)
+def test_bandwidth_no_decay():
+    build_graph(data,
+                n_pca=20,
+                decay=None,
+                bandwidth=3,
+                thresh=1e-4)
+
+
+@raises(ValueError)
+def test_knn_no_knn_no_bandwidth():
+    build_graph(data, graphtype='knn',
+                knn=None, bandwidth=None,
                 thresh=1e-4)
 
 
@@ -126,9 +151,10 @@ def test_sparse_alpha_knn_graph():
     k = 5
     a = 0.45
     thresh = 0.01
+    bandwidth_scale = 1.3
     pdx = squareform(pdist(data, metric='euclidean'))
     knn_dist = np.partition(pdx, k, axis=1)[:, :k]
-    epsilon = np.max(knn_dist, axis=1)
+    epsilon = np.max(knn_dist, axis=1) * bandwidth_scale
     pdx = (pdx.T / epsilon).T
     K = np.exp(-1 * pdx**a)
     K = K + K.T
@@ -137,6 +163,7 @@ def test_sparse_alpha_knn_graph():
     G = pygsp.graphs.Graph(W)
     G2 = build_graph(data, n_pca=None,  # n_pca,
                      decay=a, knn=k, thresh=thresh,
+                     bandwidth_scale=bandwidth_scale,
                      random_state=42, use_pygsp=True)
     assert(np.abs(G.W - G2.W).max() < thresh)
     assert(G.N == G2.N)
@@ -144,15 +171,16 @@ def test_sparse_alpha_knn_graph():
 
 
 def test_knn_graph_fixed_bandwidth():
-    k = 3
+    k = None
     decay = 5
     bandwidth = 10
+    bandwidth_scale = 1.3
     n_pca = 20
     thresh = 1e-4
     pca = PCA(n_pca, svd_solver='randomized', random_state=42).fit(data)
     data_nu = pca.transform(data)
     pdx = squareform(pdist(data_nu, metric='euclidean'))
-    K = np.exp(-1 * np.power(pdx / bandwidth, decay))
+    K = np.exp(-1 * np.power(pdx / (bandwidth * bandwidth_scale), decay))
     K[K < thresh] = 0
     K = K + K.T
     W = np.divide(K, 2)
@@ -160,6 +188,7 @@ def test_knn_graph_fixed_bandwidth():
     G = pygsp.graphs.Graph(W)
     G2 = build_graph(data, n_pca=n_pca,
                      decay=decay, bandwidth=bandwidth,
+                     bandwidth_scale=bandwidth_scale,
                      knn=k, random_state=42,
                      thresh=thresh,
                      use_pygsp=True)
@@ -170,7 +199,7 @@ def test_knn_graph_fixed_bandwidth():
         (G.W - G2.W).data,
         np.zeros_like((G.W - G2.W).data), atol=1e-14)
     bandwidth = np.random.gamma(20, 0.5, len(data))
-    K = np.exp(-1 * (pdx.T / bandwidth).T**decay)
+    K = np.exp(-1 * (pdx.T / (bandwidth * bandwidth_scale)).T**decay)
     K[K < thresh] = 0
     K = K + K.T
     W = np.divide(K, 2)
@@ -178,6 +207,7 @@ def test_knn_graph_fixed_bandwidth():
     G = pygsp.graphs.Graph(W)
     G2 = build_graph(data, n_pca=n_pca,
                      decay=decay, bandwidth=bandwidth,
+                     bandwidth_scale=bandwidth_scale,
                      knn=k, random_state=42,
                      thresh=thresh,
                      use_pygsp=True)
@@ -187,6 +217,19 @@ def test_knn_graph_fixed_bandwidth():
     np.testing.assert_allclose(
         (G.W - G2.W).data,
         np.zeros_like((G.W - G2.W).data), atol=1e-14)
+
+
+@raises(NotImplementedError)
+def test_knn_graph_callable_bandwidth():
+    k = 3
+    decay = 5
+    bandwidth = lambda x: 2
+    n_pca = 20
+    thresh = 1e-4
+    build_graph(data, n_pca=n_pca, knn=k,
+                decay=decay, bandwidth=bandwidth,
+                random_state=42,
+                thresh=thresh, graphtype='knn')
 
 
 @warns(UserWarning)
@@ -268,6 +311,32 @@ def test_knn_interpolate():
                   G.interpolate(pca_data, transitions=transitions)))
 
 
+#################################################
+# Check extra functionality
+#################################################
+
+
+def test_shortest_path():
+    data_small = data[np.random.choice(
+        len(data), len(data) // 4, replace=False)]
+    G = build_graph(data_small, knn=5, decay=None)
+    K = G.K
+    P = graph_shortest_path(G.K)
+    # sklearn returns 0 if no path exists
+    P[np.where(P == 0)] = np.inf
+    # diagonal should actually be zero
+    np.fill_diagonal(P, 0)
+    np.testing.assert_equal(P, G.shortest_path())
+
+
+@raises(NotImplementedError)
+def test_shortest_path_decay():
+    data_small = data[np.random.choice(
+        len(data), len(data) // 4, replace=False)]
+    G = build_graph(data_small, knn=5, decay=15, thresh=1e-4)
+    G.shortest_path()
+
+
 ####################
 # Test API
 ####################
@@ -290,6 +359,7 @@ def test_set_params():
         'knn': 3,
         'decay': None,
         'bandwidth': None,
+        'bandwidth_scale': 1,
         'distance': 'euclidean',
         'thresh': 0,
         'n_jobs': -1,
@@ -311,6 +381,7 @@ def test_set_params():
     assert_raises(ValueError, G.set_params, kernel_symm='*')
     assert_raises(ValueError, G.set_params, anisotropy=0.7)
     assert_raises(ValueError, G.set_params, bandwidth=5)
+    assert_raises(ValueError, G.set_params, bandwidth_scale=5)
     G.set_params(knn=G.knn,
                  decay=G.decay,
                  thresh=G.thresh,

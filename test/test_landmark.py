@@ -154,6 +154,7 @@ def test_set_params():
         'knn': 3,
         'decay': None,
         'bandwidth': None,
+        'bandwidth_scale': 1,
         'distance': 'euclidean',
         'thresh': 0,
         'n_jobs': -1,

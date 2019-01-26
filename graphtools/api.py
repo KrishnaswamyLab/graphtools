@@ -15,6 +15,7 @@ def Graph(data,
           knn=5,
           decay=10,
           bandwidth=None,
+          bandwidth_scale=1.0,
           anisotropy=0,
           distance='euclidean',
           thresh=1e-4,
@@ -64,10 +65,14 @@ def Graph(data,
     decay : `int` or `None`, optional (default: 10)
         Rate of alpha decay to use. If `None`, alpha decay is not used.
 
-    bandwidth : `float`, list-like or `None`, optional (default: `None`)
+    bandwidth : `float`, list-like,`callable`, or `None`, optional (default: `None`)
         Fixed bandwidth to use. If given, overrides `knn`. Can be a single
-        bandwidth or a list-like (shape=[n_samples]) of bandwidths for each
-        sample.
+        bandwidth, list-like (shape=[n_samples]) of bandwidths for each
+        sample, or a `callable` that takes in a `n x m` matrix and returns a
+        a single value or list-like of length n (shape=[n_samples])
+
+    bandwidth_scale : `float`, optional (default : 1.0)
+        Rescaling factor for bandwidth.
 
     anisotropy : float, optional (default: 0)
         Level of anisotropy between 0 and 1
@@ -161,12 +166,18 @@ def Graph(data,
         if sample_idx is not None:
             # only mnn does batch correction
             graphtype = "mnn"
-        elif precomputed is None and (decay is None or thresh > 0):
+        elif precomputed is not None:
             # precomputed requires exact graph
-            # no decay or threshold decay require knngraph
-            graphtype = "knn"
-        else:
             graphtype = "exact"
+        elif decay is None:
+            # knn kernel
+            graphtype = "knn"
+        elif thresh == 0 or callable(bandwidth):
+            # compute full distance matrix
+            graphtype = "exact"
+        else:
+            # decay kernel with nonzero threshold - knn is more efficient
+            graphtype = "knn"
 
     # set base graph type
     if graphtype == "knn":
