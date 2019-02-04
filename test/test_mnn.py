@@ -220,14 +220,13 @@ def test_mnn_graph_float_theta():
                  ((1 - theta) * np.maximum(K, K.T)))
     np.fill_diagonal(W, 0)
     G = pygsp.graphs.Graph(W)
-    G2 = graphtools.Graph(X, knn=k + 1, decay=a, beta=beta,
+    G2 = graphtools.Graph(X, knn=k, decay=a, beta=beta,
                           kernel_symm='theta', theta=theta,
                           distance=metric, sample_idx=sample_idx, thresh=0,
                           use_pygsp=True)
     assert G.N == G2.N
     np.testing.assert_array_equal(G.dw, G2.dw)
-    assert (G.W != G2.W).nnz == 0
-    assert (G2.W != G.W).sum() == 0
+    np.testing.assert_array_equal((G.W - G2.W).data, 0)
     assert isinstance(G2, graphtools.graphs.MNNGraph)
 
 
@@ -290,7 +289,7 @@ def test_mnn_graph_matrix_theta():
                  ((1 - matrix_theta) * np.maximum(K, K.T)))
     np.fill_diagonal(W, 0)
     G = pygsp.graphs.Graph(W)
-    G2 = graphtools.Graph(X, knn=k + 1, decay=a, beta=beta,
+    G2 = graphtools.Graph(X, knn=k, decay=a, beta=beta,
                           kernel_symm='theta', theta=theta,
                           distance=metric, sample_idx=sample_idx, thresh=0,
                           use_pygsp=True)

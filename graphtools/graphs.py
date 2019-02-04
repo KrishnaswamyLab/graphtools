@@ -85,11 +85,11 @@ class kNNGraph(DataGraph):
         if decay is None and bandwidth is not None:
             warnings.warn("`bandwidth` is not used when `decay=None`.",
                           UserWarning)
-        if knn > data.shape[0]:
+        if knn > data.shape[0] - 2:
             warnings.warn("Cannot set knn ({k}) to be greater than "
                           "n_samples ({n}). Setting knn={n}".format(
-                              k=knn, n=data.shape[0]))
-            knn = data.shape[0]
+                              k=knn, n=data.shape[0] - 2))
+            knn = data.shape[0] - 2
         if n_pca is None and data.shape[1] > 500:
             warnings.warn("Building a kNNGraph on data of shape {} is "
                           "expensive. Consider setting n_pca.".format(
@@ -189,7 +189,7 @@ class kNNGraph(DataGraph):
         except AttributeError:
             try:
                 self._knn_tree = NearestNeighbors(
-                    n_neighbors=self.knn,
+                    n_neighbors=self.knn + 1,
                     algorithm='ball_tree',
                     metric=self.distance,
                     n_jobs=self.n_jobs).fit(self.data_nu)
@@ -201,7 +201,7 @@ class kNNGraph(DataGraph):
                         self.distance),
                     UserWarning)
                 self._knn_tree = NearestNeighbors(
-                    n_neighbors=self.knn,
+                    n_neighbors=self.knn + 1,
                     algorithm='auto',
                     metric=self.distance,
                     n_jobs=self.n_jobs).fit(self.data_nu)
@@ -219,8 +219,34 @@ class kNNGraph(DataGraph):
             symmetric matrix with ones down the diagonal
             with no non-negative entries.
         """
-        K = self.build_kernel_to_data(self.data_nu)
+        K = self.build_kernel_to_data(self.data_nu, knn=self.knn + 1)
         return K
+
+    def _check_duplicates(self, distances, indices):
+        if np.any(distances[:, 1] == 0):
+            has_duplicates = distances[:, 1] == 0
+            if np.sum(distances[:, 1:] == 0) < 20:
+                idx = np.argwhere((distances == 0) &
+                                  has_duplicates[:, None])
+                duplicate_ids = np.array(
+                    [[indices[i[0], i[1]], i[0]]
+                     for i in idx if indices[i[0], i[1]] < i[0]])
+                duplicate_ids = duplicate_ids[
+                    np.argsort(duplicate_ids[:, 0])]
+                duplicate_names = ", ".join(["{} and {}".format(i[0], i[1])
+                                             for i in duplicate_ids])
+                warnings.warn(
+                    "Detected zero distance between samples {}. "
+                    "Consider removing duplicates to avoid errors in "
+                    "downstream processing.".format(duplicate_names),
+                    RuntimeWarning)
+            else:
+                warnings.warn(
+                    "Detected zero distance between {} pairs of samples. "
+                    "Consider removing duplicates to avoid errors in "
+                    "downstream processing.".format(
+                        np.sum(np.sum(distances[:, 1:]))),
+                    RuntimeWarning)
 
     def build_kernel_to_data(self, Y, knn=None, bandwidth=None,
                              bandwidth_scale=None):
@@ -281,30 +307,7 @@ class kNNGraph(DataGraph):
             search_knn = min(knn * 20, self.data_nu.shape[0])
             distances, indices = knn_tree.kneighbors(
                 Y, n_neighbors=search_knn)
-            if np.any(distances[:, 1] == 0):
-                has_duplicates = distances[:, 1] == 0
-                if np.sum(distances[:, 1:] == 0) < 20:
-                    idx = np.argwhere((distances == 0) &
-                                      has_duplicates[:, None])
-                    duplicate_ids = np.array(
-                        [[indices[i[0], i[1]], i[0]]
-                         for i in idx if indices[i[0], i[1]] < i[0]])
-                    duplicate_ids = duplicate_ids[
-                        np.argsort(duplicate_ids[:, 0])]
-                    duplicate_names = ", ".join(["{} and {}".format(i[0], i[1])
-                                                 for i in duplicate_ids])
-                    warnings.warn(
-                        "Detected zero distance between samples {}. "
-                        "Consider removing duplicates to avoid errors in "
-                        "downstream processing.".format(duplicate_names),
-                        RuntimeWarning)
-                else:
-                    warnings.warn(
-                        "Detected zero distance between {} pairs of samples. "
-                        "Consider removing duplicates to avoid errors in "
-                        "downstream processing.".format(
-                            np.sum(np.sum(distances[:, 1:]))),
-                        RuntimeWarning)
+            self._check_duplicates(distances, indices)
             tasklogger.log_complete("KNN search")
             tasklogger.log_start("affinities")
             if bandwidth is None:
@@ -338,7 +341,7 @@ class kNNGraph(DataGraph):
                     len(update_idx)))
             if search_knn > self.data_nu.shape[0] / 2:
                 knn_tree = NearestNeighbors(
-                    knn, algorithm='brute',
+                    search_knn, algorithm='brute',
                     n_jobs=self.n_jobs).fit(self.data_nu)
             if len(update_idx) > 0:
                 tasklogger.log_debug(
@@ -771,11 +774,11 @@ class TraditionalGraph(DataGraph):
         if knn is None and bandwidth is None:
             raise ValueError(
                 "Either `knn` or `bandwidth` must be provided.")
-        if knn is not None and knn > data.shape[0]:
-            warnings.warn("Cannot set knn ({k}) to be greater than or equal to"
-                          " n_samples ({n}). Setting knn={n}".format(
-                              k=knn, n=data.shape[0] - 1))
-            knn = data.shape[0] - 1
+        if knn is not None and knn > data.shape[0] - 2:
+            warnings.warn("Cannot set knn ({k}) to be greater than "
+                          " n_samples - 2 ({n}). Setting knn={n}".format(
+                              k=knn, n=data.shape[0] - 2))
+            knn = data.shape[0] - 2
         if precomputed is not None:
             if precomputed not in ["distance", "affinity", "adjacency"]:
                 raise ValueError("Precomputed value {} not recognized. "
@@ -918,7 +921,8 @@ class TraditionalGraph(DataGraph):
                     "Choose from ['affinity', 'adjacency', 'distance', "
                     "None]".format(self.precomputed))
             if self.bandwidth is None:
-                knn_dist = np.partition(pdx, self.knn, axis=1)[:, :self.knn]
+                knn_dist = np.partition(
+                    pdx, self.knn + 1, axis=1)[:, :self.knn + 1]
                 bandwidth = np.max(knn_dist, axis=1)
             elif callable(self.bandwidth):
                 bandwidth = self.bandwidth(pdx)
@@ -1300,8 +1304,6 @@ class MNNGraph(DataGraph):
         transformation of the landmarks can be trivially applied to `Y` by
         performing
 
-        TODO: test this.
-
         `transform_Y = transitions.dot(transform)`
 
         Parameters
@@ -1323,52 +1325,6 @@ class MNNGraph(DataGraph):
             Transition matrix from `Y` to `self.data`
         """
         raise NotImplementedError
-        tasklogger.log_warning("building MNN kernel to theta is experimental")
-        if not isinstance(self.theta, str) and \
-                not isinstance(self.theta, numbers.Number):
-            if theta is None:
-                raise ValueError(
-                    "self.theta is a matrix but theta is not provided.")
-            elif len(theta) != len(self.samples):
-                raise ValueError(
-                    "theta should have one value for every sample")
-
-        Y = self._check_extension_shape(Y)
-        kernel_xy = []
-        kernel_yx = []
-        # don't really need within Y kernel
-        Y_graph = kNNGraph(Y, n_pca=None, knn=0, **(self.knn_args))
-        y_knn = self._weight_knn(sample_size=Y.shape[0])
-        for i, X in enumerate(self.subgraphs):
-            kernel_xy.append(X.build_kernel_to_data(
-                Y, knn=self.weighted_knn[i]))  # kernel X -> Y
-            kernel_yx.append(Y_graph.build_kernel_to_data(
-                X.data_nu, knn=y_knn))  # kernel Y -> X
-        kernel_xy = sparse.hstack(kernel_xy)  # n_cells_y x n_cells_x
-        kernel_yx = sparse.vstack(kernel_yx)  # n_cells_x x n_cells_y
-
-        # symmetrize
-        if theta is not None:
-            # Gamma can be a vector with specific values transitions for
-            # each batch. This allows for technical replicates and
-            # experimental samples to be corrected simultaneously
-            K = np.empty_like(kernel_xy)
-            for i, sample in enumerate(self.samples):
-                sample_idx = self.sample_idx == sample
-                K[:, sample_idx] = theta[i] * \
-                    kernel_xy[:, sample_idx].minimum(
-                        kernel_yx[sample_idx, :].T) + \
-                    (1 - theta[i]) * \
-                    kernel_xy[:, sample_idx].maximum(
-                        kernel_yx[sample_idx, :].T)
-        if self.theta == "+":
-            K = (kernel_xy + kernel_yx.T) / 2
-        elif self.theta == "*":
-            K = kernel_xy.multiply(kernel_yx.T)
-        else:
-            K = self.theta * kernel_xy.minimum(kernel_yx.T) + \
-                (1 - self.theta) * kernel_xy.maximum(kernel_yx.T)
-        return K
 
 
 class kNNLandmarkGraph(kNNGraph, LandmarkGraph):
