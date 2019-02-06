@@ -69,7 +69,7 @@ def test_k_too_large():
     build_graph(data,
                 n_pca=20,
                 decay=10,
-                knn=len(data) + 1,
+                knn=len(data) - 1,
                 thresh=1e-4)
 
 
@@ -112,13 +112,13 @@ def test_knn_graph():
     np.fill_diagonal(W, 0)
     G = pygsp.graphs.Graph(W)
     G2 = build_graph(data, n_pca=n_pca,
-                     decay=None, knn=k, random_state=42,
+                     decay=None, knn=k - 1, random_state=42,
                      use_pygsp=True)
-    assert(G.N == G2.N)
-    assert(np.all(G.d == G2.d))
-    assert((G.W != G2.W).nnz == 0)
-    assert((G2.W != G.W).sum() == 0)
-    assert(isinstance(G2, graphtools.graphs.kNNGraph))
+    assert G.N == G2.N
+    np.testing.assert_equal(G.dw, G2.dw)
+    assert (G.W != G2.W).nnz == 0
+    assert (G2.W != G.W).sum() == 0
+    assert isinstance(G2, graphtools.graphs.kNNGraph)
 
 
 def test_knn_graph_sparse():
@@ -139,11 +139,11 @@ def test_knn_graph_sparse():
     np.fill_diagonal(W, 0)
     G = pygsp.graphs.Graph(W)
     G2 = build_graph(sp.coo_matrix(data), n_pca=n_pca,
-                     decay=None, knn=k, random_state=42,
+                     decay=None, knn=k - 1, random_state=42,
                      use_pygsp=True)
-    assert(G.N == G2.N)
+    assert G.N == G2.N
     np.testing.assert_allclose(G2.W.toarray(), G.W.toarray())
-    assert(isinstance(G2, graphtools.graphs.kNNGraph))
+    assert isinstance(G2, graphtools.graphs.kNNGraph)
 
 
 def test_sparse_alpha_knn_graph():
@@ -162,12 +162,12 @@ def test_sparse_alpha_knn_graph():
     np.fill_diagonal(W, 0)
     G = pygsp.graphs.Graph(W)
     G2 = build_graph(data, n_pca=None,  # n_pca,
-                     decay=a, knn=k, thresh=thresh,
+                     decay=a, knn=k - 1, thresh=thresh,
                      bandwidth_scale=bandwidth_scale,
                      random_state=42, use_pygsp=True)
-    assert(np.abs(G.W - G2.W).max() < thresh)
-    assert(G.N == G2.N)
-    assert(isinstance(G2, graphtools.graphs.kNNGraph))
+    assert np.abs(G.W - G2.W).max() < thresh
+    assert G.N == G2.N
+    assert isinstance(G2, graphtools.graphs.kNNGraph)
 
 
 def test_knn_graph_fixed_bandwidth():
@@ -192,7 +192,7 @@ def test_knn_graph_fixed_bandwidth():
                      knn=k, random_state=42,
                      thresh=thresh,
                      use_pygsp=True)
-    assert(isinstance(G2, graphtools.graphs.kNNGraph))
+    assert isinstance(G2, graphtools.graphs.kNNGraph)
     np.testing.assert_array_equal(G.N, G2.N)
     np.testing.assert_array_equal(G.d, G2.d)
     np.testing.assert_allclose(
@@ -211,7 +211,7 @@ def test_knn_graph_fixed_bandwidth():
                      knn=k, random_state=42,
                      thresh=thresh,
                      use_pygsp=True)
-    assert(isinstance(G2, graphtools.graphs.kNNGraph))
+    assert isinstance(G2, graphtools.graphs.kNNGraph)
     np.testing.assert_array_equal(G.N, G2.N)
     np.testing.assert_allclose(G.dw, G2.dw, atol=1e-14)
     np.testing.assert_allclose(
@@ -226,7 +226,7 @@ def test_knn_graph_callable_bandwidth():
     bandwidth = lambda x: 2
     n_pca = 20
     thresh = 1e-4
-    build_graph(data, n_pca=n_pca, knn=k,
+    build_graph(data, n_pca=n_pca, knn=k - 1,
                 decay=decay, bandwidth=bandwidth,
                 random_state=42,
                 thresh=thresh, graphtype='knn')
@@ -267,11 +267,11 @@ def test_knn_graph_anisotropy():
     G = pygsp.graphs.Graph(W)
     G2 = build_graph(data_small, n_pca=n_pca,
                      thresh=thresh,
-                     decay=a, knn=k, random_state=42,
+                     decay=a, knn=k - 1, random_state=42,
                      use_pygsp=True, anisotropy=anisotropy)
-    assert(isinstance(G2, graphtools.graphs.kNNGraph))
-    assert(G.N == G2.N)
-    assert(np.all(G.d == G2.d))
+    assert isinstance(G2, graphtools.graphs.kNNGraph)
+    assert G.N == G2.N
+    np.testing.assert_allclose(G.dw, G2.dw, atol=1e-14, rtol=1e-14)
     np.testing.assert_allclose((G2.W - G.W).data, 0, atol=1e-14, rtol=1e-14)
 
 
@@ -283,23 +283,23 @@ def test_knn_graph_anisotropy():
 def test_build_dense_knn_kernel_to_data():
     G = build_graph(data, decay=None)
     n = G.data.shape[0]
-    K = G.build_kernel_to_data(data[:n // 2, :])
-    assert(K.shape == (n // 2, n))
-    K = G.build_kernel_to_data(G.data)
-    assert(np.sum(G.kernel != (K + K.T) / 2) == 0)
-    K = G.build_kernel_to_data(G.data_nu)
-    assert(np.sum(G.kernel != (K + K.T) / 2) == 0)
+    K = G.build_kernel_to_data(data[:n // 2, :], knn=G.knn + 1)
+    assert K.shape == (n // 2, n)
+    K = G.build_kernel_to_data(G.data, knn=G.knn + 1)
+    assert (G.kernel - (K + K.T) / 2).nnz == 0
+    K = G.build_kernel_to_data(G.data_nu, knn=G.knn + 1)
+    assert (G.kernel - (K + K.T) / 2).nnz == 0
 
 
 def test_build_sparse_knn_kernel_to_data():
     G = build_graph(data, decay=None, sparse=True)
     n = G.data.shape[0]
-    K = G.build_kernel_to_data(data[:n // 2, :])
-    assert(K.shape == (n // 2, n))
-    K = G.build_kernel_to_data(G.data)
-    assert(np.sum(G.kernel != (K + K.T) / 2) == 0)
-    K = G.build_kernel_to_data(G.data_nu)
-    assert(np.sum(G.kernel != (K + K.T) / 2) == 0)
+    K = G.build_kernel_to_data(data[:n // 2, :], knn=G.knn + 1)
+    assert K.shape == (n // 2, n)
+    K = G.build_kernel_to_data(G.data, knn=G.knn + 1)
+    assert (G.kernel - (K + K.T) / 2).nnz == 0
+    K = G.build_kernel_to_data(G.data_nu, knn=G.knn + 1)
+    assert (G.kernel - (K + K.T) / 2).nnz == 0
 
 
 def test_knn_interpolate():
@@ -307,8 +307,8 @@ def test_knn_interpolate():
     assert_raises(ValueError, G.interpolate, data)
     pca_data = PCA(2).fit_transform(data)
     transitions = G.extend_to_data(data)
-    assert(np.all(G.interpolate(pca_data, Y=data) ==
-                  G.interpolate(pca_data, transitions=transitions)))
+    np.testing.assert_equal(G.interpolate(pca_data, Y=data), G.interpolate(
+        pca_data, transitions=transitions))
 
 
 #################################################

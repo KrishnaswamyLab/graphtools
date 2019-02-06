@@ -103,7 +103,7 @@ def test_k_too_large():
     build_graph(data,
                 n_pca=20,
                 decay=10,
-                knn=len(data) + 1,
+                knn=len(data) - 1,
                 thresh=0)
 
 
@@ -131,7 +131,7 @@ def test_exact_graph():
     np.fill_diagonal(W, 0)
     G = pygsp.graphs.Graph(W)
     G2 = build_graph(data_small, thresh=0, n_pca=n_pca,
-                     decay=a, knn=k, random_state=42,
+                     decay=a, knn=k - 1, random_state=42,
                      bandwidth_scale=bandwidth_scale,
                      use_pygsp=True)
     assert(G.N == G2.N)
@@ -141,7 +141,7 @@ def test_exact_graph():
     assert(isinstance(G2, graphtools.graphs.TraditionalGraph))
     G2 = build_graph(pdx, n_pca=None, precomputed='distance',
                      bandwidth_scale=bandwidth_scale,
-                     decay=a, knn=k, random_state=42, use_pygsp=True)
+                     decay=a, knn=k - 1, random_state=42, use_pygsp=True)
     assert(G.N == G2.N)
     np.testing.assert_equal(G.dw, G2.dw)
     assert((G.W != G2.W).nnz == 0)
@@ -195,7 +195,7 @@ def test_truncated_exact_graph():
     G2 = build_graph(data_small, thresh=thresh,
                      graphtype='exact',
                      n_pca=n_pca,
-                     decay=a, knn=k, random_state=42,
+                     decay=a, knn=k - 1, random_state=42,
                      use_pygsp=True)
     assert(G.N == G2.N)
     np.testing.assert_equal(G.dw, G2.dw)
@@ -204,7 +204,7 @@ def test_truncated_exact_graph():
     assert(isinstance(G2, graphtools.graphs.TraditionalGraph))
     G2 = build_graph(pdx, n_pca=None, precomputed='distance',
                      thresh=thresh,
-                     decay=a, knn=k, random_state=42, use_pygsp=True)
+                     decay=a, knn=k - 1, random_state=42, use_pygsp=True)
     assert(G.N == G2.N)
     np.testing.assert_equal(G.dw, G2.dw)
     assert((G.W != G2.W).nnz == 0)
@@ -252,14 +252,14 @@ def test_truncated_exact_graph_sparse():
     G2 = build_graph(sp.coo_matrix(data_small), thresh=thresh,
                      graphtype='exact',
                      n_pca=n_pca,
-                     decay=a, knn=k, random_state=42,
+                     decay=a, knn=k - 1, random_state=42,
                      use_pygsp=True)
     assert(G.N == G2.N)
     np.testing.assert_allclose(G2.W.toarray(), G.W.toarray())
     assert(isinstance(G2, graphtools.graphs.TraditionalGraph))
     G2 = build_graph(sp.bsr_matrix(pdx), n_pca=None, precomputed='distance',
                      thresh=thresh,
-                     decay=a, knn=k, random_state=42, use_pygsp=True)
+                     decay=a, knn=k - 1, random_state=42, use_pygsp=True)
     assert(G.N == G2.N)
     np.testing.assert_equal(G.dw, G2.dw)
     assert((G.W != G2.W).nnz == 0)
@@ -304,7 +304,7 @@ def test_truncated_exact_graph_no_pca():
     G2 = build_graph(data_small, thresh=thresh,
                      graphtype='exact',
                      n_pca=n_pca,
-                     decay=a, knn=k, random_state=42,
+                     decay=a, knn=k - 1, random_state=42,
                      use_pygsp=True)
     assert(G.N == G2.N)
     np.testing.assert_equal(G.dw, G2.dw)
@@ -314,7 +314,7 @@ def test_truncated_exact_graph_no_pca():
     G2 = build_graph(sp.csr_matrix(data_small), thresh=thresh,
                      graphtype='exact',
                      n_pca=n_pca,
-                     decay=a, knn=k, random_state=42,
+                     decay=a, knn=k - 1, random_state=42,
                      use_pygsp=True)
     assert(G.N == G2.N)
     np.testing.assert_equal(G.dw, G2.dw)
@@ -379,7 +379,7 @@ def test_exact_graph_callable_bandwidth():
     W = np.divide(K, 2)
     np.fill_diagonal(W, 0)
     G = pygsp.graphs.Graph(W)
-    G2 = build_graph(data, n_pca=n_pca, knn=knn,
+    G2 = build_graph(data, n_pca=n_pca, knn=knn - 1,
                      decay=decay, bandwidth=bandwidth,
                      random_state=42,
                      thresh=thresh,
@@ -396,7 +396,7 @@ def test_exact_graph_callable_bandwidth():
     W = np.divide(K, 2)
     np.fill_diagonal(W, 0)
     G = pygsp.graphs.Graph(W)
-    G2 = build_graph(data, n_pca=n_pca, knn=knn,
+    G2 = build_graph(data, n_pca=n_pca, knn=knn - 1,
                      decay=decay, bandwidth=bandwidth,
                      random_state=42,
                      thresh=thresh,
@@ -432,7 +432,7 @@ def test_exact_graph_anisotropy():
     np.fill_diagonal(W, 0)
     G = pygsp.graphs.Graph(W)
     G2 = build_graph(data_small, thresh=0, n_pca=n_pca,
-                     decay=a, knn=k, random_state=42,
+                     decay=a, knn=k - 1, random_state=42,
                      use_pygsp=True, anisotropy=anisotropy)
     assert(isinstance(G2, graphtools.graphs.TraditionalGraph))
     assert(G.N == G2.N)
@@ -441,15 +441,15 @@ def test_exact_graph_anisotropy():
     assert((G.W != G2.W).nnz == 0)
     assert_raises(ValueError, build_graph,
                   data_small, thresh=0, n_pca=n_pca,
-                  decay=a, knn=k, random_state=42,
+                  decay=a, knn=k - 1, random_state=42,
                   use_pygsp=True, anisotropy=-1)
     assert_raises(ValueError, build_graph,
                   data_small, thresh=0, n_pca=n_pca,
-                  decay=a, knn=k, random_state=42,
+                  decay=a, knn=k - 1, random_state=42,
                   use_pygsp=True, anisotropy=2)
     assert_raises(ValueError, build_graph,
                   data_small, thresh=0, n_pca=n_pca,
-                  decay=a, knn=k, random_state=42,
+                  decay=a, knn=k - 1, random_state=42,
                   use_pygsp=True, anisotropy='invalid')
 
 #####################################################
@@ -462,10 +462,10 @@ def test_build_dense_exact_kernel_to_data(**kwargs):
     n = G.data.shape[0]
     K = G.build_kernel_to_data(data[:n // 2, :])
     assert(K.shape == (n // 2, n))
-    K = G.build_kernel_to_data(G.data)
-    assert(np.sum(G.kernel != (K + K.T) / 2) == 0)
-    K = G.build_kernel_to_data(G.data_nu)
-    assert(np.sum(G.kernel != (K + K.T) / 2) == 0)
+    K = G.build_kernel_to_data(G.data, knn=G.knn + 1)
+    np.testing.assert_equal(G.kernel - (K + K.T) / 2, 0)
+    K = G.build_kernel_to_data(G.data_nu, knn=G.knn + 1)
+    np.testing.assert_equal(G.kernel - (K + K.T) / 2, 0)
 
 
 def test_build_dense_exact_callable_bw_kernel_to_data(**kwargs):
@@ -473,10 +473,10 @@ def test_build_dense_exact_callable_bw_kernel_to_data(**kwargs):
     n = G.data.shape[0]
     K = G.build_kernel_to_data(data[:n // 2, :])
     assert(K.shape == (n // 2, n))
-    K = G.build_kernel_to_data(G.data)
-    assert(np.sum(G.kernel != (K + K.T) / 2) == 0)
-    K = G.build_kernel_to_data(G.data_nu)
-    assert(np.sum(G.kernel != (K + K.T) / 2) == 0)
+    K = G.build_kernel_to_data(G.data, knn=G.knn + 1)
+    np.testing.assert_equal(G.kernel - (K + K.T) / 2, 0)
+    K = G.build_kernel_to_data(G.data_nu, knn=G.knn + 1)
+    np.testing.assert_equal(G.kernel - (K + K.T) / 2, 0)
 
 
 def test_build_sparse_exact_kernel_to_data(**kwargs):
@@ -484,10 +484,10 @@ def test_build_sparse_exact_kernel_to_data(**kwargs):
     n = G.data.shape[0]
     K = G.build_kernel_to_data(data[:n // 2, :])
     assert(K.shape == (n // 2, n))
-    K = G.build_kernel_to_data(G.data)
-    assert(np.sum(G.kernel != (K + K.T) / 2) == 0)
-    K = G.build_kernel_to_data(G.data_nu)
-    assert(np.sum(G.kernel != (K + K.T) / 2) == 0)
+    K = G.build_kernel_to_data(G.data, knn=G.knn + 1)
+    np.testing.assert_equal(G.kernel - (K + K.T) / 2, 0)
+    K = G.build_kernel_to_data(G.data_nu, knn=G.knn + 1)
+    np.testing.assert_equal(G.kernel - (K + K.T) / 2, 0)
 
 
 def test_exact_interpolate():

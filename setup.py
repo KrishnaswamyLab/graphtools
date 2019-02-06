@@ -28,8 +28,8 @@ doc_requires = [
     'sphinxcontrib-bibtex'
 ]
 
-if sys.version_info[:2] < (2, 7) or (3, 0) <= sys.version_info[:2] < (3, 5):
-    raise RuntimeError("Python version 2.7 or >=3.5 required.")
+if sys.version_info[:2] < (3, 5):
+    raise RuntimeError("Python version >=3.5 required.")
 
 version_py = os.path.join(os.path.dirname(
     __file__), 'graphtools', 'version.py')

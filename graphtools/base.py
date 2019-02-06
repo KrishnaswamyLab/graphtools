@@ -65,6 +65,9 @@ class Base(object):
         return parameters
 
     def set_params(self, **kwargs):
+        # for k in kwargs:
+        #     raise TypeError("set_params() got an unexpected "
+        #                     "keyword argument '{}'".format(k))
         return self
 
 
@@ -866,3 +869,28 @@ class DataGraph(with_metaclass(abc.ABCMeta, Data, BaseGraph)):
                 transitions = self.extend_to_data(Y)
         Y_transform = transitions.dot(transform)
         return Y_transform
+
+    def set_params(self, **params):
+        """Set parameters on this object
+
+        Safe setter method - attributes should not be modified directly as some
+        changes are not valid.
+        Valid parameters:
+        - n_jobs
+        - verbose
+
+        Parameters
+        ----------
+        params : key-value pairs of parameter name and new values
+
+        Returns
+        -------
+        self
+        """
+        if 'n_jobs' in params:
+            self.n_jobs = params['n_jobs']
+        if 'verbose' in params:
+            self.verbose = params['verbose']
+            tasklogger.set_level(self.verbose)
+        super().set_params(**params)
+        return self
