@@ -1233,6 +1233,7 @@ class MNNGraph(DataGraph):
             self.subgraphs.append(graph)  # append to list of subgraphs
         tasklogger.log_complete("subgraphs")
 
+        tasklogger.log_start("MNN kernel")
         if self.thresh > 0 or self.decay is None:
             K = sparse.lil_matrix(
                 (self.data_nu.shape[0], self.data_nu.shape[0]))
@@ -1263,6 +1264,7 @@ class MNNGraph(DataGraph):
                 tasklogger.log_complete(
                     "kernel from sample {} to {}".format(self.samples[i],
                                                          self.samples[j]))
+        tasklogger.log_complete("MNN kernel")
         return K
 
     def symmetrize_kernel(self, K):
