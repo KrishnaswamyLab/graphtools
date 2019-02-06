@@ -2,12 +2,12 @@ from __future__ import division
 from builtins import super
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
-from scipy.spatial.distance import pdist, cdist
-from scipy.spatial.distance import squareform
 from sklearn.utils.extmath import randomized_svd
 from sklearn.preprocessing import normalize
 from sklearn.cluster import MiniBatchKMeans
 from sklearn.utils.graph import graph_shortest_path
+from scipy.spatial.distance import pdist, cdist
+from scipy.spatial.distance import squareform
 from scipy import sparse
 import numbers
 import warnings
@@ -1038,8 +1038,8 @@ class MNNGraph(DataGraph):
 
     def __init__(self, data, sample_idx,
                  knn=5, beta=1, n_pca=None,
-                 adaptive_k=None,
                  decay=None,
+                 adaptive_k=None,
                  bandwidth=None,
                  distance='euclidean',
                  thresh=1e-4,
@@ -1049,14 +1049,12 @@ class MNNGraph(DataGraph):
         self.sample_idx = sample_idx
         self.samples, self.n_cells = np.unique(
             self.sample_idx, return_counts=True)
-        self.adaptive_k = adaptive_k
         self.knn = knn
         self.decay = decay
         self.distance = distance
         self.bandwidth = bandwidth
         self.thresh = thresh
         self.n_jobs = n_jobs
-        self.weighted_knn = self._weight_knn()
 
         if sample_idx is None:
             raise ValueError("sample_idx must be given. For a graph without"
@@ -1068,78 +1066,25 @@ class MNNGraph(DataGraph):
         elif len(self.samples) == 1:
             raise ValueError(
                 "sample_idx must contain more than one unique value")
+        if adaptive_k is not None:
+            warnings.warn("`adaptive_k` has been deprecated. Using fixed knn.",
+                          DeprecationWarning)
 
         super().__init__(data, n_pca=n_pca, **kwargs)
 
     def _check_symmetrization(self, kernel_symm, theta):
         if kernel_symm == 'theta' and theta is not None and \
                 not isinstance(theta, numbers.Number):
-            # matrix theta
-            try:
-                theta.shape
-            except AttributeError:
-                raise ValueError("theta {} not recognized. "
-                                 "Expected a float between 0 and 1 "
-                                 "or a [n_batch,n_batch] matrix of "
-                                 "floats between 0 and 1".format(theta))
-            if not np.shape(theta) == (len(self.samples),
-                                       len(self.samples)):
-                raise ValueError(
-                    "Matrix theta must be of shape "
-                    "({}), got ({})".format(
-                        (len(self.samples),
-                         len(self.samples)), theta.shape))
-            elif np.max(theta) > 1 or np.min(theta) < 0:
-                raise ValueError(
-                    "Values in matrix theta must be between"
-                    " 0 and 1, got values between {} and {}".format(
-                        np.max(theta), np.min(theta)))
-            elif np.any(theta != theta.T):
-                raise ValueError("theta must be a symmetric matrix")
+            raise TypeError("Expected `theta` as a float. "
+                            "Got {}.".format(type(theta)))
         else:
             super()._check_symmetrization(kernel_symm, theta)
-
-    def _weight_knn(self, sample_size=None):
-        """Select adaptive values of knn
-
-        Parameters
-        ----------
-
-        sample_size : `int` or `None`
-            Number of cells in the sample in question. Used only for
-            out-of-sample extension. If `None`, calculates within-sample
-            knn values.
-
-        Returns
-        -------
-
-        knn : array-like or `int`, weighted knn values
-        """
-        if sample_size is None:
-            # calculate within sample knn values
-            sample_size = self.n_cells
-        if self.adaptive_k == 'min':
-            # the smallest sample has k
-            knn_weight = self.n_cells / np.min(self.n_cells)
-        elif self.adaptive_k == 'mean':
-            # the average sample has k
-            knn_weight = self.n_cells / np.mean(self.n_cells)
-        elif self.adaptive_k == 'sqrt':
-            # the samples are sqrt'd first, then smallest has k
-            knn_weight = np.sqrt(self.n_cells / np.min(self.n_cells))
-        elif self.adaptive_k is None:
-            knn_weight = np.repeat(1, len(self.n_cells))
-        weighted_knn = np.round(self.knn * knn_weight).astype(np.int32)
-        if len(weighted_knn) == 1:
-            weighted_knn = weighted_knn[0]
-        return weighted_knn
 
     def get_params(self):
         """Get parameters from this object
         """
         params = super().get_params()
         params.update({'beta': self.beta,
-                       'adaptive_k': self.adaptive_k,
                        'knn': self.knn,
                        'decay': self.decay,
                        'bandwidth': self.bandwidth,
@@ -1176,9 +1121,6 @@ class MNNGraph(DataGraph):
         # mnn specific arguments
         if 'beta' in params and params['beta'] != self.beta:
             raise ValueError("Cannot update beta. Please create a new graph")
-        if 'adaptive_k' in params and params['adaptive_k'] != self.adaptive_k:
-            raise ValueError(
-                "Cannot update adaptive_k. Please create a new graph")
 
         # knn arguments
         knn_kernel_args = ['knn', 'decay', 'distance', 'thresh', 'bandwidth']
@@ -1216,12 +1158,12 @@ class MNNGraph(DataGraph):
             tasklogger.log_debug("subgraph {}: sample {}, "
                                  "n = {}, knn = {}".format(
                                      i, idx, np.sum(self.sample_idx == idx),
-                                     self.weighted_knn[i]))
+                                     self.knn))
             # select data for sample
             data = self.data_nu[self.sample_idx == idx]
             # build a kNN graph for cells within sample
             graph = Graph(data, n_pca=None,
-                          knn=self.weighted_knn[i],
+                          knn=self.knn,
                           decay=self.decay,
                           bandwidth=self.bandwidth,
                           distance=self.distance,
@@ -1229,6 +1171,7 @@ class MNNGraph(DataGraph):
                           verbose=self.verbose,
                           random_state=self.random_state,
                           n_jobs=self.n_jobs,
+                          kernel_symm='+',
                           initialize=True)
             self.subgraphs.append(graph)  # append to list of subgraphs
         tasklogger.log_complete("subgraphs")
@@ -1251,7 +1194,7 @@ class MNNGraph(DataGraph):
                                                          self.samples[j]))
                 Kij = Y.build_kernel_to_data(
                     X.data_nu,
-                    knn=self.weighted_knn[i])
+                    knn=self.knn)
                 between_batch_norm = np.array(np.sum(Kij, 1)).flatten()
                 scale = np.minimum(1, within_batch_norm /
                                    between_batch_norm) * self.beta
@@ -1265,37 +1208,6 @@ class MNNGraph(DataGraph):
                     "kernel from sample {} to {}".format(self.samples[i],
                                                          self.samples[j]))
         tasklogger.log_complete("MNN kernel")
-        return K
-
-    def symmetrize_kernel(self, K):
-        if self.kernel_symm == 'theta' and self.theta is not None and \
-                not isinstance(self.theta, numbers.Number):
-            # matrix theta
-            # Theta can be a matrix with specific values transitions for
-            # each batch. This allows for technical replicates and
-            # experimental samples to be corrected simultaneously
-            tasklogger.log_debug("Using theta symmetrization. "
-                                 "Theta:\n{}".format(self.theta))
-            for i, sample_i in enumerate(self.samples):
-                for j, sample_j in enumerate(self.samples):
-                    if j < i:
-                        continue
-                    Kij = K[np.ix_(self.sample_idx == sample_i,
-                                   self.sample_idx == sample_j)]
-                    Kji = K[np.ix_(self.sample_idx == sample_j,
-                                   self.sample_idx == sample_i)]
-                    Kij_symm = self.theta[i, j] * \
-                        elementwise_minimum(Kij, Kji.T) + \
-                        (1 - self.theta[i, j]) * \
-                        elementwise_maximum(Kij, Kji.T)
-                    K = set_submatrix(K, self.sample_idx == sample_i,
-                                      self.sample_idx == sample_j, Kij_symm)
-                    if not i == j:
-                        K = set_submatrix(K, self.sample_idx == sample_j,
-                                          self.sample_idx == sample_i,
-                                          Kij_symm.T)
-        else:
-            K = super().symmetrize_kernel(K)
         return K
 
     def build_kernel_to_data(self, Y, theta=None):
