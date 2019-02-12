@@ -316,7 +316,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         'theta' : min-max
         'none' : no symmetrization
 
-    theta: float (default: 0.5)
+    theta: float (default: 1)
         Min-max symmetrization constant.
         K = `theta * min(K, K.T) + (1 - theta) * max(K, K.T)`
 
@@ -385,7 +385,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
             if theta is None:
                 warnings.warn("kernel_symm='theta' but theta not given. "
                               "Defaulting to theta=0.5.")
-                self.theta = theta = 0.5
+                self.theta = theta = 1
             elif not isinstance(theta, numbers.Number) or \
                     theta < 0 or theta > 1:
                 raise ValueError("theta {} not recognized. Expected "
