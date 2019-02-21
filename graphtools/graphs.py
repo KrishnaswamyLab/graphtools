@@ -245,7 +245,7 @@ class kNNGraph(DataGraph):
                     "Detected zero distance between {} pairs of samples. "
                     "Consider removing duplicates to avoid errors in "
                     "downstream processing.".format(
-                        np.sum(np.sum(distances[:, 1:]))),
+                        np.sum(np.sum(distances[:, 1:] == 0))),
                     RuntimeWarning)
 
     def build_kernel_to_data(self, Y, knn=None, bandwidth=None,
