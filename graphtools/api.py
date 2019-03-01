@@ -301,6 +301,6 @@ def read_pickle(path):
     if not isinstance(G, base.BaseGraph):
         warnings.warn(
             'Returning object that is not a graphtools.base.BaseGraph')
-    elif isinstance(G, base.PyGSPGraph):
+    elif isinstance(G, base.PyGSPGraph) and isinstance(G.logger, str):
         G.logger = pygsp.utils.build_logger(G.logger)
     return G
