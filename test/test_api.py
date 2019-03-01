@@ -82,13 +82,46 @@ def test_to_igraph():
     assert np.all(np.array(G2.get_adjacency(
         attribute="weight").data) == G.W)
 
-def test_pickle_io():
-    G = build_graph(data, use_pygsp=True)
+
+def test_pickle_io_knngraph():
+    G = build_graph(data, knn=5, decay=None)
     with tempfile.TemporaryDirectory() as tempdir:
         path = os.path.join(tempdir, 'tmp.pkl')
         G.to_pickle(path)
         G_prime = graphtools.read_pickle(path)
     assert isinstance(G_prime, type(G))
+
+
+def test_pickle_io_traditionalgraph():
+    G = build_graph(data, knn=5, decay=10, thresh=0)
+    with tempfile.TemporaryDirectory() as tempdir:
+        path = os.path.join(tempdir, 'tmp.pkl')
+        G.to_pickle(path)
+        G_prime = graphtools.read_pickle(path)
+    assert isinstance(G_prime, type(G))
+
+
+def test_pickle_io_landmarkgraph():
+    G = build_graph(data, knn=5, decay=None,
+                    n_landmark=data.shape[0] // 2)
+    L = G.landmark_op
+    with tempfile.TemporaryDirectory() as tempdir:
+        path = os.path.join(tempdir, 'tmp.pkl')
+        G.to_pickle(path)
+        G_prime = graphtools.read_pickle(path)
+    assert isinstance(G_prime, type(G))
+    np.testing.assert_array_equal(L, G_prime._landmark_op)
+
+
+def test_pickle_io_pygspgraph():
+    G = build_graph(data, knn=5, decay=None, use_pygsp=True)
+    with tempfile.TemporaryDirectory() as tempdir:
+        path = os.path.join(tempdir, 'tmp.pkl')
+        G.to_pickle(path)
+        G_prime = graphtools.read_pickle(path)
+    assert isinstance(G_prime, type(G))
+    assert G_prime.logger.name == G.logger.name
+
 
 @warns(UserWarning)
 def test_pickle_bad_pickle():
@@ -98,6 +131,7 @@ def test_pickle_bad_pickle():
         with open(path, 'wb') as f:
             pickle.dump('hello world', f)
         G = graphtools.read_pickle(path)
+
 
 @warns(UserWarning)
 def test_to_pygsp_invalid_precomputed():
