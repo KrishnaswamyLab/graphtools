@@ -6,11 +6,11 @@ import pygsp
 from sklearn.utils.fixes import signature
 from sklearn.decomposition import PCA, TruncatedSVD
 from sklearn.preprocessing import normalize
-from sklearn.utils.graph import graph_shortest_path
 from scipy import sparse
 import warnings
 import numbers
 import tasklogger
+import pickle
 
 try:
     import pandas as pd
@@ -644,9 +644,9 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         path : str
             File path where the pickled object will be stored.
         """
-        import pickle
         with open(path, 'wb') as f:
             pickle.dump(self, f)
+
 
 class PyGSPGraph(with_metaclass(abc.ABCMeta, pygsp.graphs.Graph, Base)):
     """Interface between BaseGraph and PyGSP.
