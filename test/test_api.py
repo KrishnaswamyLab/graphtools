@@ -9,6 +9,8 @@ from load_tests import (
 import igraph
 import numpy as np
 import graphtools
+import tempfile
+import os
 
 
 def test_from_igraph():
@@ -80,6 +82,22 @@ def test_to_igraph():
     assert np.all(np.array(G2.get_adjacency(
         attribute="weight").data) == G.W)
 
+def test_pickle_io():
+    G = build_graph(data, use_pygsp=True)
+    with tempfile.TemporaryDirectory() as tempdir:
+        path = os.path.join(tempdir, 'tmp.pkl')
+        G.to_pickle(path)
+        G_prime = graphtools.read_pickle(path)
+    assert isinstance(G_prime, type(G))
+
+@warns(UserWarning)
+def test_pickle_bad_pickle():
+    import pickle
+    with tempfile.TemporaryDirectory() as tempdir:
+        path = os.path.join(tempdir, 'tmp.pkl')
+        with open(path, 'wb') as f:
+            pickle.dump('hello world', f)
+        G = graphtools.read_pickle(path)
 
 @warns(UserWarning)
 def test_to_pygsp_invalid_precomputed():

@@ -636,6 +636,17 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         return ig.Graph.Weighted_Adjacency(utils.to_dense(W).tolist(),
                                            attr=attribute, **kwargs)
 
+    def to_pickle(self, path):
+        """Save the current Graph to a pickle.
+
+        Parameters
+        ----------
+        path : str
+            File path where the pickled object will be stored.
+        """
+        import pickle
+        with open(path, 'wb') as f:
+            pickle.dump(self, f)
 
 class PyGSPGraph(with_metaclass(abc.ABCMeta, pygsp.graphs.Graph, Base)):
     """Interface between BaseGraph and PyGSP.
