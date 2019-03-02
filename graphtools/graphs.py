@@ -14,8 +14,6 @@ import warnings
 import tasklogger
 
 from .utils import (set_diagonal,
-                    elementwise_minimum,
-                    elementwise_maximum,
                     set_submatrix)
 from .base import DataGraph, PyGSPGraph
 

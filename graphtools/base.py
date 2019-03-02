@@ -10,6 +10,8 @@ from scipy import sparse
 import warnings
 import numbers
 import tasklogger
+import pickle
+import sys
 
 try:
     import pandas as pd
@@ -634,6 +636,23 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
             W = utils.set_diagonal(W, 0)
         return ig.Graph.Weighted_Adjacency(utils.to_dense(W).tolist(),
                                            attr=attribute, **kwargs)
+
+    def to_pickle(self, path):
+        """Save the current Graph to a pickle.
+
+        Parameters
+        ----------
+        path : str
+            File path where the pickled object will be stored.
+        """
+        if int(sys.version.split(".")[1]) < 7 and isinstance(self, pygsp.graphs.Graph):
+            # python 3.5, 3.6
+            logger = self.logger
+            self.logger = logger.name
+        with open(path, 'wb') as f:
+            pickle.dump(self, f)
+        if int(sys.version.split(".")[1]) < 7 and isinstance(self, pygsp.graphs.Graph):
+            self.logger = logger
 
 
 class PyGSPGraph(with_metaclass(abc.ABCMeta, pygsp.graphs.Graph, Base)):

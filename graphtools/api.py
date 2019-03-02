@@ -2,6 +2,8 @@ import numpy as np
 import warnings
 import tasklogger
 from scipy import sparse
+import pickle
+import pygsp
 
 from . import base
 from . import graphs
@@ -283,3 +285,22 @@ def from_igraph(G, attribute="weight", **kwargs):
         K = G.get_adjacency(attribute=None).data
     return Graph(sparse.coo_matrix(K),
                  precomputed='adjacency', **kwargs)
+
+
+def read_pickle(path):
+    """Load pickled Graphtools object (or any object) from file.
+
+    Parameters
+    ----------
+    path : str
+        File path where the pickled object will be loaded.
+    """
+    with open(path, 'rb') as f:
+        G = pickle.load(f)
+
+    if not isinstance(G, base.BaseGraph):
+        warnings.warn(
+            'Returning object that is not a graphtools.base.BaseGraph')
+    elif isinstance(G, base.PyGSPGraph) and isinstance(G.logger, str):
+        G.logger = pygsp.utils.build_logger(G.logger)
+    return G
