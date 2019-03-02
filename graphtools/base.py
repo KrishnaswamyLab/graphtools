@@ -3,14 +3,15 @@ from builtins import super
 import numpy as np
 import abc
 import pygsp
-from sklearn.utils.fixes import signature
+from inspect import signature
 from sklearn.decomposition import PCA, TruncatedSVD
 from sklearn.preprocessing import normalize
-from sklearn.utils.graph import graph_shortest_path
 from scipy import sparse
 import warnings
 import numbers
 import tasklogger
+import pickle
+import sys
 
 try:
     import pandas as pd
@@ -106,10 +107,10 @@ class Data(Base):
     def __init__(self, data, n_pca=None, random_state=None, **kwargs):
 
         self._check_data(data)
-        if n_pca is not None and data.shape[1] <= n_pca:
+        if n_pca is not None and np.min(data.shape) <= n_pca:
             warnings.warn("Cannot perform PCA to {} dimensions on "
-                          "data with {} dimensions".format(n_pca,
-                                                           data.shape[1]),
+                          "data with min(n_samples, n_features) = {}".format(
+                              n_pca, np.min(data.shape)),
                           RuntimeWarning)
             n_pca = None
         try:
@@ -316,7 +317,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         'theta' : min-max
         'none' : no symmetrization
 
-    theta: float (default: 0.5)
+    theta: float (default: 1)
         Min-max symmetrization constant.
         K = `theta * min(K, K.T) + (1 - theta) * max(K, K.T)`
 
@@ -385,7 +386,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
             if theta is None:
                 warnings.warn("kernel_symm='theta' but theta not given. "
                               "Defaulting to theta=0.5.")
-                self.theta = theta = 0.5
+                self.theta = theta = 1
             elif not isinstance(theta, numbers.Number) or \
                     theta < 0 or theta > 1:
                 raise ValueError("theta {} not recognized. Expected "
@@ -635,6 +636,23 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
             W = utils.set_diagonal(W, 0)
         return ig.Graph.Weighted_Adjacency(utils.to_dense(W).tolist(),
                                            attr=attribute, **kwargs)
+
+    def to_pickle(self, path):
+        """Save the current Graph to a pickle.
+
+        Parameters
+        ----------
+        path : str
+            File path where the pickled object will be stored.
+        """
+        if int(sys.version.split(".")[1]) < 7 and isinstance(self, pygsp.graphs.Graph):
+            # python 3.5, 3.6
+            logger = self.logger
+            self.logger = logger.name
+        with open(path, 'wb') as f:
+            pickle.dump(self, f)
+        if int(sys.version.split(".")[1]) < 7 and isinstance(self, pygsp.graphs.Graph):
+            self.logger = logger
 
 
 class PyGSPGraph(with_metaclass(abc.ABCMeta, pygsp.graphs.Graph, Base)):

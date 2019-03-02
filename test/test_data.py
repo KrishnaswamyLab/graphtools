@@ -45,6 +45,12 @@ def test_too_many_n_pca():
 
 
 @warns(RuntimeWarning)
+def test_too_many_n_pca():
+    build_graph(data[:data.shape[1] - 1],
+                n_pca=data.shape[1] - 1)
+
+
+@warns(RuntimeWarning)
 def test_precomputed_with_pca():
     build_graph(squareform(pdist(data)),
                 precomputed='distance',
