@@ -5,7 +5,6 @@ from sklearn.neighbors import NearestNeighbors
 from sklearn.utils.extmath import randomized_svd
 from sklearn.preprocessing import normalize
 from sklearn.cluster import MiniBatchKMeans
-from sklearn.utils.graph import graph_shortest_path
 from scipy.spatial.distance import pdist, cdist
 from scipy.spatial.distance import squareform
 from scipy import sparse
@@ -374,40 +373,6 @@ class kNNGraph(DataGraph):
             K = K.tocsr()
             tasklogger.log_complete("affinities")
         return K
-
-    def shortest_path(self, method='auto'):
-        """
-        Find the length of the shortest path between every pair of vertices on the graph
-
-        Parameters
-        ----------
-        method : string ['auto'|'FW'|'D']
-            method to use.  Options are
-            'auto' : attempt to choose the best method for the current problem
-            'FW' : Floyd-Warshall algorithm.  O[N^3]
-            'D' : Dijkstra's algorithm with Fibonacci stacks.  O[(k+log(N))N^2]
-        Returns
-        -------
-        D : np.ndarray, float, shape = [N,N]
-            D[i,j] gives the shortest distance from point i to point j
-            along the graph. If no path exists, the distance is np.inf
-        Notes
-        -----
-        Currently, shortest paths can only be calculated on kNNGraphs with
-        `decay=None`
-        """
-        if self.decay is None:
-            D = self.K
-        else:
-            raise NotImplementedError(
-                "Graph shortest path currently only "
-                "implemented for kNNGraph with `decay=None`.")
-        P = graph_shortest_path(D, method=method)
-        # sklearn returns 0 if no path exists
-        P[np.where(P == 0)] = np.inf
-        # diagonal should actually be zero
-        P[(np.arange(P.shape[0]), np.arange(P.shape[0]))] = 0
-        return P
 
 
 class LandmarkGraph(DataGraph):

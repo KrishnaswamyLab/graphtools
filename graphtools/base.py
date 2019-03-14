@@ -6,6 +6,7 @@ import pygsp
 from inspect import signature
 from sklearn.decomposition import PCA, TruncatedSVD
 from sklearn.preprocessing import normalize
+from sklearn.utils.graph import graph_shortest_path
 from scipy import sparse
 import warnings
 import numbers
@@ -653,6 +654,73 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
             pickle.dump(self, f)
         if int(sys.version.split(".")[1]) < 7 and isinstance(self, pygsp.graphs.Graph):
             self.logger = logger
+
+    def shortest_path(self, method='auto', distance=None):
+        """
+        Find the length of the shortest path between every pair of vertices on the graph
+
+        Parameters
+        ----------
+        method : string ['auto'|'FW'|'D']
+            method to use.  Options are
+            'auto' : attempt to choose the best method for the current problem
+            'FW' : Floyd-Warshall algorithm.  O[N^3]
+            'D' : Dijkstra's algorithm with Fibonacci stacks.  O[(k+log(N))N^2]
+        distance : {'constant', 'data', 'affinity'}, optional (default: 'data')
+            Distances along kNN edges.
+            'constant' gives constant edge lengths.
+            'data' gives distances in ambient data space.
+            'affinity' gives distances as negative log affinities.
+        Returns
+        -------
+        D : np.ndarray, float, shape = [N,N]
+            D[i,j] gives the shortest distance from point i to point j
+            along the graph. If no path exists, the distance is np.inf
+        Notes
+        -----
+        Currently, shortest paths can only be calculated on kNNGraphs with
+        `decay=None`
+        """
+        if distance is None:
+            if self.decay is None:
+                distance = 'data'
+                tasklogger.log_info("Using ambient data distances.")
+            else:
+                distance = 'affinity'
+                tasklogger.log_info("Using negative log affinity distances.")
+
+        if distance != 'affinity' and self.decay is not None:
+            raise NotImplementedError(
+                "Graph shortest path with constant or data distance only "
+                "implemented for kNNGraph with `decay=None`. "
+                "For decaying kernel, use `distance='affinity'`.")
+        elif distance == 'affinity' and self.decay is None:
+            raise NotImplementedError(
+                "Graph shortest path with affinity distance only "
+                "implemented for kNNGraph with `decay!=None`. "
+                "For kNN kernel, use `distance='constant'` "
+                "or `distance='data'`.")
+
+        if distance == 'constant':
+            D = self.K
+        elif distance == 'data':
+            D = sparse.coo_matrix(self.K)
+            D.data = np.sqrt(np.sum((
+                self.data_nu[D.row] - self.data_nu[D.col])**2, axis=1))
+        elif distance == 'affinity':
+            D = sparse.csr_matrix(self.K)
+            D.data = -1 * np.log(D.data)
+        else:
+            raise ValueError(
+                "Expected `distance` in ['constant', 'data', 'affinity']. "
+                "Got {}".format(distance))
+
+        P = graph_shortest_path(D, method=method)
+        # sklearn returns 0 if no path exists
+        P[np.where(P == 0)] = np.inf
+        # diagonal should actually be zero
+        P[(np.arange(P.shape[0]), np.arange(P.shape[0]))] = 0
+        return P
 
 
 class PyGSPGraph(with_metaclass(abc.ABCMeta, pygsp.graphs.Graph, Base)):
