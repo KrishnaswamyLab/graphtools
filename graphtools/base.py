@@ -716,6 +716,8 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
                 "Got {}".format(distance))
 
         P = graph_shortest_path(D, method=method)
+        # symmetrize for numerical error
+        P = (P + P.T) / 2
         # sklearn returns 0 if no path exists
         P[np.where(P == 0)] = np.inf
         # diagonal should actually be zero
