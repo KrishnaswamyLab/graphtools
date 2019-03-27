@@ -385,9 +385,9 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
 
         if kernel_symm == 'theta':
             if theta is None:
-                warnings.warn("kernel_symm='theta' but theta not given. "
-                              "Defaulting to theta=0.5.")
                 self.theta = theta = 1
+                warnings.warn("kernel_symm='theta' but theta not given. "
+                              "Defaulting to theta={}.".format(self.theta))
             elif not isinstance(theta, numbers.Number) or \
                     theta < 0 or theta > 1:
                 raise ValueError("theta {} not recognized. Expected "
