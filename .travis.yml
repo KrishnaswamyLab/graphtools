@@ -16,9 +16,11 @@
         libjs-mathjax
 
   script:
-    - pip install -U .[test,doc]
+    - pip install -U .[test]
     - python setup.py test
-    - cd doc; make html; cd ..
+    - pip install -U .[doc]
+    - cd doc; make html
+    - cd ..
 
   deploy:
     provider: pypi
