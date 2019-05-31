@@ -527,12 +527,15 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
             symmetric diffusion affinity matrix defined as a
             doubly-stochastic form of the kernel matrix
         """
-        row_degrees = np.array(self.kernel.sum(axis=1)).reshape(-1, 1)
-        col_degrees = np.array(self.kernel.sum(axis=0)).reshape(1, -1)
+        row_degrees = self.kernel.sum(axis=1).A
         if sparse.issparse(self.kernel):
-            return self.kernel.multiply(1 / np.sqrt(row_degrees)).multiply(
-                1 / np.sqrt(col_degrees))
+            # diagonal matrix
+            degrees = sparse.csr_matrix((1 / np.sqrt(row_degrees.flatten()),
+                                         np.arange(len(row_degrees)),
+                                         np.arange(len(row_degrees) + 1)))
+            return degrees @ self.kernel @ degrees
         else:
+            col_degrees = row_degrees.T
             return (self.kernel / np.sqrt(row_degrees)) / np.sqrt(col_degrees)
 
     @property
@@ -651,7 +654,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
             logger = self.logger
             self.logger = logger.name
         with open(path, 'wb') as f:
-            pickle.dump(self, f)
+            pickle.dump(self, f, protocol=pickle.HIGHEST_PROTOCOL)
         if int(sys.version.split(".")[1]) < 7 and isinstance(self, pygsp.graphs.Graph):
             self.logger = logger
 
