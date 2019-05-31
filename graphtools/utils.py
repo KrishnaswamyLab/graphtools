@@ -49,7 +49,9 @@ def set_submatrix(X, i, j, values):
     return X
 
 
-def to_dense(X):
+def to_array(X):
     if sparse.issparse(X):
         X = X.toarray()
+    elif isinstance(X, np.matrix):
+        X = X.A
     return X

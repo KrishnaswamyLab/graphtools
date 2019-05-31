@@ -527,7 +527,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
             symmetric diffusion affinity matrix defined as a
             doubly-stochastic form of the kernel matrix
         """
-        row_degrees = self.kernel.sum(axis=1).A
+        row_degrees = utils.to_array(self.kernel.sum(axis=1))
         if sparse.issparse(self.kernel):
             # diagonal matrix
             degrees = sparse.csr_matrix((1 / np.sqrt(row_degrees.flatten()),
@@ -638,7 +638,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
             # not a pygsp graph
             W = self.K.copy()
             W = utils.set_diagonal(W, 0)
-        return ig.Graph.Weighted_Adjacency(utils.to_dense(W).tolist(),
+        return ig.Graph.Weighted_Adjacency(utils.to_array(W).tolist(),
                                            attr=attribute, **kwargs)
 
     def to_pickle(self, path):
