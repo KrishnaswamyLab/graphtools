@@ -6,7 +6,6 @@ from load_tests import (
     np,
     sp,
     pygsp,
-    nose2,
     data,
     datasets,
     build_graph,
@@ -327,6 +326,20 @@ def test_shortest_path_constant():
     np.testing.assert_equal(P, G.shortest_path(distance='constant'))
 
 
+def test_shortest_path_precomputed_constant():
+    data_small = data[np.random.choice(
+        len(data), len(data) // 4, replace=False)]
+    G = build_graph(data_small, knn=5, decay=None)
+    G = graphtools.Graph(G.K, precomputed='affinity')
+    P = graph_shortest_path(G.K)
+    # sklearn returns 0 if no path exists
+    P[np.where(P == 0)] = np.inf
+    # diagonal should actually be zero
+    np.fill_diagonal(P, 0)
+    np.testing.assert_equal(P, G.shortest_path(distance='constant'))
+    np.testing.assert_equal(P, G.shortest_path())
+
+
 def test_shortest_path_data():
     data_small = data[np.random.choice(
         len(data), len(data) // 4, replace=False)]
@@ -341,12 +354,30 @@ def test_shortest_path_data():
     np.testing.assert_allclose(P, G.shortest_path())
 
 
-@raises(NotImplementedError)
+@raises(ValueError)
 def test_shortest_path_no_decay_affinity():
     data_small = data[np.random.choice(
         len(data), len(data) // 4, replace=False)]
     G = build_graph(data_small, knn=5, decay=None)
     G.shortest_path(distance='affinity')
+
+
+@raises(ValueError)
+def test_shortest_path_precomputed_no_decay_affinity():
+    data_small = data[np.random.choice(
+        len(data), len(data) // 4, replace=False)]
+    G = build_graph(data_small, knn=5, decay=None)
+    G = graphtools.Graph(G.K, precomputed='affinity')
+    G.shortest_path(distance='affinity')
+
+
+@raises(ValueError)
+def test_shortest_path_precomputed_no_decay_data():
+    data_small = data[np.random.choice(
+        len(data), len(data) // 4, replace=False)]
+    G = build_graph(data_small, knn=5, decay=None)
+    G = graphtools.Graph(G.K, precomputed='affinity')
+    G.shortest_path(distance='data')
 
 
 ####################

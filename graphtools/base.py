@@ -566,6 +566,10 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         """
         return self.K
 
+    @property
+    def weighted(self):
+        return self.decay is not None
+
     @abc.abstractmethod
     def build_kernel(self):
         """Build the kernel matrix
@@ -658,6 +662,33 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         if int(sys.version.split(".")[1]) < 7 and isinstance(self, pygsp.graphs.Graph):
             self.logger = logger
 
+    def _check_shortest_path_distance(self, distance):
+        if distance == 'data' and self.weighted:
+            raise NotImplementedError(
+                "Graph shortest path with constant or data distance only "
+                "implemented for unweighted graphs. "
+                "For weighted graphs, use `distance='affinity'`.")
+        elif distance == 'constant' and self.weighted:
+            raise NotImplementedError(
+                "Graph shortest path with constant distance only "
+                "implemented for unweighted graphs. "
+                "For weighted graphs, use `distance='affinity'`.")
+        elif distance == 'affinity' and not self.weighted:
+            raise ValueError(
+                "Graph shortest path with affinity distance only "
+                "valid for weighted graphs. "
+                "For unweighted graphs, use `distance='constant'` "
+                "or `distance='data'`.")
+
+    def _default_shortest_path_distance(self):
+        if not self.weighted:
+            distance = 'data'
+            tasklogger.log_info("Using ambient data distances.")
+        else:
+            distance = 'affinity'
+            tasklogger.log_info("Using negative log affinity distances.")
+        return distance
+
     def shortest_path(self, method='auto', distance=None):
         """
         Find the length of the shortest path between every pair of vertices on the graph
@@ -685,24 +716,9 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         `decay=None`
         """
         if distance is None:
-            if self.decay is None:
-                distance = 'data'
-                tasklogger.log_info("Using ambient data distances.")
-            else:
-                distance = 'affinity'
-                tasklogger.log_info("Using negative log affinity distances.")
+            distance = self._default_shortest_path_distance()
 
-        if distance != 'affinity' and self.decay is not None:
-            raise NotImplementedError(
-                "Graph shortest path with constant or data distance only "
-                "implemented for kNNGraph with `decay=None`. "
-                "For decaying kernel, use `distance='affinity'`.")
-        elif distance == 'affinity' and self.decay is None:
-            raise NotImplementedError(
-                "Graph shortest path with affinity distance only "
-                "implemented for kNNGraph with `decay!=None`. "
-                "For kNN kernel, use `distance='constant'` "
-                "or `distance='data'`.")
+        self._check_shortest_path_distance(distance)
 
         if distance == 'constant':
             D = self.K

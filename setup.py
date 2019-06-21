@@ -16,7 +16,8 @@ test_requires = [
     'pandas',
     'coverage',
     'coveralls',
-    'python-igraph'
+    'python-igraph',
+    'parameterized'
 ]
 
 if sys.version_info[0] == 3:

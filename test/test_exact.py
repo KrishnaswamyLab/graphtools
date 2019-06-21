@@ -472,6 +472,21 @@ def test_shortest_path_affinity():
     np.testing.assert_allclose(P, G.shortest_path())
 
 
+def test_shortest_path_affinity_precomputed():
+    data_small = data[np.random.choice(
+        len(data), len(data) // 4, replace=False)]
+    G = build_graph(data_small, knn=5, decay=15)
+    G = graphtools.Graph(G.K, precomputed='affinity')
+    D = -1 * np.where(G.K != 0, np.log(np.where(G.K != 0, G.K, np.nan)), 0)
+    P = graph_shortest_path(D)
+    # sklearn returns 0 if no path exists
+    P[np.where(P == 0)] = np.inf
+    # diagonal should actually be zero
+    np.fill_diagonal(P, 0)
+    np.testing.assert_allclose(P, G.shortest_path(distance='affinity'))
+    np.testing.assert_allclose(P, G.shortest_path())
+
+
 @raises(NotImplementedError)
 def test_shortest_path_decay_constant():
     data_small = data[np.random.choice(
@@ -481,10 +496,28 @@ def test_shortest_path_decay_constant():
 
 
 @raises(NotImplementedError)
+def test_shortest_path_precomputed_decay_constant():
+    data_small = data[np.random.choice(
+        len(data), len(data) // 4, replace=False)]
+    G = build_graph(data_small, knn=5, decay=15)
+    G = graphtools.Graph(G.K, precomputed='affinity')
+    G.shortest_path(distance='constant')
+
+
+@raises(NotImplementedError)
 def test_shortest_path_decay_data():
     data_small = data[np.random.choice(
         len(data), len(data) // 4, replace=False)]
     G = build_graph(data_small, knn=5, decay=15)
+    G.shortest_path(distance='data')
+
+
+@raises(ValueError)
+def test_shortest_path_precomputed_data():
+    data_small = data[np.random.choice(
+        len(data), len(data) // 4, replace=False)]
+    G = build_graph(data_small, knn=5, decay=15)
+    G = graphtools.Graph(G.K, precomputed='affinity')
     G.shortest_path(distance='data')
 
 

@@ -12,8 +12,7 @@ import numbers
 import warnings
 import tasklogger
 
-from .utils import (set_diagonal,
-                    set_submatrix)
+from . import utils
 from .base import DataGraph, PyGSPGraph
 
 
@@ -855,7 +854,7 @@ class TraditionalGraph(DataGraph):
                 not (isinstance(K, sparse.dok_matrix) or
                      isinstance(K, sparse.lil_matrix)):
                 K = K.tolil()
-            K = set_diagonal(K, 1)
+            K = utils.set_diagonal(K, 1)
         else:
             tasklogger.log_start("affinities")
             if sparse.issparse(self.data_nu):
@@ -966,6 +965,31 @@ class TraditionalGraph(DataGraph):
             K[K < self.thresh] = 0
             tasklogger.log_complete("affinities")
         return K
+
+    @property
+    def weighted(self):
+        if self.precomputed is not None:
+            return not utils.nonzero_discrete(self.K, [0.5, 1])
+        else:
+            return super().weighted
+
+    def _check_shortest_path_distance(self, distance):
+        if self.precomputed is not None:
+            if distance == 'data':
+                raise ValueError(
+                    "Graph shortest path with data distance not "
+                    "valid for precomputed graphs. For precomputed graphs, "
+                    "use `distance='constant'` for unweighted graphs and "
+                    "`distance='affinity'` for weighted graphs.")
+        super()._check_shortest_path_distance(distance)
+
+    def _default_shortest_path_distance(self):
+        if self.precomputed is not None and not self.weighted:
+            distance = 'constant'
+            tasklogger.log_info("Using constant distances.")
+        else:
+            distance = super()._default_shortest_path_distance()
+        return distance
 
 
 class MNNGraph(DataGraph):
@@ -1146,8 +1170,9 @@ class MNNGraph(DataGraph):
         else:
             K = np.zeros([self.data_nu.shape[0], self.data_nu.shape[0]])
         for i, X in enumerate(self.subgraphs):
-            K = set_submatrix(K, self.sample_idx == self.samples[i],
-                              self.sample_idx == self.samples[i], X.K)
+            K = utils.set_submatrix(
+                K, self.sample_idx == self.samples[i],
+                self.sample_idx == self.samples[i], X.K)
             within_batch_norm = np.array(np.sum(X.K, 1)).flatten()
             for j, Y in enumerate(self.subgraphs):
                 if i == j:
@@ -1165,8 +1190,9 @@ class MNNGraph(DataGraph):
                     Kij = Kij.multiply(scale[:, None])
                 else:
                     Kij = Kij * scale[:, None]
-                K = set_submatrix(K, self.sample_idx == self.samples[i],
-                                  self.sample_idx == self.samples[j], Kij)
+                K = utils.set_submatrix(
+                    K, self.sample_idx == self.samples[i],
+                    self.sample_idx == self.samples[j], Kij)
                 tasklogger.log_complete(
                     "kernel from sample {} to {}".format(self.samples[i],
                                                          self.samples[j]))
