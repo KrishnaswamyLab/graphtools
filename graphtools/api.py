@@ -65,7 +65,8 @@ def Graph(data,
         Number of nearest neighbors (including self) to use to build the graph
 
     decay : `int` or `None`, optional (default: 10)
-        Rate of alpha decay to use. If `None`, alpha decay is not used.
+        Rate of alpha decay to use. If `None`, alpha decay is not used and a vanilla
+        k-Nearest Neighbors graph is returned.
 
     bandwidth : `float`, list-like,`callable`, or `None`, optional (default: `None`)
         Fixed bandwidth to use. If given, overrides `knn`. Can be a single
