@@ -311,6 +311,9 @@ class kNNGraph(DataGraph):
 
             bandwidth = bandwidth * bandwidth_scale
 
+            # check for zero bandwidth
+            bandwidth = np.maximum(bandwidth, np.finfo(float).eps)
+
             radius = bandwidth * np.power(-1 * np.log(self.thresh),
                                           1 / self.decay)
             update_idx = np.argwhere(
