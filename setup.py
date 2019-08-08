@@ -3,8 +3,8 @@ import sys
 from setuptools import setup
 
 install_requires = [
-    'numpy>=1.14.0',
-    'scipy>=1.1.0,!=1.3.0',
+    'numpy>=1.14.0,<1.17.0',
+    'scipy>=1.1.0',
     'pygsp>=0.5.1',
     'scikit-learn>=0.20.0',
     'future',
@@ -12,6 +12,7 @@ install_requires = [
 ]
 
 test_requires = [
+    'nose',
     'nose2',
     'pandas',
     'coverage',
