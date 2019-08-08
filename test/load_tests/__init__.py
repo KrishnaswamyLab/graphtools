@@ -33,6 +33,10 @@ def ignore_igraph_warning():
         message="The SafeConfigParser class has been renamed to ConfigParser "
         "in Python 3.2. This alias will be removed in future versions. Use "
         "ConfigParser directly instead")
+    warnings.filterwarnings(
+        "ignore", category=DeprecationWarning,
+        message="Using or importing the ABCs from 'collections' instead of from"
+        " 'collections.abc' is deprecated, and in 3.8 it will stop working")
 
 
 def ignore_joblib_warning():
