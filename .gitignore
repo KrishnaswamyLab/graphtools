@@ -4,6 +4,7 @@ build
 dist
 *egg-info
 .coverage
+.eggs
 
 #syncthing
 .syncthing.*
