@@ -118,7 +118,10 @@ class Data(Base):
             if isinstance(data, pd.SparseDataFrame):
                 data = data.to_coo()
             elif isinstance(data, pd.DataFrame):
-                data = np.array(data)
+                try:
+                    data = data.sparse.to_coo()
+                except AttributeError:
+                    data = np.array(data)
         except NameError:
             # pandas not installed
             pass

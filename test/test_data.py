@@ -69,7 +69,7 @@ def test_pandas_dataframe():
 
 
 def test_pandas_sparse_dataframe():
-    G = build_graph(pd.SparseDataFrame(data))
+    G = build_graph(pd.DataFrame(data).astype(pd.SparseDtype(float, fill_value=0)))
     assert isinstance(G, graphtools.base.BaseGraph)
     assert isinstance(G.data, sp.csr_matrix)
 
