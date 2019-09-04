@@ -57,7 +57,7 @@ def Graph(data,
 
     n_pca : `int` or `None`, optional (default: `None`)
         number of PC dimensions to retain for graph building.
-        If `None`, uses the original data.
+        If `None` or 0, uses the original data.
         Note: if data is sparse, uses SVD instead of PCA
         TODO: should we subtract and store the mean?
 
