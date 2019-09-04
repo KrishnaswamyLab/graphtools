@@ -54,21 +54,22 @@ def Graph(data,
     ----------
     data : array-like, shape=[n_samples,n_features]
         accepted types: `numpy.ndarray`, `scipy.sparse.spmatrix`.
-        TODO: accept pandas dataframes
-    n_pca : `int`, `None`, `False`,'True', 'adaptive', optional
-        (default: `None`)
+        TODO: accept pandas dataframes'
+
+    n_pca : `int`, `None`, `False`,'True', 'adaptive', optional (default: `None`)
         number of PC dimensions to retain for graph building.
-        If `None`, uses the original data.
         If n_pca in `[None,False,0]`, uses the original data.
         If `True` then estimate using a singular value threshold
         Note: if data is sparse, uses SVD instead of PCA
         TODO: should we subtract and store the mean?
+
     rank_threshold : `float`, `None`, optional (default: `None`)
         threshold to use when estimating rank for
         `n_pca in [True, 'adaptive']`.
-        If None, this threshold is
+        If `None`, this threshold is
         smax * np.finfo(data.dtype).eps * max(data.shape)
         where smax is the maximum singular value of the data matrix.
+
     knn : `int`, optional (default: 5)
         Number of nearest neighbors (including self) to use to build the graph
 

@@ -274,6 +274,8 @@ def test_inverse_transform_sparse_no_pca():
 #####################################################
 # Check adaptive PCA with rank thresholding
 #####################################################
+
+
 @warns(RuntimeWarning)
 def test_transform_adaptive_pca():
     G = build_graph(data, n_pca=True, random_state=42)
@@ -308,6 +310,8 @@ def test_transform_sparse_adaptive_pca():
     G3 = build_graph(data, sparse=True, n_pca=G2.n_pca, random_state=42)
     assert(np.allclose(G3.data_nu, G3.transform(G3.data)))
     assert(np.allclose(G3.data_nu, G2.transform(G2.data)))
+
+ 
 #############
 # Test API
 #############

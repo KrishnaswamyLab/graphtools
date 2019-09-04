@@ -82,8 +82,7 @@ class Data(Base):
         accepted types: `numpy.ndarray`, `scipy.sparse.spmatrix`.
         `pandas.DataFrame`, `pandas.SparseDataFrame`.
 
-    n_pca : `int`, `None`, `False`,'True', 'adaptive', optional
-        (default: `None`)
+    n_pca : {`int`, `None`, `bool`,'adaptive'}, optional (default: `None`)
         number of PC dimensions to retain for graph building.
         If n_pca in `[None,False,0]`, uses the original data.
         If `True` then estimate using a singular value threshold
@@ -209,6 +208,7 @@ class Data(Base):
                                   "Using default threshold function.",
                                   RuntimeWarning)
                     rank_threshold = None
+
         return n_pca, rank_threshold
 
     def _check_data(self, data):
@@ -228,6 +228,7 @@ class Data(Base):
         randomized SVD.
         TODO: should we subtract and store the mean?
         TODO: Fix the rank estimation so we do not compute the full SVD. 
+
         Returns
         -------
         Reduced data matrix
@@ -371,6 +372,7 @@ class Data(Base):
         ----------
         Y : array-like, shape=[n_samples_y, n_pca]
             n_features must be the same as `self.data_nu`.
+
         columns : list-like
             list of integers referring to column indices in the original data
             space to be returned. Avoids recomputing the full matrix where only
@@ -927,8 +929,7 @@ class DataGraph(with_metaclass(abc.ABCMeta, Data, BaseGraph)):
     data : array-like, shape=[n_samples,n_features]
         accepted types: `numpy.ndarray`, `scipy.sparse.spmatrix`.
 
-    n_pca : `int`, `None`, `False`,'True', 'adaptive', optional
-        (default: `None`)
+    n_pca : {`int`, `None`, `bool`,'adaptive'}, optional (default: `None`)
         number of PC dimensions to retain for graph building.
         If n_pca in `[None,False,0]`, uses the original data.
         If `True` then estimate using a singular value threshold
@@ -938,7 +939,7 @@ class DataGraph(with_metaclass(abc.ABCMeta, Data, BaseGraph)):
     rank_threshold : `float`, `None`, optional (default: `None`)
         threshold to use when estimating rank for
         `n_pca in [True, 'adaptive']`.
-        If None, this threshold is
+        If `None`, this threshold is
         smax * np.finfo(data.dtype).eps * max(data.shape)
         where smax is the maximum singular value of the data matrix.
 

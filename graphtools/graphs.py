@@ -700,8 +700,7 @@ class TraditionalGraph(DataGraph):
         distance metric for building kNN graph.
         TODO: actually sklearn.neighbors has even more choices
 
-    n_pca : `int`, `None`, `False`,'True', 'adaptive', optional
-        (default: `None`)
+    n_pca : {`int`, `None`, `bool`,'adaptive'}, optional (default: `None`)
         number of PC dimensions to retain for graph building.
         If n_pca in `[None,False,0]`, uses the original data.
         If `True` then estimate using a singular value threshold
@@ -711,7 +710,7 @@ class TraditionalGraph(DataGraph):
     rank_threshold : `float`, `None`, optional (default: `None`)
         threshold to use when estimating rank for
         `n_pca in [True, 'adaptive']`.
-        If None, this threshold is
+        If `None`, this threshold is
         smax * np.finfo(data.dtype).eps * max(data.shape)
         where smax is the maximum singular value of the data matrix.
 
