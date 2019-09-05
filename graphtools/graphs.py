@@ -700,19 +700,25 @@ class TraditionalGraph(DataGraph):
         distance metric for building kNN graph.
         TODO: actually sklearn.neighbors has even more choices
 
-    n_pca : {`int`, `None`, `bool`, 'adaptive'}, optional (default: `None`)
+    n_pca : {`int`, `None`, `bool`, 'auto'}, optional (default: `None`)
         number of PC dimensions to retain for graph building.
         If n_pca in `[None,False,0]`, uses the original data.
         If `True` then estimate using a singular value threshold
         Note: if data is sparse, uses SVD instead of PCA
         TODO: should we subtract and store the mean?
 
-    rank_threshold : `float`, `None`, optional (default: `None`)
+    rank_threshold : `float`, 'auto', optional (default: 'auto')
         threshold to use when estimating rank for
-        `n_pca in [True, 'adaptive']`.
-        If `None`, this threshold is
+        `n_pca in [True, 'auto']`.
+        Note that the default kwarg is `None` for this parameter.
+        It is subsequently parsed to 'auto' if necessary.
+        If 'auto', this threshold is
         smax * np.finfo(data.dtype).eps * max(data.shape)
         where smax is the maximum singular value of the data matrix.
+        For reference, see, e.g.
+        W. Press, S. Teukolsky, W. Vetterling and B. Flannery,
+        “Numerical Recipes (3rd edition)”,
+        Cambridge University Press, 2007, page 795.
 
     thresh : `float`, optional (default: `1e-4`)
         Threshold above which to calculate alpha decay kernel.

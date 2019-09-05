@@ -61,10 +61,15 @@ def test_negative_n_pca():
 
 
 @raises(ValueError)
+def test_badstring_rank_threshold():
+    build_graph(data, n_pca=True, rank_threshold='foobar')
+
+
+@raises(ValueError)
 @warns(RuntimeWarning)
 def test_True_n_pca_large_threshold():
-    g = build_graph(data, n_pca=True,
-                    rank_threshold=np.linalg.norm(data)**2)
+    build_graph(data, n_pca=True,
+                rank_threshold=np.linalg.norm(data)**2)
 
 
 @warns(RuntimeWarning)
@@ -72,19 +77,20 @@ def test_invalid_threshold1():
     assert build_graph(data, n_pca=10, rank_threshold=-1).n_pca == 10
 
 
-@warns(RuntimeWarning)
+@raises(ValueError)
 def test_invalid_threshold2():
-    assert isinstance(build_graph(data, n_pca=True,
-                                  rank_threshold=-1).rank_threshold,
-                      numbers.Number)
+    build_graph(data, n_pca=True, rank_threshold=-1)
 
 
-@warns(RuntimeWarning)
+@raises(ValueError)
+def test_invalid_threshold2():
+    build_graph(data, n_pca=True, rank_threshold=[])
+
+
 def test_True_n_pca():
     assert isinstance(build_graph(data, n_pca=True).n_pca, numbers.Number)
 
 
-@warns(RuntimeWarning)
 def test_True_n_pca_manual_rank_threshold():
     g = build_graph(data, n_pca=True,
                     rank_threshold=0.1)
@@ -92,10 +98,9 @@ def test_True_n_pca_manual_rank_threshold():
     assert isinstance(g.rank_threshold, numbers.Number)
 
 
-@warns(RuntimeWarning)
 def test_True_n_pca_auto_rank_threshold():
     g = build_graph(data, n_pca=True,
-                    rank_threshold=None)
+                    rank_threshold='auto')
     assert isinstance(g.n_pca, numbers.Number)
     assert isinstance(g.rank_threshold, numbers.Number)
     next_threshold = np.sort(g.data_pca.singular_values_)[2]
@@ -103,10 +108,14 @@ def test_True_n_pca_auto_rank_threshold():
     assert g.n_pca > g2.n_pca
 
 
-@warns(RuntimeWarning)
+def test_goodstring_rank_threshold():
+    build_graph(data, n_pca=True, rank_threshold='auto')
+    build_graph(data, n_pca=True, rank_threshold='AUTO')
+
+
 def test_string_n_pca():
-    build_graph(data, n_pca='adaptive')
-    build_graph(data, n_pca='ADAPTIVE')
+    build_graph(data, n_pca='auto')
+    build_graph(data, n_pca='AUTO')
 
 
 @warns(RuntimeWarning)
@@ -276,7 +285,6 @@ def test_inverse_transform_sparse_no_pca():
 #####################################################
 
 
-@warns(RuntimeWarning)
 def test_transform_adaptive_pca():
     G = build_graph(data, n_pca=True, random_state=42)
     assert(np.all(G.data_nu == G.transform(G.data)))
@@ -295,7 +303,6 @@ def test_transform_adaptive_pca():
     assert(np.allclose(G3.data_nu, G2.transform(G2.data)))
 
 
-@warns(RuntimeWarning)
 def test_transform_sparse_adaptive_pca():
     G = build_graph(data, sparse=True, n_pca=True, random_state=42)
     assert(np.all(G.data_nu == G.transform(G.data)))
@@ -311,7 +318,7 @@ def test_transform_sparse_adaptive_pca():
     assert(np.allclose(G3.data_nu, G3.transform(G3.data)))
     assert(np.allclose(G3.data_nu, G2.transform(G2.data)))
 
- 
+
 #############
 # Test API
 #############

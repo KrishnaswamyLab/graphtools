@@ -83,19 +83,25 @@ class Data(Base):
         accepted types: `numpy.ndarray`, `scipy.sparse.spmatrix`.
         `pandas.DataFrame`, `pandas.SparseDataFrame`.
 
-    n_pca : {`int`, `None`, `bool`, 'adaptive'}, optional (default: `None`)
+    n_pca : {`int`, `None`, `bool`, 'auto'}, optional (default: `None`)
         number of PC dimensions to retain for graph building.
         If n_pca in `[None,False,0]`, uses the original data.
         If `True` then estimate using a singular value threshold
         Note: if data is sparse, uses SVD instead of PCA
         TODO: should we subtract and store the mean?
 
-    rank_threshold : `float`, `None`, optional (default: `None`)
+    rank_threshold : `float`, 'auto', optional (default: 'auto')
         threshold to use when estimating rank for
-        `n_pca in [True, 'adaptive']`.
-        If None, this threshold is
+        `n_pca in [True, 'auto']`.
+        Note that the default kwarg is `None` for this parameter.
+        It is subsequently parsed to 'auto' if necessary.
+        If 'auto', this threshold is
         smax * np.finfo(data.dtype).eps * max(data.shape)
         where smax is the maximum singular value of the data matrix.
+        For reference, see, e.g.
+        W. Press, S. Teukolsky, W. Vetterling and B. Flannery,
+        “Numerical Recipes (3rd edition)”,
+        Cambridge University Press, 2007, page 795.
 
     random_state : `int` or `None`, optional (default: `None`)
         Random state for random PCA
@@ -148,13 +154,12 @@ class Data(Base):
     def _parse_n_pca_threshold(self, data, n_pca, rank_threshold):
         if isinstance(n_pca, str):
             n_pca = n_pca.lower()
-            if n_pca != "adaptive":
+            if n_pca != "auto":
                 raise ValueError("n_pca must be an integer "
                                  "0 <= n_pca < min(n_samples,n_features), "
-                                 "or in [None,False,True,'adaptive'].")
+                                 "or in [None,False,True,'auto'].")
             else:
                 n_pca = True
-
         if isinstance(n_pca, numbers.Number):
             if not float(n_pca).is_integer():  # cast it to integer
                 n_pcaR = np.round(n_pca).astype(int)
@@ -180,9 +185,9 @@ class Data(Base):
         if n_pca in [0, False, None]:  # cast 0, False to None.
             n_pca = None
         elif n_pca is True:  # notify that we're going to estimate rank.
-            warnings.warn("Estimating n_pca from matrix rank. "
-                          "Supply an integer n_pca "
-                          "for fixed amount.", RuntimeWarning)
+            tasklogger.log_info("Estimating n_pca from matrix rank. "
+                                "Supply an integer n_pca "
+                                "for fixed amount.")
         if not any([isinstance(n_pca, numbers.Number),
                     n_pca is None,
                     n_pca is True]):
@@ -192,24 +197,23 @@ class Data(Base):
                 "Please supply an integer "
                 "0 <= n_pca < min(n_samples,n_features) or None")
         if rank_threshold is not None and n_pca is not True:
-            warnings.warn("n_pca = {}, therefore rank_threshold of {}"
+            warnings.warn("n_pca = {}, therefore rank_threshold of {} "
                           "will not be used. To use rank thresholding, "
                           "set n_pca = True".format(n_pca, rank_threshold),
                           RuntimeWarning)
-        else:
+        if n_pca is True:
+            if isinstance(rank_threshold, str):
+                rank_threshold = rank_threshold.lower()
+            if rank_threshold is None:
+                rank_threshold = 'auto'
             if isinstance(rank_threshold, numbers.Number):
                 if rank_threshold <= 0:
-                    warnings.warn("rank_threshold must be positive float or None. "
-                                  "Using default threshold function.",
-                                  RuntimeWarning)
-                    rank_threshold = None
+                    raise ValueError(
+                        "rank_threshold must be positive float or 'auto'. ")
             else:
-                if rank_threshold is not None:
-                    warnings.warn("rank_threshold must be positive float or None. "
-                                  "Using default threshold function.",
-                                  RuntimeWarning)
-                    rank_threshold = None
-
+                if rank_threshold != 'auto':
+                    raise ValueError(
+                        "rank_threshold must be positive float or 'auto'. ")
         return n_pca, rank_threshold
 
     def _check_data(self, data):
@@ -260,12 +264,11 @@ class Data(Base):
             if self.n_pca is True:
                 s = self.data_pca.singular_values_
                 smax = s.max()
-                if self.rank_threshold is None:
+                if self.rank_threshold == 'auto':
                     threshold = smax * \
                         np.finfo(self.data.dtype).eps * max(self.data.shape)
                     self.rank_threshold = threshold
-                else:
-                    threshold = self.rank_threshold
+                threshold = self.rank_threshold
                 gate = np.where(s >= threshold)[0]
                 self.n_pca = gate.shape[0]
                 if self.n_pca == 0:
@@ -922,19 +925,25 @@ class DataGraph(with_metaclass(abc.ABCMeta, Data, BaseGraph)):
     data : array-like, shape=[n_samples,n_features]
         accepted types: `numpy.ndarray`, `scipy.sparse.spmatrix`.
 
-    n_pca : {`int`, `None`, `bool`, 'adaptive'}, optional (default: `None`)
+    n_pca : {`int`, `None`, `bool`, 'auto'}, optional (default: `None`)
         number of PC dimensions to retain for graph building.
         If n_pca in `[None,False,0]`, uses the original data.
         If `True` then estimate using a singular value threshold
         Note: if data is sparse, uses SVD instead of PCA
         TODO: should we subtract and store the mean?
 
-    rank_threshold : `float`, `None`, optional (default: `None`)
+    rank_threshold : `float`, 'auto', optional (default: 'auto')
         threshold to use when estimating rank for
-        `n_pca in [True, 'adaptive']`.
-        If `None`, this threshold is
+        `n_pca in [True, 'auto']`.
+        Note that the default kwarg is `None` for this parameter.
+        It is subsequently parsed to 'auto' if necessary.
+        If 'auto', this threshold is
         smax * np.finfo(data.dtype).eps * max(data.shape)
         where smax is the maximum singular value of the data matrix.
+        For reference, see, e.g.
+        W. Press, S. Teukolsky, W. Vetterling and B. Flannery,
+        “Numerical Recipes (3rd edition)”,
+        Cambridge University Press, 2007, page 795.
 
     random_state : `int` or `None`, optional (default: `None`)
         Random state for random PCA and graph building
