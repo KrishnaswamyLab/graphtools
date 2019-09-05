@@ -773,7 +773,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         pickle_obj = shallow_copy(self)
         is_oldpygsp = all([isinstance(self, pygsp.graphs.Graph),
                            int(sys.version.split(".")[1]) < 7])
-        pickle_obj.logger = self.logger.name if is_oldpygsp else self.logger
+        pickle_obj.logger = self.logger.name if is_oldpygsp else None
         with open(path, 'wb') as f:
             pickle.dump(pickle_obj, f, protocol=pickle.HIGHEST_PROTOCOL)
 
