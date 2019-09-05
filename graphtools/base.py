@@ -1,5 +1,6 @@
 from future.utils import with_metaclass
 from builtins import super
+from copy import copy as shallow_copy
 import numpy as np
 import abc
 import pygsp
@@ -82,7 +83,7 @@ class Data(Base):
         accepted types: `numpy.ndarray`, `scipy.sparse.spmatrix`.
         `pandas.DataFrame`, `pandas.SparseDataFrame`.
 
-    n_pca : {`int`, `None`, `bool`,'adaptive'}, optional (default: `None`)
+    n_pca : {`int`, `None`, `bool`, 'adaptive'}, optional (default: `None`)
         number of PC dimensions to retain for graph building.
         If n_pca in `[None,False,0]`, uses the original data.
         If `True` then estimate using a singular value threshold
@@ -271,9 +272,9 @@ class Data(Base):
                     raise ValueError("Supplied threshold {} was greater than "
                                      "maximum singular value {} "
                                      "for the data matrix".format(threshold, smax))
-                warnings.warn(
+                tasklogger.log_info(
                     "Using rank estimate of {} as n_pca".format(
-                        self.n_pca), RuntimeWarning)
+                        self.n_pca))
                 # reset the sklearn operator
                 op = self.data_pca  # for line-width brevity..
                 op.components_ = op.components_[gate, :]
@@ -766,20 +767,12 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         path : str
             File path where the pickled object will be stored.
         """
-        if int(
-                sys.version.split(".")[1]) < 7 and isinstance(
-                self,
-                pygsp.graphs.Graph):
-            # python 3.5, 3.6
-            logger = self.logger
-            self.logger = logger.name
+        pickle_obj = shallow_copy(self)
+        is_oldpygsp = all([isinstance(self, pygsp.graphs.Graph),
+                           int(sys.version.split(".")[1]) < 7])
+        pickle_obj.logger = self.logger.name if is_oldpygsp else self.logger
         with open(path, 'wb') as f:
-            pickle.dump(self, f, protocol=pickle.HIGHEST_PROTOCOL)
-        if int(
-                sys.version.split(".")[1]) < 7 and isinstance(
-                self,
-                pygsp.graphs.Graph):
-            self.logger = logger
+            pickle.dump(pickle_obj, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     def _check_shortest_path_distance(self, distance):
         if distance == 'data' and self.weighted:
@@ -929,7 +922,7 @@ class DataGraph(with_metaclass(abc.ABCMeta, Data, BaseGraph)):
     data : array-like, shape=[n_samples,n_features]
         accepted types: `numpy.ndarray`, `scipy.sparse.spmatrix`.
 
-    n_pca : {`int`, `None`, `bool`,'adaptive'}, optional (default: `None`)
+    n_pca : {`int`, `None`, `bool`, 'adaptive'}, optional (default: `None`)
         number of PC dimensions to retain for graph building.
         If n_pca in `[None,False,0]`, uses the original data.
         If `True` then estimate using a singular value threshold
