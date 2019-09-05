@@ -86,7 +86,7 @@ class kNNGraph(DataGraph):
                           "n_samples ({n}). Setting knn={n}".format(
                               k=knn, n=data.shape[0] - 2))
             knn = data.shape[0] - 2
-        if n_pca is None and data.shape[1] > 500:
+        if n_pca in [None,0,False] and data.shape[1] > 500:
             warnings.warn("Building a kNNGraph on data of shape {} is "
                           "expensive. Consider setting n_pca.".format(
                               data.shape), UserWarning)
@@ -700,11 +700,25 @@ class TraditionalGraph(DataGraph):
         distance metric for building kNN graph.
         TODO: actually sklearn.neighbors has even more choices
 
-    n_pca : `int` or `None`, optional (default: `None`)
+    n_pca : {`int`, `None`, `bool`, 'auto'}, optional (default: `None`)
         number of PC dimensions to retain for graph building.
-        If `None`, uses the original data.
-        Note: if data is sparse, uses SVD instead of PCA.
-        Only one of `precomputed` and `n_pca` can be set.
+        If n_pca in `[None,False,0]`, uses the original data.
+        If `True` then estimate using a singular value threshold
+        Note: if data is sparse, uses SVD instead of PCA
+        TODO: should we subtract and store the mean?
+
+    rank_threshold : `float`, 'auto', optional (default: 'auto')
+        threshold to use when estimating rank for
+        `n_pca in [True, 'auto']`.
+        Note that the default kwarg is `None` for this parameter.
+        It is subsequently parsed to 'auto' if necessary.
+        If 'auto', this threshold is
+        smax * np.finfo(data.dtype).eps * max(data.shape)
+        where smax is the maximum singular value of the data matrix.
+        For reference, see, e.g.
+        W. Press, S. Teukolsky, W. Vetterling and B. Flannery,
+        “Numerical Recipes (3rd edition)”,
+        Cambridge University Press, 2007, page 795.
 
     thresh : `float`, optional (default: `1e-4`)
         Threshold above which to calculate alpha decay kernel.
@@ -731,7 +745,7 @@ class TraditionalGraph(DataGraph):
             raise ValueError(
                 "`decay` must be provided for a "
                 "TraditionalGraph. For kNN kernel, use kNNGraph.")
-        if precomputed is not None and n_pca is not None:
+        if precomputed is not None and n_pca not in [None,0,False]:
             # the data itself is a matrix of distances / affinities
             n_pca = None
             warnings.warn("n_pca cannot be given on a precomputed graph."
