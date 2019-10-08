@@ -7,4 +7,3 @@ sphinx
 sphinxcontrib-napoleon
 sphinxcontrib-bibtex
 tasklogger
-
