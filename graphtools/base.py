@@ -85,23 +85,18 @@ class Data(Base):
 
     n_pca : {`int`, `None`, `bool`, 'auto'}, optional (default: `None`)
         number of PC dimensions to retain for graph building.
-        If n_pca in `[None,False,0]`, uses the original data.
-        If `True` then estimate using a singular value threshold
+        If n_pca in `[None, False, 0]`, uses the original data.
+        If 'auto' or `True` then estimate using a singular value threshold
         Note: if data is sparse, uses SVD instead of PCA
         TODO: should we subtract and store the mean?
 
     rank_threshold : `float`, 'auto', optional (default: 'auto')
         threshold to use when estimating rank for
         `n_pca in [True, 'auto']`.
-        Note that the default kwarg is `None` for this parameter.
-        It is subsequently parsed to 'auto' if necessary.
         If 'auto', this threshold is
-        smax * np.finfo(data.dtype).eps * max(data.shape)
-        where smax is the maximum singular value of the data matrix.
-        For reference, see, e.g.
-        W. Press, S. Teukolsky, W. Vetterling and B. Flannery,
-        “Numerical Recipes (3rd edition)”,
-        Cambridge University Press, 2007, page 795.
+        s_max * eps * max(n_samples, n_features)
+        where s_max is the maximum singular value of the data matrix
+        and eps is numerical precision. [press2007]_.
 
     random_state : `int` or `None`, optional (default: `None`)
         Random state for random PCA
@@ -158,8 +153,6 @@ class Data(Base):
                 raise ValueError("n_pca must be an integer "
                                  "0 <= n_pca < min(n_samples,n_features), "
                                  "or in [None,False,True,'auto'].")
-            else:
-                n_pca = True
         if isinstance(n_pca, numbers.Number):
             if not float(n_pca).is_integer():  # cast it to integer
                 n_pcaR = np.round(n_pca).astype(int)
@@ -185,23 +178,24 @@ class Data(Base):
         if n_pca in [0, False, None]:  # cast 0, False to None.
             n_pca = None
         elif n_pca is True:  # notify that we're going to estimate rank.
+            n_pca = 'auto'
             tasklogger.log_info("Estimating n_pca from matrix rank. "
                                 "Supply an integer n_pca "
                                 "for fixed amount.")
         if not any([isinstance(n_pca, numbers.Number),
                     n_pca is None,
-                    n_pca is True]):
+                    n_pca == 'auto']):
             raise ValueError(
                 "n_pca was not an instance of numbers.Number, "
                 "could not be cast to False, and not None. "
                 "Please supply an integer "
                 "0 <= n_pca < min(n_samples,n_features) or None")
-        if rank_threshold is not None and n_pca is not True:
+        if rank_threshold is not None and n_pca != 'auto':
             warnings.warn("n_pca = {}, therefore rank_threshold of {} "
                           "will not be used. To use rank thresholding, "
                           "set n_pca = True".format(n_pca, rank_threshold),
                           RuntimeWarning)
-        if n_pca is True:
+        if n_pca == 'auto':
             if isinstance(rank_threshold, str):
                 rank_threshold = rank_threshold.lower()
             if rank_threshold is None:
@@ -240,28 +234,19 @@ class Data(Base):
         """
         if self.n_pca is not None and self.n_pca < self.data.shape[1]:
             tasklogger.log_start("PCA")
+            n_pca = self.data.shape[1] - 1 if self.n_pca == 'auto' else self.n_pca
             if sparse.issparse(self.data):
                 if isinstance(self.data, sparse.coo_matrix) or \
                         isinstance(self.data, sparse.lil_matrix) or \
                         isinstance(self.data, sparse.dok_matrix):
                     self.data = self.data.tocsr()
-                if self.n_pca is True:
-                    self.data_pca = TruncatedSVD(self.data.shape[1] - 1,
-                                                 random_state=self.random_state)
-                else:
-                    self.data_pca = TruncatedSVD(self.n_pca,
-                                                 random_state=self.random_state)
+                self.data_pca = TruncatedSVD(n_pca, random_state=self.random_state)
             else:
-                if self.n_pca is True:
-                    self.data_pca = PCA(self.data.shape[1] - 1,
-                                        svd_solver='randomized',
-                                        random_state=self.random_state)
-                else:
-                    self.data_pca = PCA(self.n_pca,
-                                        svd_solver='randomized',
-                                        random_state=self.random_state)
+                self.data_pca = PCA(n_pca,
+                                    svd_solver='randomized',
+                                    random_state=self.random_state)
             self.data_pca.fit(self.data)
-            if self.n_pca is True:
+            if self.n_pca == 'auto':
                 s = self.data_pca.singular_values_
                 smax = s.max()
                 if self.rank_threshold == 'auto':
@@ -276,8 +261,7 @@ class Data(Base):
                                      "maximum singular value {} "
                                      "for the data matrix".format(threshold, smax))
                 tasklogger.log_info(
-                    "Using rank estimate of {} as n_pca".format(
-                        self.n_pca))
+                    "Using rank estimate of {} as n_pca".format(self.n_pca))
                 # reset the sklearn operator
                 op = self.data_pca  # for line-width brevity..
                 op.components_ = op.components_[gate, :]

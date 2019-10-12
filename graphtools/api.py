@@ -58,23 +58,18 @@ def Graph(data,
 
     n_pca : {`int`, `None`, `bool`, 'auto'}, optional (default: `None`)
         number of PC dimensions to retain for graph building.
-        If n_pca in `[None,False,0]`, uses the original data.
-        If `True` then estimate using a singular value threshold
+        If n_pca in `[None, False, 0]`, uses the original data.
+        If 'auto' or `True` then estimate using a singular value threshold
         Note: if data is sparse, uses SVD instead of PCA
         TODO: should we subtract and store the mean?
 
     rank_threshold : `float`, 'auto', optional (default: 'auto')
         threshold to use when estimating rank for
         `n_pca in [True, 'auto']`.
-        Note that the default kwarg is `None` for this parameter.
-        It is subsequently parsed to 'auto' if necessary.
         If 'auto', this threshold is
-        smax * np.finfo(data.dtype).eps * max(data.shape)
-        where smax is the maximum singular value of the data matrix.
-        For reference, see, e.g.
-        W. Press, S. Teukolsky, W. Vetterling and B. Flannery,
-        “Numerical Recipes (3rd edition)”,
-        Cambridge University Press, 2007, page 795.
+        s_max * eps * max(n_samples, n_features)
+        where s_max is the maximum singular value of the data matrix
+        and eps is numerical precision. [press2007]_.
 
     knn : `int`, optional (default: 5)
         Number of nearest neighbors (including self) to use to build the graph
@@ -171,6 +166,12 @@ def Graph(data,
     Raises
     ------
     ValueError : if selected parameters are incompatible.
+
+    References
+    ----------
+    .. [press2007] W. Press, S. Teukolsky, W. Vetterling and B. Flannery,
+        “Numerical Recipes (3rd edition)”,
+        Cambridge University Press, 2007, page 795.
     """
     tasklogger.set_level(verbose)
     if sample_idx is not None and len(np.unique(sample_idx)) == 1:
