@@ -36,7 +36,7 @@ def ignore_igraph_warning():
     warnings.filterwarnings(
         "ignore", category=DeprecationWarning,
         message="Using or importing the ABCs from 'collections' instead of from"
-        " 'collections.abc' is deprecated, and in 3.8 it will stop working")
+        " 'collections.abc' is deprecated, and in 3.9 it will stop working")
 
 
 def ignore_joblib_warning():
