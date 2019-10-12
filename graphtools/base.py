@@ -763,7 +763,7 @@ class PyGSPGraph(with_metaclass(abc.ABCMeta, pygsp.graphs.Graph, Base)):
             plotting = {}
         W = self._build_weight_from_kernel(self.K)
 
-        super().__init__(W=W,
+        super().__init__(W,
                          lap_type=lap_type,
                          coords=coords,
                          plotting=plotting, **kwargs)
