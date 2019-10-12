@@ -232,7 +232,7 @@ class Data(Base):
         -------
         Reduced data matrix
         """
-        if self.n_pca is not None and self.n_pca < self.data.shape[1]:
+        if self.n_pca is not None and (self.n_pca == 'auto' or self.n_pca < self.data.shape[1]):
             tasklogger.log_start("PCA")
             n_pca = self.data.shape[1] - 1 if self.n_pca == 'auto' else self.n_pca
             if sparse.issparse(self.data):
