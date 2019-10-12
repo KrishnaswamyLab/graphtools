@@ -59,7 +59,7 @@ def test_mnn_with_matrix_theta():
         data, thresh=0, n_pca=20,
         decay=10, knn=5, random_state=42,
         sample_idx=digits['target'],
-        kernel_symm='theta',
+        kernel_symm='mnn',
         theta=np.tile(np.linspace(0, 1, n_sample),
                       n_sample).reshape(n_sample, n_sample))
 
@@ -72,7 +72,7 @@ def test_mnn_with_vector_theta():
         data, thresh=0, n_pca=20,
         decay=10, knn=5, random_state=42,
         sample_idx=digits['target'],
-        kernel_symm='theta',
+        kernel_symm='mnn',
         theta=np.linspace(0, 1, n_sample - 1))
 
 
@@ -82,7 +82,7 @@ def test_mnn_with_unbounded_theta():
         data, thresh=0, n_pca=20,
         decay=10, knn=5, random_state=42,
         sample_idx=digits['target'],
-        kernel_symm='theta',
+        kernel_symm='mnn',
         theta=2)
 
 
@@ -92,7 +92,7 @@ def test_mnn_with_string_theta():
         data, thresh=0, n_pca=20,
         decay=10, knn=5, random_state=42,
         sample_idx=digits['target'],
-        kernel_symm='theta',
+        kernel_symm='mnn',
         theta='invalid')
 
 
@@ -102,7 +102,7 @@ def test_mnn_with_gamma():
         data, thresh=0, n_pca=20,
         decay=10, knn=5, random_state=42,
         sample_idx=digits['target'],
-        kernel_symm='theta',
+        kernel_symm='mnn',
         gamma=0.9)
 
 
@@ -113,6 +113,16 @@ def test_mnn_with_kernel_symm_gamma():
         decay=10, knn=5, random_state=42,
         sample_idx=digits['target'],
         kernel_symm='gamma',
+        theta=0.9)
+
+
+@warns(FutureWarning)
+def test_mnn_with_kernel_symm_theta():
+    build_graph(
+        data, thresh=0, n_pca=20,
+        decay=10, knn=5, random_state=42,
+        sample_idx=digits['target'],
+        kernel_symm='theta',
         theta=0.9)
 
 
@@ -132,7 +142,7 @@ def test_mnn_with_kernel_symmm_theta_and_no_theta():
         data, thresh=0, n_pca=20,
         decay=10, knn=5, random_state=42,
         sample_idx=digits['target'],
-        kernel_symm='theta')
+        kernel_symm='mnn')
 
 
 @warns(DeprecationWarning)
@@ -141,18 +151,18 @@ def test_mnn_adaptive_k():
         data, thresh=0, n_pca=20,
         decay=10, knn=5, random_state=42,
         sample_idx=digits['target'],
-        kernel_symm='theta',
+        kernel_symm='mnn',
         theta=0.9, adaptive_k='sqrt')
 
 
 def test_mnn_with_non_zero_indexed_sample_idx():
     X, sample_idx = generate_swiss_roll()
     G = build_graph(X, sample_idx=sample_idx,
-                    kernel_symm='theta', theta=0.5,
+                    kernel_symm='mnn', theta=0.5,
                     n_pca=None, use_pygsp=True)
     sample_idx += 1
     G2 = build_graph(X, sample_idx=sample_idx,
-                     kernel_symm='theta', theta=0.5,
+                     kernel_symm='mnn', theta=0.5,
                      n_pca=None, use_pygsp=True)
     assert G.N == G2.N
     assert np.all(G.d == G2.d)
@@ -164,11 +174,11 @@ def test_mnn_with_non_zero_indexed_sample_idx():
 def test_mnn_with_string_sample_idx():
     X, sample_idx = generate_swiss_roll()
     G = build_graph(X, sample_idx=sample_idx,
-                    kernel_symm='theta', theta=0.5,
+                    kernel_symm='mnn', theta=0.5,
                     n_pca=None, use_pygsp=True)
     sample_idx = np.where(sample_idx == 0, 'a', 'b')
     G2 = build_graph(X, sample_idx=sample_idx,
-                     kernel_symm='theta', theta=0.5,
+                     kernel_symm='mnn', theta=0.5,
                      n_pca=None, use_pygsp=True)
     assert G.N == G2.N
     assert np.all(G.d == G2.d)
@@ -230,7 +240,7 @@ def test_mnn_graph_no_decay():
     np.fill_diagonal(W, 0)
     G = pygsp.graphs.Graph(W)
     G2 = graphtools.Graph(X, knn=k, decay=a, beta=beta,
-                          kernel_symm='theta', theta=theta,
+                          kernel_symm='mnn', theta=theta,
                           distance=metric, sample_idx=sample_idx, thresh=0,
                           use_pygsp=True)
     assert G.N == G2.N
@@ -289,7 +299,7 @@ def test_mnn_graph_decay():
     np.fill_diagonal(W, 0)
     G = pygsp.graphs.Graph(W)
     G2 = graphtools.Graph(X, knn=k, decay=a, beta=beta,
-                          kernel_symm='theta', theta=theta,
+                          kernel_symm='mnn', theta=theta,
                           distance=metric, sample_idx=sample_idx, thresh=0,
                           use_pygsp=True)
     assert G.N == G2.N
@@ -310,20 +320,20 @@ def test_verbose():
     print()
     print("Verbose test: MNN")
     build_graph(X, sample_idx=sample_idx,
-                kernel_symm='theta', theta=0.5,
+                kernel_symm='mnn', theta=0.5,
                 n_pca=None, verbose=True)
 
 
 def test_set_params():
     X, sample_idx = generate_swiss_roll()
     G = build_graph(X, sample_idx=sample_idx,
-                    kernel_symm='theta', theta=0.5,
+                    kernel_symm='mnn', theta=0.5,
                     n_pca=None,
                     thresh=1e-4)
     assert G.get_params() == {
         'n_pca': None,
         'random_state': 42,
-        'kernel_symm': 'theta',
+        'kernel_symm': 'mnn',
         'theta': 0.5,
         'anisotropy': 0,
         'beta': 1,
