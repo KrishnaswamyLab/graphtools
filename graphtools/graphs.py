@@ -1063,7 +1063,8 @@ class MNNGraph(DataGraph):
         super().__init__(data, n_pca=n_pca, **kwargs)
 
     def _check_symmetrization(self, kernel_symm, theta):
-        if kernel_symm == 'theta' and theta is not None and \
+        if (kernel_symm == 'theta' or kernel_symm == 'mnn') \
+                and theta is not None and \
                 not isinstance(theta, numbers.Number):
             raise TypeError("Expected `theta` as a float. "
                             "Got {}.".format(type(theta)))

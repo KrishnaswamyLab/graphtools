@@ -315,10 +315,10 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
     ----------
 
     kernel_symm : string, optional (default: '+')
-        Defines method of MNN symmetrization.
+        Defines method of kernel symmetrization.
         '+'  : additive
         '*'  : multiplicative
-        'theta' : min-max
+        'mnn' : min-max MNN symmetrization
         'none' : no symmetrization
 
     theta: float (default: 1)
@@ -359,8 +359,12 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
             theta = gamma
         if kernel_symm == 'gamma':
             warnings.warn("kernel_symm='gamma' is deprecated. "
-                          "Setting kernel_symm='theta'", FutureWarning)
-            kernel_symm = 'theta'
+                          "Setting kernel_symm='mnn'", FutureWarning)
+            kernel_symm = 'mnn'
+        if kernel_symm == 'theta':
+            warnings.warn("kernel_symm='theta' is deprecated. "
+                          "Setting kernel_symm='mnn'", FutureWarning)
+            kernel_symm = 'mnn'
         self.kernel_symm = kernel_symm
         self.theta = theta
         self._check_symmetrization(kernel_symm, theta)
@@ -377,19 +381,19 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         super().__init__(**kwargs)
 
     def _check_symmetrization(self, kernel_symm, theta):
-        if kernel_symm not in ['+', '*', 'theta', None]:
+        if kernel_symm not in ['+', '*', 'mnn', None]:
             raise ValueError(
                 "kernel_symm '{}' not recognized. Choose from "
-                "'+', '*', 'theta', or 'none'.".format(kernel_symm))
-        elif kernel_symm != 'theta' and theta is not None:
+                "'+', '*', 'mnn', or 'none'.".format(kernel_symm))
+        elif kernel_symm != 'mnn' and theta is not None:
             warnings.warn("kernel_symm='{}' but theta is not None. "
-                          "Setting kernel_symm='theta'.".format(kernel_symm))
-            self.kernel_symm = kernel_symm = 'theta'
+                          "Setting kernel_symm='mnn'.".format(kernel_symm))
+            self.kernel_symm = kernel_symm = 'mnn'
 
-        if kernel_symm == 'theta':
+        if kernel_symm == 'mnn':
             if theta is None:
                 self.theta = theta = 1
-                warnings.warn("kernel_symm='theta' but theta not given. "
+                warnings.warn("kernel_symm='mnn' but theta not given. "
                               "Defaulting to theta={}.".format(self.theta))
             elif not isinstance(theta, numbers.Number) or \
                     theta < 0 or theta > 1:
@@ -427,9 +431,9 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         elif self.kernel_symm == "*":
             tasklogger.log_debug("Using multiplication symmetrization.")
             K = K.multiply(K.T)
-        elif self.kernel_symm == 'theta':
+        elif self.kernel_symm == 'mnn':
             tasklogger.log_debug(
-                "Using theta symmetrization (theta = {}).".format(self.theta))
+                "Using mnn symmetrization (theta = {}).".format(self.theta))
             K = self.theta * utils.elementwise_minimum(K, K.T) + \
                 (1 - self.theta) * utils.elementwise_maximum(K, K.T)
         elif self.kernel_symm is None:
@@ -438,7 +442,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         else:
             # this should never happen
             raise ValueError(
-                "Expected kernel_symm in ['+', '*', 'theta' or None]. "
+                "Expected kernel_symm in ['+', '*', 'mnn' or None]. "
                 "Got {}".format(self.theta))
         return K
 

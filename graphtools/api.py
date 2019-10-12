@@ -92,14 +92,14 @@ def Graph(data,
         on time and memory constraints.
 
     kernel_symm : string, optional (default: '+')
-        Defines method of MNN symmetrization.
+        Defines method of kernel symmetrization.
         '+'  : additive
         '*'  : multiplicative
-        'theta' : min-max
+        'mnn' : min-max MNN symmetrization
         'none' : no symmetrization
 
     theta: float (default: None)
-        Min-max symmetrization constant or matrix. Only used if kernel_symm='theta'.
+        Min-max symmetrization constant or matrix. Only used if kernel_symm='mnn'.
         K = `theta * min(K, K.T) + (1 - theta) * max(K, K.T)`
 
     precomputed : {'distance', 'affinity', 'adjacency', `None`}, optional (default: `None`)
