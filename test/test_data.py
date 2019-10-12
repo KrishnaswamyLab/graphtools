@@ -66,6 +66,11 @@ def test_badstring_rank_threshold():
 
 
 @raises(ValueError)
+def test_negative_rank_threshold():
+    build_graph(data, n_pca=True, rank_threshold=-1)
+
+
+@raises(ValueError)
 @warns(RuntimeWarning)
 def test_True_n_pca_large_threshold():
     build_graph(data, n_pca=True,

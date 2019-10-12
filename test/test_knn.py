@@ -380,6 +380,14 @@ def test_shortest_path_precomputed_no_decay_data():
     G.shortest_path(distance='data')
 
 
+@raises(ValueError)
+def test_shortest_path_invalid():
+    data_small = data[np.random.choice(
+        len(data), len(data) // 4, replace=False)]
+    G = build_graph(data_small, knn=5, decay=None)
+    G.shortest_path(distance='invalid')
+
+
 ####################
 # Test API
 ####################

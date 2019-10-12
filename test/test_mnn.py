@@ -116,6 +116,16 @@ def test_mnn_with_kernel_symm_gamma():
         theta=0.9)
 
 
+@raises(ValueError)
+def test_mnn_with_kernel_symm_invalid():
+    build_graph(
+        data, thresh=0, n_pca=20,
+        decay=10, knn=5, random_state=42,
+        sample_idx=digits['target'],
+        kernel_symm='invalid',
+        theta=0.9)
+
+
 @warns(FutureWarning)
 def test_mnn_with_kernel_symm_theta():
     build_graph(
