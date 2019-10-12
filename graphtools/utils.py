@@ -1,5 +1,6 @@
 import numpy as np
 from scipy import sparse
+import numbers
 
 
 def if_sparse(sparse_func, dense_func, *args, **kwargs):
@@ -49,7 +50,31 @@ def set_submatrix(X, i, j, values):
     return X
 
 
-def to_dense(X):
+def sparse_nonzero_discrete(X, values):
+    if isinstance(X, (sparse.bsr_matrix, sparse.dia_matrix,
+                      sparse.dok_matrix, sparse.lil_matrix)):
+        X = X.tocsr()
+    return dense_nonzero_discrete(X.data, values)
+
+
+def dense_nonzero_discrete(X, values):
+    result = np.full_like(X, False, dtype=bool)
+    for value in values:
+        result = np.logical_or(result, X == value)
+    return np.all(result)
+
+
+def nonzero_discrete(X, values):
+    if isinstance(values, numbers.Number):
+        values = [values]
+    if 0 not in values:
+        values.append(0)
+    return if_sparse(sparse_nonzero_discrete, dense_nonzero_discrete, X, values=values)
+
+
+def to_array(X):
     if sparse.issparse(X):
         X = X.toarray()
+    elif isinstance(X, np.matrix):
+        X = X.A
     return X

@@ -5,7 +5,6 @@ from sklearn.neighbors import NearestNeighbors
 from sklearn.utils.extmath import randomized_svd
 from sklearn.preprocessing import normalize
 from sklearn.cluster import MiniBatchKMeans
-from sklearn.utils.graph import graph_shortest_path
 from scipy.spatial.distance import pdist, cdist
 from scipy.spatial.distance import squareform
 from scipy import sparse
@@ -13,8 +12,7 @@ import numbers
 import warnings
 import tasklogger
 
-from .utils import (set_diagonal,
-                    set_submatrix)
+from . import utils
 from .base import DataGraph, PyGSPGraph
 
 
@@ -88,7 +86,7 @@ class kNNGraph(DataGraph):
                           "n_samples ({n}). Setting knn={n}".format(
                               k=knn, n=data.shape[0] - 2))
             knn = data.shape[0] - 2
-        if n_pca is None and data.shape[1] > 500:
+        if n_pca in [None,0,False] and data.shape[1] > 500:
             warnings.warn("Building a kNNGraph on data of shape {} is "
                           "expensive. Consider setting n_pca.".format(
                               data.shape), UserWarning)
@@ -313,6 +311,9 @@ class kNNGraph(DataGraph):
 
             bandwidth = bandwidth * bandwidth_scale
 
+            # check for zero bandwidth
+            bandwidth = np.maximum(bandwidth, np.finfo(float).eps)
+
             radius = bandwidth * np.power(-1 * np.log(self.thresh),
                                           1 / self.decay)
             update_idx = np.argwhere(
@@ -374,40 +375,6 @@ class kNNGraph(DataGraph):
             K = K.tocsr()
             tasklogger.log_complete("affinities")
         return K
-
-    def shortest_path(self, method='auto'):
-        """
-        Find the length of the shortest path between every pair of vertices on the graph
-
-        Parameters
-        ----------
-        method : string ['auto'|'FW'|'D']
-            method to use.  Options are
-            'auto' : attempt to choose the best method for the current problem
-            'FW' : Floyd-Warshall algorithm.  O[N^3]
-            'D' : Dijkstra's algorithm with Fibonacci stacks.  O[(k+log(N))N^2]
-        Returns
-        -------
-        D : np.ndarray, float, shape = [N,N]
-            D[i,j] gives the shortest distance from point i to point j
-            along the graph. If no path exists, the distance is np.inf
-        Notes
-        -----
-        Currently, shortest paths can only be calculated on kNNGraphs with
-        `decay=None`
-        """
-        if self.decay is None:
-            D = self.K
-        else:
-            raise NotImplementedError(
-                "Graph shortest path currently only "
-                "implemented for kNNGraph with `decay=None`.")
-        P = graph_shortest_path(D, method=method)
-        # sklearn returns 0 if no path exists
-        P[np.where(P == 0)] = np.inf
-        # diagonal should actually be zero
-        P[(np.arange(P.shape[0]), np.arange(P.shape[0]))] = 0
-        return P
 
 
 class LandmarkGraph(DataGraph):
@@ -716,7 +683,7 @@ class TraditionalGraph(DataGraph):
     knn : `int`, optional (default: 5)
         Number of nearest neighbors (including self) to use to build the graph
 
-    decay : `int` or `None`, optional (default: `None`)
+    decay : `int` or `None`, optional (default: 40)
         Rate of alpha decay to use. If `None`, alpha decay is not used.
 
     bandwidth : `float`, list-like,`callable`, or `None`, optional (default: `None`)
@@ -733,11 +700,25 @@ class TraditionalGraph(DataGraph):
         distance metric for building kNN graph.
         TODO: actually sklearn.neighbors has even more choices
 
-    n_pca : `int` or `None`, optional (default: `None`)
+    n_pca : {`int`, `None`, `bool`, 'auto'}, optional (default: `None`)
         number of PC dimensions to retain for graph building.
-        If `None`, uses the original data.
-        Note: if data is sparse, uses SVD instead of PCA.
-        Only one of `precomputed` and `n_pca` can be set.
+        If n_pca in `[None,False,0]`, uses the original data.
+        If `True` then estimate using a singular value threshold
+        Note: if data is sparse, uses SVD instead of PCA
+        TODO: should we subtract and store the mean?
+
+    rank_threshold : `float`, 'auto', optional (default: 'auto')
+        threshold to use when estimating rank for
+        `n_pca in [True, 'auto']`.
+        Note that the default kwarg is `None` for this parameter.
+        It is subsequently parsed to 'auto' if necessary.
+        If 'auto', this threshold is
+        smax * np.finfo(data.dtype).eps * max(data.shape)
+        where smax is the maximum singular value of the data matrix.
+        For reference, see, e.g.
+        W. Press, S. Teukolsky, W. Vetterling and B. Flannery,
+        “Numerical Recipes (3rd edition)”,
+        Cambridge University Press, 2007, page 795.
 
     thresh : `float`, optional (default: `1e-4`)
         Threshold above which to calculate alpha decay kernel.
@@ -752,7 +733,7 @@ class TraditionalGraph(DataGraph):
     """
 
     def __init__(self, data,
-                 knn=5, decay=10,
+                 knn=5, decay=40,
                  bandwidth=None,
                  bandwidth_scale=1.0,
                  distance='euclidean',
@@ -764,7 +745,7 @@ class TraditionalGraph(DataGraph):
             raise ValueError(
                 "`decay` must be provided for a "
                 "TraditionalGraph. For kNN kernel, use kNNGraph.")
-        if precomputed is not None and n_pca is not None:
+        if precomputed is not None and n_pca not in [None,0,False]:
             # the data itself is a matrix of distances / affinities
             n_pca = None
             warnings.warn("n_pca cannot be given on a precomputed graph."
@@ -890,7 +871,7 @@ class TraditionalGraph(DataGraph):
                 not (isinstance(K, sparse.dok_matrix) or
                      isinstance(K, sparse.lil_matrix)):
                 K = K.tolil()
-            K = set_diagonal(K, 1)
+            K = utils.set_diagonal(K, 1)
         else:
             tasklogger.log_start("affinities")
             if sparse.issparse(self.data_nu):
@@ -1002,6 +983,31 @@ class TraditionalGraph(DataGraph):
             tasklogger.log_complete("affinities")
         return K
 
+    @property
+    def weighted(self):
+        if self.precomputed is not None:
+            return not utils.nonzero_discrete(self.K, [0.5, 1])
+        else:
+            return super().weighted
+
+    def _check_shortest_path_distance(self, distance):
+        if self.precomputed is not None:
+            if distance == 'data':
+                raise ValueError(
+                    "Graph shortest path with data distance not "
+                    "valid for precomputed graphs. For precomputed graphs, "
+                    "use `distance='constant'` for unweighted graphs and "
+                    "`distance='affinity'` for weighted graphs.")
+        super()._check_shortest_path_distance(distance)
+
+    def _default_shortest_path_distance(self):
+        if self.precomputed is not None and not self.weighted:
+            distance = 'constant'
+            tasklogger.log_info("Using constant distances.")
+        else:
+            distance = super()._default_shortest_path_distance()
+        return distance
+
 
 class MNNGraph(DataGraph):
     """Mutual nearest neighbors graph
@@ -1071,7 +1077,8 @@ class MNNGraph(DataGraph):
         super().__init__(data, n_pca=n_pca, **kwargs)
 
     def _check_symmetrization(self, kernel_symm, theta):
-        if kernel_symm == 'theta' and theta is not None and \
+        if (kernel_symm == 'theta' or kernel_symm == 'mnn') \
+                and theta is not None and \
                 not isinstance(theta, numbers.Number):
             raise TypeError("Expected `theta` as a float. "
                             "Got {}.".format(type(theta)))
@@ -1181,8 +1188,9 @@ class MNNGraph(DataGraph):
         else:
             K = np.zeros([self.data_nu.shape[0], self.data_nu.shape[0]])
         for i, X in enumerate(self.subgraphs):
-            K = set_submatrix(K, self.sample_idx == self.samples[i],
-                              self.sample_idx == self.samples[i], X.K)
+            K = utils.set_submatrix(
+                K, self.sample_idx == self.samples[i],
+                self.sample_idx == self.samples[i], X.K)
             within_batch_norm = np.array(np.sum(X.K, 1)).flatten()
             for j, Y in enumerate(self.subgraphs):
                 if i == j:
@@ -1200,8 +1208,9 @@ class MNNGraph(DataGraph):
                     Kij = Kij.multiply(scale[:, None])
                 else:
                     Kij = Kij * scale[:, None]
-                K = set_submatrix(K, self.sample_idx == self.samples[i],
-                                  self.sample_idx == self.samples[j], Kij)
+                K = utils.set_submatrix(
+                    K, self.sample_idx == self.samples[i],
+                    self.sample_idx == self.samples[j], Kij)
                 tasklogger.log_complete(
                     "kernel from sample {} to {}".format(self.samples[i],
                                                          self.samples[j]))

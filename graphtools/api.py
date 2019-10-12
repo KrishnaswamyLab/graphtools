@@ -11,11 +11,12 @@ from . import graphs
 
 def Graph(data,
           n_pca=None,
+          rank_threshold=None,
           sample_idx=None,
           adaptive_k=None,
           precomputed=None,
           knn=5,
-          decay=10,
+          decay=40,
           bandwidth=None,
           bandwidth_scale=1.0,
           anisotropy=0,
@@ -53,19 +54,29 @@ def Graph(data,
     ----------
     data : array-like, shape=[n_samples,n_features]
         accepted types: `numpy.ndarray`, `scipy.sparse.spmatrix`.
-        TODO: accept pandas dataframes
+        TODO: accept pandas dataframes'
 
-    n_pca : `int` or `None`, optional (default: `None`)
+    n_pca : {`int`, `None`, `bool`, 'auto'}, optional (default: `None`)
         number of PC dimensions to retain for graph building.
-        If `None`, uses the original data.
+        If n_pca in `[None, False, 0]`, uses the original data.
+        If 'auto' or `True` then estimate using a singular value threshold
         Note: if data is sparse, uses SVD instead of PCA
         TODO: should we subtract and store the mean?
+
+    rank_threshold : `float`, 'auto', optional (default: 'auto')
+        threshold to use when estimating rank for
+        `n_pca in [True, 'auto']`.
+        If 'auto', this threshold is
+        s_max * eps * max(n_samples, n_features)
+        where s_max is the maximum singular value of the data matrix
+        and eps is numerical precision. [press2007]_.
 
     knn : `int`, optional (default: 5)
         Number of nearest neighbors (including self) to use to build the graph
 
-    decay : `int` or `None`, optional (default: 10)
-        Rate of alpha decay to use. If `None`, alpha decay is not used.
+    decay : `int` or `None`, optional (default: 40)
+        Rate of alpha decay to use. If `None`, alpha decay is not used and a vanilla
+        k-Nearest Neighbors graph is returned.
 
     bandwidth : `float`, list-like,`callable`, or `None`, optional (default: `None`)
         Fixed bandwidth to use. If given, overrides `knn`. Can be a single
@@ -91,14 +102,14 @@ def Graph(data,
         on time and memory constraints.
 
     kernel_symm : string, optional (default: '+')
-        Defines method of MNN symmetrization.
+        Defines method of kernel symmetrization.
         '+'  : additive
         '*'  : multiplicative
-        'theta' : min-max
+        'mnn' : min-max MNN symmetrization
         'none' : no symmetrization
 
     theta: float (default: None)
-        Min-max symmetrization constant or matrix. Only used if kernel_symm='theta'.
+        Min-max symmetrization constant or matrix. Only used if kernel_symm='mnn'.
         K = `theta * min(K, K.T) + (1 - theta) * max(K, K.T)`
 
     precomputed : {'distance', 'affinity', 'adjacency', `None`}, optional (default: `None`)
@@ -155,6 +166,12 @@ def Graph(data,
     Raises
     ------
     ValueError : if selected parameters are incompatible.
+
+    References
+    ----------
+    .. [press2007] W. Press, S. Teukolsky, W. Vetterling and B. Flannery,
+        “Numerical Recipes (3rd edition)”,
+        Cambridge University Press, 2007, page 795.
     """
     tasklogger.set_level(verbose)
     if sample_idx is not None and len(np.unique(sample_idx)) == 1:

@@ -12,11 +12,13 @@ install_requires = [
 ]
 
 test_requires = [
+    'nose',
     'nose2',
     'pandas',
     'coverage',
     'coveralls',
-    'python-igraph'
+    'python-igraph',
+    'parameterized'
 ]
 
 if sys.version_info[0] == 3:
@@ -41,8 +43,8 @@ readme = open('README.rst').read()
 setup(name='graphtools',
       version=version,
       description='graphtools',
-      author='Jay Stanley and Scott Gigante, Krishnaswamy Lab, Yale University',
-      author_email='jay.stanley@yale.edu',
+      author='Scott Gigante, Daniel Burkhardt, and Jay Stanley, Yale University',
+      author_email='scott.gigante@yale.edu',
       packages=['graphtools', ],
       license='GNU General Public License Version 2',
       install_requires=install_requires,

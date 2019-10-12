@@ -1,19 +1,17 @@
 from __future__ import print_function, division
 from sklearn.utils.graph import graph_shortest_path
+from scipy.spatial.distance import pdist, squareform
 from load_tests import (
     graphtools,
     np,
     sp,
     pygsp,
-    nose2,
     data,
     datasets,
     build_graph,
     assert_raises,
     warns,
     raises,
-    squareform,
-    pdist,
     PCA,
     TruncatedSVD,
 )
@@ -316,25 +314,78 @@ def test_knn_interpolate():
 #################################################
 
 
-def test_shortest_path():
+def test_shortest_path_constant():
     data_small = data[np.random.choice(
         len(data), len(data) // 4, replace=False)]
     G = build_graph(data_small, knn=5, decay=None)
-    K = G.K
     P = graph_shortest_path(G.K)
     # sklearn returns 0 if no path exists
     P[np.where(P == 0)] = np.inf
     # diagonal should actually be zero
     np.fill_diagonal(P, 0)
+    np.testing.assert_equal(P, G.shortest_path(distance='constant'))
+
+
+def test_shortest_path_precomputed_constant():
+    data_small = data[np.random.choice(
+        len(data), len(data) // 4, replace=False)]
+    G = build_graph(data_small, knn=5, decay=None)
+    G = graphtools.Graph(G.K, precomputed='affinity')
+    P = graph_shortest_path(G.K)
+    # sklearn returns 0 if no path exists
+    P[np.where(P == 0)] = np.inf
+    # diagonal should actually be zero
+    np.fill_diagonal(P, 0)
+    np.testing.assert_equal(P, G.shortest_path(distance='constant'))
     np.testing.assert_equal(P, G.shortest_path())
 
 
-@raises(NotImplementedError)
-def test_shortest_path_decay():
+def test_shortest_path_data():
     data_small = data[np.random.choice(
         len(data), len(data) // 4, replace=False)]
-    G = build_graph(data_small, knn=5, decay=15, thresh=1e-4)
-    G.shortest_path()
+    G = build_graph(data_small, knn=5, decay=None)
+    D = squareform(pdist(G.data_nu)) * np.where(G.K.toarray() > 0, 1, 0)
+    P = graph_shortest_path(D)
+    # sklearn returns 0 if no path exists
+    P[np.where(P == 0)] = np.inf
+    # diagonal should actually be zero
+    np.fill_diagonal(P, 0)
+    np.testing.assert_allclose(P, G.shortest_path(distance='data'))
+    np.testing.assert_allclose(P, G.shortest_path())
+
+
+@raises(ValueError)
+def test_shortest_path_no_decay_affinity():
+    data_small = data[np.random.choice(
+        len(data), len(data) // 4, replace=False)]
+    G = build_graph(data_small, knn=5, decay=None)
+    G.shortest_path(distance='affinity')
+
+
+@raises(ValueError)
+def test_shortest_path_precomputed_no_decay_affinity():
+    data_small = data[np.random.choice(
+        len(data), len(data) // 4, replace=False)]
+    G = build_graph(data_small, knn=5, decay=None)
+    G = graphtools.Graph(G.K, precomputed='affinity')
+    G.shortest_path(distance='affinity')
+
+
+@raises(ValueError)
+def test_shortest_path_precomputed_no_decay_data():
+    data_small = data[np.random.choice(
+        len(data), len(data) // 4, replace=False)]
+    G = build_graph(data_small, knn=5, decay=None)
+    G = graphtools.Graph(G.K, precomputed='affinity')
+    G.shortest_path(distance='data')
+
+
+@raises(ValueError)
+def test_shortest_path_invalid():
+    data_small = data[np.random.choice(
+        len(data), len(data) // 4, replace=False)]
+    G = build_graph(data_small, knn=5, decay=None)
+    G.shortest_path(distance='invalid')
 
 
 ####################
