@@ -683,7 +683,7 @@ class TraditionalGraph(DataGraph):
     knn : `int`, optional (default: 5)
         Number of nearest neighbors (including self) to use to build the graph
 
-    decay : `int` or `None`, optional (default: `None`)
+    decay : `int` or `None`, optional (default: 40)
         Rate of alpha decay to use. If `None`, alpha decay is not used.
 
     bandwidth : `float`, list-like,`callable`, or `None`, optional (default: `None`)
@@ -719,7 +719,7 @@ class TraditionalGraph(DataGraph):
     """
 
     def __init__(self, data,
-                 knn=5, decay=10,
+                 knn=5, decay=40,
                  bandwidth=None,
                  bandwidth_scale=1.0,
                  distance='euclidean',

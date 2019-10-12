@@ -15,7 +15,7 @@ def Graph(data,
           adaptive_k=None,
           precomputed=None,
           knn=5,
-          decay=10,
+          decay=40,
           bandwidth=None,
           bandwidth_scale=1.0,
           anisotropy=0,
@@ -64,7 +64,7 @@ def Graph(data,
     knn : `int`, optional (default: 5)
         Number of nearest neighbors (including self) to use to build the graph
 
-    decay : `int` or `None`, optional (default: 10)
+    decay : `int` or `None`, optional (default: 40)
         Rate of alpha decay to use. If `None`, alpha decay is not used and a vanilla
         k-Nearest Neighbors graph is returned.
 
