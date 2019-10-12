@@ -30,6 +30,11 @@ def ignore_numpy_warning():
 def ignore_igraph_warning():
     warnings.filterwarnings(
         "ignore", category=DeprecationWarning,
+        message="The SafeConfigParser class has been renamed to ConfigParser "
+        "in Python 3.2. This alias will be removed in future versions. Use "
+        "ConfigParser directly instead")
+    warnings.filterwarnings(
+        "ignore", category=DeprecationWarning,
         message="Using or importing the ABCs from 'collections' instead of from "
         "'collections.abc' is deprecated since Python 3.3,and in 3.9 it will stop working")
 
