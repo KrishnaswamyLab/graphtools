@@ -730,12 +730,12 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
     def to_igraph(self, attribute="weight", **kwargs):
         """Convert to an igraph Graph
 
-        Uses the igraph.Graph.Weighted_Adjacency constructor
+        Uses the igraph.Graph constructor
 
         Parameters
         ----------
         attribute : str, optional (default: "weight")
-        kwargs : additional arguments for igraph.Graph.Weighted_Adjacency
+        kwargs : additional arguments for igraph.Graph
         """
         try:
             import igraph as ig
@@ -748,8 +748,13 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
             # not a pygsp graph
             W = self.K.copy()
             W = utils.set_diagonal(W, 0)
-        return ig.Graph.Weighted_Adjacency(utils.to_array(W).tolist(),
-                                           attr=attribute, **kwargs)
+        sources, targets = W.nonzero()
+        edgelist = list(zip(sources, targets))
+        g = ig.Graph(W.shape[0], edgelist, **kwargs)
+        weights = W[W.nonzero()]
+        weights = utils.to_array(weights)
+        g.es[attribute] = weights.flatten().tolist()
+        return g
 
     def to_pickle(self, path):
         """Save the current Graph to a pickle.
