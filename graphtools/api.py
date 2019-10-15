@@ -1,12 +1,13 @@
 import numpy as np
 import warnings
-import tasklogger
 from scipy import sparse
 import pickle
 import pygsp
+import tasklogger
 
-from . import base
-from . import graphs
+from . import base, graphs
+
+_logger = tasklogger.get_tasklogger('graphtools')
 
 
 def Graph(data,
@@ -173,7 +174,7 @@ def Graph(data,
         “Numerical Recipes (3rd edition)”,
         Cambridge University Press, 2007, page 795.
     """
-    tasklogger.set_level(verbose)
+    _logger.set_level(verbose)
     if sample_idx is not None and len(np.unique(sample_idx)) == 1:
         warnings.warn("Only one unique sample. "
                       "Not using MNNGraph")
@@ -239,7 +240,7 @@ def Graph(data,
         else:
             msg = msg + " and PyGSP inheritance"
 
-    tasklogger.log_debug(msg)
+    _logger.debug(msg)
 
     class_names = [p.__name__.replace("Graph", "") for p in parent_classes]
     try:
@@ -257,7 +258,7 @@ def Graph(data,
                 pass
 
     # build graph and return
-    tasklogger.log_debug("Initializing {} with arguments {}".format(
+    _logger.debug("Initializing {} with arguments {}".format(
         parent_classes,
         ", ".join(["{}='{}'".format(key, value)
                    for key, value in params.items()

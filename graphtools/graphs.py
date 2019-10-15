@@ -15,6 +15,8 @@ import tasklogger
 from . import utils
 from .base import DataGraph, PyGSPGraph
 
+_logger = tasklogger.get_tasklogger('graphtools')
+
 
 class kNNGraph(DataGraph):
     """
@@ -290,90 +292,88 @@ class kNNGraph(DataGraph):
                               k=knn, n=self.data.shape[0]))
 
         Y = self._check_extension_shape(Y)
-        tasklogger.log_start("KNN search")
         if self.decay is None or self.thresh == 1:
-            # binary connectivity matrix
-            K = self.knn_tree.kneighbors_graph(
-                Y, n_neighbors=knn,
-                mode='connectivity')
-            tasklogger.log_complete("KNN search")
+            with _logger.task("KNN search"):
+                # binary connectivity matrix
+                K = self.knn_tree.kneighbors_graph(
+                    Y, n_neighbors=knn,
+                    mode='connectivity')
         else:
-            # sparse fast alpha decay
-            knn_tree = self.knn_tree
-            search_knn = min(knn * 20, self.data_nu.shape[0])
-            distances, indices = knn_tree.kneighbors(
-                Y, n_neighbors=search_knn)
-            self._check_duplicates(distances, indices)
-            tasklogger.log_complete("KNN search")
-            tasklogger.log_start("affinities")
-            if bandwidth is None:
-                bandwidth = distances[:, knn - 1]
+            with _logger.task("KNN search"):
+                # sparse fast alpha decay
+                knn_tree = self.knn_tree
+                search_knn = min(knn * 20, self.data_nu.shape[0])
+                distances, indices = knn_tree.kneighbors(
+                    Y, n_neighbors=search_knn)
+                self._check_duplicates(distances, indices)
+            with _logger.task("affinities"):
+                if bandwidth is None:
+                    bandwidth = distances[:, knn - 1]
 
-            bandwidth = bandwidth * bandwidth_scale
+                bandwidth = bandwidth * bandwidth_scale
 
-            # check for zero bandwidth
-            bandwidth = np.maximum(bandwidth, np.finfo(float).eps)
+                # check for zero bandwidth
+                bandwidth = np.maximum(bandwidth, np.finfo(float).eps)
 
-            radius = bandwidth * np.power(-1 * np.log(self.thresh),
-                                          1 / self.decay)
-            update_idx = np.argwhere(
-                np.max(distances, axis=1) < radius).reshape(-1)
-            tasklogger.log_debug("search_knn = {}; {} remaining".format(
-                search_knn, len(update_idx)))
-            if len(update_idx) > 0:
-                distances = [d for d in distances]
-                indices = [i for i in indices]
-            while len(update_idx) > Y.shape[0] // 10 and \
-                    search_knn < self.data_nu.shape[0] / 2:
-                # increase the knn search
-                search_knn = min(search_knn * 20, self.data_nu.shape[0])
-                dist_new, ind_new = knn_tree.kneighbors(
-                    Y[update_idx], n_neighbors=search_knn)
-                for i, idx in enumerate(update_idx):
-                    distances[idx] = dist_new[i]
-                    indices[idx] = ind_new[i]
-                update_idx = [i for i, d in enumerate(distances) if np.max(d) <
-                              (radius if isinstance(bandwidth, numbers.Number)
-                               else radius[i])]
-                tasklogger.log_debug("search_knn = {}; {} remaining".format(
-                    search_knn,
-                    len(update_idx)))
-            if search_knn > self.data_nu.shape[0] / 2:
-                knn_tree = NearestNeighbors(
-                    search_knn, algorithm='brute',
-                    n_jobs=self.n_jobs).fit(self.data_nu)
-            if len(update_idx) > 0:
-                tasklogger.log_debug(
-                    "radius search on {}".format(len(update_idx)))
-                # give up - radius search
-                dist_new, ind_new = knn_tree.radius_neighbors(
-                    Y[update_idx, :],
-                    radius=radius
-                    if isinstance(bandwidth, numbers.Number)
-                    else np.max(radius[update_idx]))
-                for i, idx in enumerate(update_idx):
-                    distances[idx] = dist_new[i]
-                    indices[idx] = ind_new[i]
-            if isinstance(bandwidth, numbers.Number):
-                data = np.concatenate(distances) / bandwidth
-            else:
-                data = np.concatenate([distances[i] / bandwidth[i]
-                                       for i in range(len(distances))])
+                radius = bandwidth * np.power(-1 * np.log(self.thresh),
+                                              1 / self.decay)
+                update_idx = np.argwhere(
+                    np.max(distances, axis=1) < radius).reshape(-1)
+                _logger.debug("search_knn = {}; {} remaining".format(
+                    search_knn, len(update_idx)))
+                if len(update_idx) > 0:
+                    distances = [d for d in distances]
+                    indices = [i for i in indices]
+                while len(update_idx) > Y.shape[0] // 10 and \
+                        search_knn < self.data_nu.shape[0] / 2:
+                    # increase the knn search
+                    search_knn = min(search_knn * 20, self.data_nu.shape[0])
+                    dist_new, ind_new = knn_tree.kneighbors(
+                        Y[update_idx], n_neighbors=search_knn)
+                    for i, idx in enumerate(update_idx):
+                        distances[idx] = dist_new[i]
+                        indices[idx] = ind_new[i]
+                    update_idx = [i for i, d in enumerate(distances) if np.max(d) <
+                                  (radius if isinstance(bandwidth, numbers.Number)
+                                   else radius[i])]
+                    _logger.debug("search_knn = {}; {} remaining".format(
+                        search_knn,
+                        len(update_idx)))
+                if search_knn > self.data_nu.shape[0] / 2:
+                    knn_tree = NearestNeighbors(
+                        search_knn, algorithm='brute',
+                        n_jobs=self.n_jobs).fit(self.data_nu)
+                if len(update_idx) > 0:
+                    _logger.debug(
+                        "radius search on {}".format(len(update_idx)))
+                    # give up - radius search
+                    dist_new, ind_new = knn_tree.radius_neighbors(
+                        Y[update_idx, :],
+                        radius=radius
+                        if isinstance(bandwidth, numbers.Number)
+                        else np.max(radius[update_idx]))
+                    for i, idx in enumerate(update_idx):
+                        distances[idx] = dist_new[i]
+                        indices[idx] = ind_new[i]
+                if isinstance(bandwidth, numbers.Number):
+                    data = np.concatenate(distances) / bandwidth
+                else:
+                    data = np.concatenate([distances[i] / bandwidth[i]
+                                           for i in range(len(distances))])
 
-            indices = np.concatenate(indices)
-            indptr = np.concatenate(
-                [[0], np.cumsum([len(d) for d in distances])])
-            K = sparse.csr_matrix((data, indices, indptr),
-                                  shape=(Y.shape[0], self.data_nu.shape[0]))
-            K.data = np.exp(-1 * np.power(K.data, self.decay))
-            # handle nan
-            K.data = np.where(np.isnan(K.data), 1, K.data)
-            # TODO: should we zero values that are below thresh?
-            K.data[K.data < self.thresh] = 0
-            K = K.tocoo()
-            K.eliminate_zeros()
-            K = K.tocsr()
-            tasklogger.log_complete("affinities")
+                indices = np.concatenate(indices)
+                indptr = np.concatenate(
+                    [[0], np.cumsum([len(d) for d in distances])])
+                K = sparse.csr_matrix((data, indices, indptr),
+                                      shape=(Y.shape[0], self.data_nu.shape[0]))
+                K.data = np.exp(-1 * np.power(K.data, self.decay))
+                # handle nan
+                K.data = np.where(np.isnan(K.data), 1, K.data)
+                # TODO: should we zero values that are below thresh?
+                K.data[K.data < self.thresh] = 0
+                K = K.tocoo()
+                K.eliminate_zeros()
+                K = K.tocsr()
         return K
 
 
@@ -566,40 +566,36 @@ class LandmarkGraph(DataGraph):
         probabilities between cluster centers by using transition probabilities
         between samples assigned to each cluster.
         """
-        tasklogger.log_start("landmark operator")
-        is_sparse = sparse.issparse(self.kernel)
-        # spectral clustering
-        tasklogger.log_start("SVD")
-        _, _, VT = randomized_svd(self.diff_aff,
-                                  n_components=self.n_svd,
-                                  random_state=self.random_state)
-        tasklogger.log_complete("SVD")
-        tasklogger.log_start("KMeans")
-        kmeans = MiniBatchKMeans(
-            self.n_landmark,
-            init_size=3 * self.n_landmark,
-            batch_size=10000,
-            random_state=self.random_state)
-        self._clusters = kmeans.fit_predict(
-            self.diff_op.dot(VT.T))
-        # some clusters are not assigned
-        tasklogger.log_complete("KMeans")
+        with _logger.task("landmark operator"):
+            is_sparse = sparse.issparse(self.kernel)
+            # spectral clustering
+            with _logger.task("SVD"):
+                _, _, VT = randomized_svd(self.diff_aff,
+                                          n_components=self.n_svd,
+                                          random_state=self.random_state)
+            with _logger.task("KMeans"):
+                kmeans = MiniBatchKMeans(
+                    self.n_landmark,
+                    init_size=3 * self.n_landmark,
+                    batch_size=10000,
+                    random_state=self.random_state)
+                self._clusters = kmeans.fit_predict(
+                    self.diff_op.dot(VT.T))
 
-        # transition matrices
-        pmn = self._landmarks_to_data()
+            # transition matrices
+            pmn = self._landmarks_to_data()
 
-        # row normalize
-        pnm = pmn.transpose()
-        pmn = normalize(pmn, norm='l1', axis=1)
-        pnm = normalize(pnm, norm='l1', axis=1)
-        landmark_op = pmn.dot(pnm)  # sparsity agnostic matrix multiplication
-        if is_sparse:
-            # no need to have a sparse landmark operator
-            landmark_op = landmark_op.toarray()
-        # store output
-        self._landmark_op = landmark_op
-        self._transitions = pnm
-        tasklogger.log_complete("landmark operator")
+            # row normalize
+            pnm = pmn.transpose()
+            pmn = normalize(pmn, norm='l1', axis=1)
+            pnm = normalize(pnm, norm='l1', axis=1)
+            landmark_op = pmn.dot(pnm)  # sparsity agnostic matrix multiplication
+            if is_sparse:
+                # no need to have a sparse landmark operator
+                landmark_op = landmark_op.toarray()
+            # store output
+            self._landmark_op = landmark_op
+            self._transitions = pnm
 
     def extend_to_data(self, data, **kwargs):
         """Build transition matrix from new data to the graph
@@ -873,46 +869,45 @@ class TraditionalGraph(DataGraph):
                 K = K.tolil()
             K = utils.set_diagonal(K, 1)
         else:
-            tasklogger.log_start("affinities")
-            if sparse.issparse(self.data_nu):
-                self.data_nu = self.data_nu.toarray()
-            if self.precomputed == "distance":
-                pdx = self.data_nu
-            elif self.precomputed is None:
-                pdx = pdist(self.data_nu, metric=self.distance)
-                if np.any(pdx == 0):
-                    pdx = squareform(pdx)
-                    duplicate_ids = np.array(
-                        [i for i in np.argwhere(pdx == 0)
-                         if i[1] > i[0]])
-                    duplicate_names = ", ".join(["{} and {}".format(i[0], i[1])
-                                                 for i in duplicate_ids])
-                    warnings.warn(
-                        "Detected zero distance between samples {}. "
-                        "Consider removing duplicates to avoid errors in "
-                        "downstream processing.".format(duplicate_names),
-                        RuntimeWarning)
+            with _logger.task("affinities"):
+                if sparse.issparse(self.data_nu):
+                    self.data_nu = self.data_nu.toarray()
+                if self.precomputed == "distance":
+                    pdx = self.data_nu
+                elif self.precomputed is None:
+                    pdx = pdist(self.data_nu, metric=self.distance)
+                    if np.any(pdx == 0):
+                        pdx = squareform(pdx)
+                        duplicate_ids = np.array(
+                            [i for i in np.argwhere(pdx == 0)
+                             if i[1] > i[0]])
+                        duplicate_names = ", ".join(["{} and {}".format(i[0], i[1])
+                                                     for i in duplicate_ids])
+                        warnings.warn(
+                            "Detected zero distance between samples {}. "
+                            "Consider removing duplicates to avoid errors in "
+                            "downstream processing.".format(duplicate_names),
+                            RuntimeWarning)
+                    else:
+                        pdx = squareform(pdx)
                 else:
-                    pdx = squareform(pdx)
-            else:
-                raise ValueError(
-                    "precomputed='{}' not recognized. "
-                    "Choose from ['affinity', 'adjacency', 'distance', "
-                    "None]".format(self.precomputed))
-            if self.bandwidth is None:
-                knn_dist = np.partition(
-                    pdx, self.knn + 1, axis=1)[:, :self.knn + 1]
-                bandwidth = np.max(knn_dist, axis=1)
-            elif callable(self.bandwidth):
-                bandwidth = self.bandwidth(pdx)
-            else:
-                bandwidth = self.bandwidth
-            bandwidth = bandwidth * self.bandwidth_scale
-            pdx = (pdx.T / bandwidth).T
-            K = np.exp(-1 * np.power(pdx, self.decay))
-            # handle nan
-            K = np.where(np.isnan(K), 1, K)
-            tasklogger.log_complete("affinities")
+                    raise ValueError(
+                        "precomputed='{}' not recognized. "
+                        "Choose from ['affinity', 'adjacency', 'distance', "
+                        "None]".format(self.precomputed))
+                if self.bandwidth is None:
+                    knn_dist = np.partition(
+                        pdx, self.knn + 1, axis=1)[:, :self.knn + 1]
+                    bandwidth = np.max(knn_dist, axis=1)
+                elif callable(self.bandwidth):
+                    bandwidth = self.bandwidth(pdx)
+                else:
+                    bandwidth = self.bandwidth
+                bandwidth = bandwidth * self.bandwidth_scale
+                pdx = (pdx.T / bandwidth).T
+                K = np.exp(-1 * np.power(pdx, self.decay))
+                # handle nan
+                K = np.where(np.isnan(K), 1, K)
         # truncate
         if sparse.issparse(K):
             if not (isinstance(K, sparse.csr_matrix) or
@@ -966,21 +961,20 @@ class TraditionalGraph(DataGraph):
         if self.precomputed is not None:
             raise ValueError("Cannot extend kernel on precomputed graph")
         else:
-            tasklogger.log_start("affinities")
-            Y = self._check_extension_shape(Y)
-            pdx = cdist(Y, self.data_nu, metric=self.distance)
-            if bandwidth is None:
-                knn_dist = np.partition(pdx, knn, axis=1)[:, :knn]
-                bandwidth = np.max(knn_dist, axis=1)
-            elif callable(bandwidth):
-                bandwidth = bandwidth(pdx)
-            bandwidth = bandwidth_scale * bandwidth
-            pdx = (pdx.T / bandwidth).T
-            K = np.exp(-1 * pdx**self.decay)
-            # handle nan
-            K = np.where(np.isnan(K), 1, K)
-            K[K < self.thresh] = 0
-            tasklogger.log_complete("affinities")
+            with _logger.task("affinities"):
+                Y = self._check_extension_shape(Y)
+                pdx = cdist(Y, self.data_nu, metric=self.distance)
+                if bandwidth is None:
+                    knn_dist = np.partition(pdx, knn, axis=1)[:, :knn]
+                    bandwidth = np.max(knn_dist, axis=1)
+                elif callable(bandwidth):
+                    bandwidth = bandwidth(pdx)
+                bandwidth = bandwidth_scale * bandwidth
+                pdx = (pdx.T / bandwidth).T
+                K = np.exp(-1 * pdx**self.decay)
+                # handle nan
+                K = np.where(np.isnan(K), 1, K)
+                K[K < self.thresh] = 0
         return K
 
     @property
@@ -1003,7 +997,7 @@ class TraditionalGraph(DataGraph):
     def _default_shortest_path_distance(self):
         if self.precomputed is not None and not self.weighted:
             distance = 'constant'
-            tasklogger.log_info("Using constant distances.")
+            _logger.info("Using constant distances.")
         else:
             distance = super()._default_shortest_path_distance()
         return distance
@@ -1155,66 +1149,60 @@ class MNNGraph(DataGraph):
             symmetric matrix with ones down the diagonal
             with no non-negative entries.
         """
-        tasklogger.log_start("subgraphs")
-        self.subgraphs = []
-        from .api import Graph
-        # iterate through sample ids
-        for i, idx in enumerate(self.samples):
-            tasklogger.log_debug("subgraph {}: sample {}, "
-                                 "n = {}, knn = {}".format(
-                                     i, idx, np.sum(self.sample_idx == idx),
-                                     self.knn))
-            # select data for sample
-            data = self.data_nu[self.sample_idx == idx]
-            # build a kNN graph for cells within sample
-            graph = Graph(data, n_pca=None,
-                          knn=self.knn,
-                          decay=self.decay,
-                          bandwidth=self.bandwidth,
-                          distance=self.distance,
-                          thresh=self.thresh,
-                          verbose=self.verbose,
-                          random_state=self.random_state,
-                          n_jobs=self.n_jobs,
-                          kernel_symm='+',
-                          initialize=True)
-            self.subgraphs.append(graph)  # append to list of subgraphs
-        tasklogger.log_complete("subgraphs")
+        with _logger.task("subgraphs"):
+            self.subgraphs = []
+            from .api import Graph
+            # iterate through sample ids
+            for i, idx in enumerate(self.samples):
+                _logger.debug("subgraph {}: sample {}, "
+                                     "n = {}, knn = {}".format(
+                                         i, idx, np.sum(self.sample_idx == idx),
+                                         self.knn))
+                # select data for sample
+                data = self.data_nu[self.sample_idx == idx]
+                # build a kNN graph for cells within sample
+                graph = Graph(data, n_pca=None,
+                              knn=self.knn,
+                              decay=self.decay,
+                              bandwidth=self.bandwidth,
+                              distance=self.distance,
+                              thresh=self.thresh,
+                              verbose=self.verbose,
+                              random_state=self.random_state,
+                              n_jobs=self.n_jobs,
+                              kernel_symm='+',
+                              initialize=True)
+                self.subgraphs.append(graph)  # append to list of subgraphs
 
-        tasklogger.log_start("MNN kernel")
-        if self.thresh > 0 or self.decay is None:
-            K = sparse.lil_matrix(
-                (self.data_nu.shape[0], self.data_nu.shape[0]))
-        else:
-            K = np.zeros([self.data_nu.shape[0], self.data_nu.shape[0]])
-        for i, X in enumerate(self.subgraphs):
-            K = utils.set_submatrix(
-                K, self.sample_idx == self.samples[i],
-                self.sample_idx == self.samples[i], X.K)
-            within_batch_norm = np.array(np.sum(X.K, 1)).flatten()
-            for j, Y in enumerate(self.subgraphs):
-                if i == j:
-                    continue
-                tasklogger.log_start(
-                    "kernel from sample {} to {}".format(self.samples[i],
-                                                         self.samples[j]))
-                Kij = Y.build_kernel_to_data(
-                    X.data_nu,
-                    knn=self.knn)
-                between_batch_norm = np.array(np.sum(Kij, 1)).flatten()
-                scale = np.minimum(1, within_batch_norm /
-                                   between_batch_norm) * self.beta
-                if sparse.issparse(Kij):
-                    Kij = Kij.multiply(scale[:, None])
-                else:
-                    Kij = Kij * scale[:, None]
+        with _logger.task("MNN kernel"):
+            if self.thresh > 0 or self.decay is None:
+                K = sparse.lil_matrix(
+                    (self.data_nu.shape[0], self.data_nu.shape[0]))
+            else:
+                K = np.zeros([self.data_nu.shape[0], self.data_nu.shape[0]])
+            for i, X in enumerate(self.subgraphs):
                 K = utils.set_submatrix(
                     K, self.sample_idx == self.samples[i],
-                    self.sample_idx == self.samples[j], Kij)
-                tasklogger.log_complete(
-                    "kernel from sample {} to {}".format(self.samples[i],
-                                                         self.samples[j]))
-        tasklogger.log_complete("MNN kernel")
+                    self.sample_idx == self.samples[i], X.K)
+                within_batch_norm = np.array(np.sum(X.K, 1)).flatten()
+                for j, Y in enumerate(self.subgraphs):
+                    if i == j:
+                        continue
+                    with _logger.task(
+                        "kernel from sample {} to {}".format(self.samples[i], self.samples[j])):
+                        Kij = Y.build_kernel_to_data(
+                            X.data_nu,
+                            knn=self.knn)
+                        between_batch_norm = np.array(np.sum(Kij, 1)).flatten()
+                        scale = np.minimum(1, within_batch_norm /
+                                           between_batch_norm) * self.beta
+                        if sparse.issparse(Kij):
+                            Kij = Kij.multiply(scale[:, None])
+                        else:
+                            Kij = Kij * scale[:, None]
+                        K = utils.set_submatrix(
+                            K, self.sample_idx == self.samples[i],
+                            self.sample_idx == self.samples[j], Kij)
         return K
 
     def build_kernel_to_data(self, Y, theta=None):

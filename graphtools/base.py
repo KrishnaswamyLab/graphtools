@@ -11,9 +11,9 @@ from sklearn.utils.graph import graph_shortest_path
 from scipy import sparse
 import warnings
 import numbers
-import tasklogger
 import pickle
 import sys
+import tasklogger
 
 try:
     import pandas as pd
@@ -28,6 +28,8 @@ except (ImportError, SyntaxError):
     pass
 
 from . import utils
+
+_logger = tasklogger.get_tasklogger('graphtools')
 
 
 class Base(object):
@@ -179,7 +181,7 @@ class Data(Base):
             n_pca = None
         elif n_pca is True:  # notify that we're going to estimate rank.
             n_pca = 'auto'
-            tasklogger.log_info("Estimating n_pca from matrix rank. "
+            _logger.info("Estimating n_pca from matrix rank. "
                                 "Supply an integer n_pca "
                                 "for fixed amount.")
         if not any([isinstance(n_pca, numbers.Number),
@@ -233,45 +235,44 @@ class Data(Base):
         Reduced data matrix
         """
         if self.n_pca is not None and (self.n_pca == 'auto' or self.n_pca < self.data.shape[1]):
-            tasklogger.log_start("PCA")
-            n_pca = self.data.shape[1] - 1 if self.n_pca == 'auto' else self.n_pca
-            if sparse.issparse(self.data):
-                if isinstance(self.data, sparse.coo_matrix) or \
-                        isinstance(self.data, sparse.lil_matrix) or \
-                        isinstance(self.data, sparse.dok_matrix):
-                    self.data = self.data.tocsr()
-                self.data_pca = TruncatedSVD(n_pca, random_state=self.random_state)
-            else:
-                self.data_pca = PCA(n_pca,
-                                    svd_solver='randomized',
-                                    random_state=self.random_state)
-            self.data_pca.fit(self.data)
-            if self.n_pca == 'auto':
-                s = self.data_pca.singular_values_
-                smax = s.max()
-                if self.rank_threshold == 'auto':
-                    threshold = smax * \
-                        np.finfo(self.data.dtype).eps * max(self.data.shape)
-                    self.rank_threshold = threshold
-                threshold = self.rank_threshold
-                gate = np.where(s >= threshold)[0]
-                self.n_pca = gate.shape[0]
-                if self.n_pca == 0:
-                    raise ValueError("Supplied threshold {} was greater than "
-                                     "maximum singular value {} "
-                                     "for the data matrix".format(threshold, smax))
-                tasklogger.log_info(
-                    "Using rank estimate of {} as n_pca".format(self.n_pca))
-                # reset the sklearn operator
-                op = self.data_pca  # for line-width brevity..
-                op.components_ = op.components_[gate, :]
-                op.explained_variance_ = op.explained_variance_[gate]
-                op.explained_variance_ratio_ = op.explained_variance_ratio_[
-                    gate]
-                op.singular_values_ = op.singular_values_[gate]
-                self.data_pca = op  # im not clear if this is needed due to assignment rules
-            data_nu = self.data_pca.transform(self.data)
-            tasklogger.log_complete("PCA")
+            with _logger.task("PCA"):
+                n_pca = self.data.shape[1] - 1 if self.n_pca == 'auto' else self.n_pca
+                if sparse.issparse(self.data):
+                    if isinstance(self.data, sparse.coo_matrix) or \
+                            isinstance(self.data, sparse.lil_matrix) or \
+                            isinstance(self.data, sparse.dok_matrix):
+                        self.data = self.data.tocsr()
+                    self.data_pca = TruncatedSVD(n_pca, random_state=self.random_state)
+                else:
+                    self.data_pca = PCA(n_pca,
+                                        svd_solver='randomized',
+                                        random_state=self.random_state)
+                self.data_pca.fit(self.data)
+                if self.n_pca == 'auto':
+                    s = self.data_pca.singular_values_
+                    smax = s.max()
+                    if self.rank_threshold == 'auto':
+                        threshold = smax * \
+                            np.finfo(self.data.dtype).eps * max(self.data.shape)
+                        self.rank_threshold = threshold
+                    threshold = self.rank_threshold
+                    gate = np.where(s >= threshold)[0]
+                    self.n_pca = gate.shape[0]
+                    if self.n_pca == 0:
+                        raise ValueError("Supplied threshold {} was greater than "
+                                         "maximum singular value {} "
+                                         "for the data matrix".format(threshold, smax))
+                    _logger.info(
+                        "Using rank estimate of {} as n_pca".format(self.n_pca))
+                    # reset the sklearn operator
+                    op = self.data_pca  # for line-width brevity..
+                    op.components_ = op.components_[gate, :]
+                    op.explained_variance_ = op.explained_variance_[gate]
+                    op.explained_variance_ratio_ = op.explained_variance_ratio_[
+                        gate]
+                    op.singular_values_ = op.singular_values_[gate]
+                    self.data_pca = op  # im not clear if this is needed due to assignment rules
+                data_nu = self.data_pca.transform(self.data)
             return data_nu
         else:
             data_nu = self.data
@@ -472,10 +473,10 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         self.anisotropy = anisotropy
 
         if initialize:
-            tasklogger.log_debug("Initializing kernel...")
+            _logger.debug("Initializing kernel...")
             self.K
         else:
-            tasklogger.log_debug("Not initializing kernel.")
+            _logger.debug("Not initializing kernel.")
         super().__init__(**kwargs)
 
     def _check_symmetrization(self, kernel_symm, theta):
@@ -524,18 +525,18 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
     def symmetrize_kernel(self, K):
         # symmetrize
         if self.kernel_symm == "+":
-            tasklogger.log_debug("Using addition symmetrization.")
+            _logger.debug("Using addition symmetrization.")
             K = (K + K.T) / 2
         elif self.kernel_symm == "*":
-            tasklogger.log_debug("Using multiplication symmetrization.")
+            _logger.debug("Using multiplication symmetrization.")
             K = K.multiply(K.T)
         elif self.kernel_symm == 'mnn':
-            tasklogger.log_debug(
+            _logger.debug(
                 "Using mnn symmetrization (theta = {}).".format(self.theta))
             K = self.theta * utils.elementwise_minimum(K, K.T) + \
                 (1 - self.theta) * utils.elementwise_maximum(K, K.T)
         elif self.kernel_symm is None:
-            tasklogger.log_debug("Using no symmetrization.")
+            _logger.debug("Using no symmetrization.")
             pass
         else:
             # this should never happen
@@ -729,12 +730,12 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
     def to_igraph(self, attribute="weight", **kwargs):
         """Convert to an igraph Graph
 
-        Uses the igraph.Graph.Weighted_Adjacency constructor
+        Uses the igraph.Graph constructor
 
         Parameters
         ----------
         attribute : str, optional (default: "weight")
-        kwargs : additional arguments for igraph.Graph.Weighted_Adjacency
+        kwargs : additional arguments for igraph.Graph
         """
         try:
             import igraph as ig
@@ -747,8 +748,13 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
             # not a pygsp graph
             W = self.K.copy()
             W = utils.set_diagonal(W, 0)
-        return ig.Graph.Weighted_Adjacency(utils.to_array(W).tolist(),
-                                           attr=attribute, **kwargs)
+        sources, targets = W.nonzero()
+        edgelist = list(zip(sources, targets))
+        g = ig.Graph(W.shape[0], edgelist, **kwargs)
+        weights = W[W.nonzero()]
+        weights = utils.to_array(weights)
+        g.es[attribute] = weights.flatten().tolist()
+        return g
 
     def to_pickle(self, path):
         """Save the current Graph to a pickle.
@@ -787,10 +793,10 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
     def _default_shortest_path_distance(self):
         if not self.weighted:
             distance = 'data'
-            tasklogger.log_info("Using ambient data distances.")
+            _logger.info("Using ambient data distances.")
         else:
             distance = 'affinity'
-            tasklogger.log_info("Using negative log affinity distances.")
+            _logger.info("Using negative log affinity distances.")
         return distance
 
     def shortest_path(self, method='auto', distance=None):
@@ -954,7 +960,7 @@ class DataGraph(with_metaclass(abc.ABCMeta, Data, BaseGraph)):
         # kwargs are ignored
         self.n_jobs = n_jobs
         self.verbose = verbose
-        tasklogger.set_level(verbose)
+        _logger.set_level(verbose)
         super().__init__(data, **kwargs)
 
     def get_params(self):
@@ -1117,6 +1123,6 @@ class DataGraph(with_metaclass(abc.ABCMeta, Data, BaseGraph)):
             self.n_jobs = params['n_jobs']
         if 'verbose' in params:
             self.verbose = params['verbose']
-            tasklogger.set_level(self.verbose)
+            _logger.set_level(self.verbose)
         super().set_params(**params)
         return self
