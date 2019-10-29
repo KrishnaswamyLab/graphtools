@@ -9,7 +9,7 @@ from load_tests import (
     assert_raises,
     raises,
     warns,
-    generate_swiss_roll
+    generate_swiss_roll,
 )
 import pygsp
 
@@ -37,15 +37,21 @@ def test_build_landmark_with_too_few_points():
 def test_landmark_exact_graph():
     n_landmark = 100
     # exact graph
-    G = build_graph(data, n_landmark=n_landmark,
-                    thresh=0, n_pca=20,
-                    decay=10, knn=5 - 1, random_state=42)
-    assert(G.landmark_op.shape == (n_landmark, n_landmark))
-    assert(isinstance(G, graphtools.graphs.TraditionalGraph))
-    assert(isinstance(G, graphtools.graphs.LandmarkGraph))
-    assert(G.transitions.shape == (data.shape[0], n_landmark))
-    assert(G.clusters.shape == (data.shape[0],))
-    assert(len(np.unique(G.clusters)) <= n_landmark)
+    G = build_graph(
+        data,
+        n_landmark=n_landmark,
+        thresh=0,
+        n_pca=20,
+        decay=10,
+        knn=5 - 1,
+        random_state=42,
+    )
+    assert G.landmark_op.shape == (n_landmark, n_landmark)
+    assert isinstance(G, graphtools.graphs.TraditionalGraph)
+    assert isinstance(G, graphtools.graphs.LandmarkGraph)
+    assert G.transitions.shape == (data.shape[0], n_landmark)
+    assert G.clusters.shape == (data.shape[0],)
+    assert len(np.unique(G.clusters)) <= n_landmark
     signal = np.random.normal(0, 1, [n_landmark, 10])
     interpolated_signal = G.interpolate(signal)
     assert interpolated_signal.shape == (data.shape[0], signal.shape[1])
@@ -57,26 +63,33 @@ def test_landmark_exact_graph():
 def test_landmark_knn_graph():
     n_landmark = 500
     # knn graph
-    G = build_graph(data, n_landmark=n_landmark, n_pca=20,
-                    decay=None, knn=5 - 1, random_state=42)
-    assert(G.transitions.shape == (data.shape[0], n_landmark))
-    assert(G.landmark_op.shape == (n_landmark, n_landmark))
-    assert(isinstance(G, graphtools.graphs.kNNGraph))
-    assert(isinstance(G, graphtools.graphs.LandmarkGraph))
+    G = build_graph(
+        data, n_landmark=n_landmark, n_pca=20, decay=None, knn=5 - 1, random_state=42
+    )
+    assert G.transitions.shape == (data.shape[0], n_landmark)
+    assert G.landmark_op.shape == (n_landmark, n_landmark)
+    assert isinstance(G, graphtools.graphs.kNNGraph)
+    assert isinstance(G, graphtools.graphs.LandmarkGraph)
 
 
 def test_landmark_mnn_graph():
     n_landmark = 150
     X, sample_idx = generate_swiss_roll()
     # mnn graph
-    G = build_graph(X, n_landmark=n_landmark,
-                    thresh=1e-5, n_pca=None,
-                    decay=10, knn=5 - 1, random_state=42,
-                    sample_idx=sample_idx)
-    assert(G.clusters.shape == (X.shape[0],))
-    assert(G.landmark_op.shape == (n_landmark, n_landmark))
-    assert(isinstance(G, graphtools.graphs.MNNGraph))
-    assert(isinstance(G, graphtools.graphs.LandmarkGraph))
+    G = build_graph(
+        X,
+        n_landmark=n_landmark,
+        thresh=1e-5,
+        n_pca=None,
+        decay=10,
+        knn=5 - 1,
+        random_state=42,
+        sample_idx=sample_idx,
+    )
+    assert G.clusters.shape == (X.shape[0],)
+    assert G.landmark_op.shape == (n_landmark, n_landmark)
+    assert isinstance(G, graphtools.graphs.MNNGraph)
+    assert isinstance(G, graphtools.graphs.LandmarkGraph)
 
 
 #####################################################
@@ -87,40 +100,59 @@ def test_landmark_mnn_graph():
 def test_landmark_exact_pygsp_graph():
     n_landmark = 100
     # exact graph
-    G = build_graph(data, n_landmark=n_landmark,
-                    thresh=0, n_pca=10,
-                    decay=10, knn=3 - 1, random_state=42,
-                    use_pygsp=True)
-    assert(G.landmark_op.shape == (n_landmark, n_landmark))
-    assert(isinstance(G, graphtools.graphs.TraditionalGraph))
-    assert(isinstance(G, graphtools.graphs.LandmarkGraph))
-    assert(isinstance(G, pygsp.graphs.Graph))
+    G = build_graph(
+        data,
+        n_landmark=n_landmark,
+        thresh=0,
+        n_pca=10,
+        decay=10,
+        knn=3 - 1,
+        random_state=42,
+        use_pygsp=True,
+    )
+    assert G.landmark_op.shape == (n_landmark, n_landmark)
+    assert isinstance(G, graphtools.graphs.TraditionalGraph)
+    assert isinstance(G, graphtools.graphs.LandmarkGraph)
+    assert isinstance(G, pygsp.graphs.Graph)
 
 
 def test_landmark_knn_pygsp_graph():
     n_landmark = 500
     # knn graph
-    G = build_graph(data, n_landmark=n_landmark, n_pca=10,
-                    decay=None, knn=3 - 1, random_state=42,
-                    use_pygsp=True)
-    assert(G.landmark_op.shape == (n_landmark, n_landmark))
-    assert(isinstance(G, graphtools.graphs.kNNGraph))
-    assert(isinstance(G, graphtools.graphs.LandmarkGraph))
-    assert(isinstance(G, pygsp.graphs.Graph))
+    G = build_graph(
+        data,
+        n_landmark=n_landmark,
+        n_pca=10,
+        decay=None,
+        knn=3 - 1,
+        random_state=42,
+        use_pygsp=True,
+    )
+    assert G.landmark_op.shape == (n_landmark, n_landmark)
+    assert isinstance(G, graphtools.graphs.kNNGraph)
+    assert isinstance(G, graphtools.graphs.LandmarkGraph)
+    assert isinstance(G, pygsp.graphs.Graph)
 
 
 def test_landmark_mnn_pygsp_graph():
     n_landmark = 150
     X, sample_idx = generate_swiss_roll()
     # mnn graph
-    G = build_graph(X, n_landmark=n_landmark,
-                    thresh=1e-3, n_pca=None,
-                    decay=10, knn=3 - 1, random_state=42,
-                    sample_idx=sample_idx, use_pygsp=True)
-    assert(G.landmark_op.shape == (n_landmark, n_landmark))
-    assert(isinstance(G, graphtools.graphs.MNNGraph))
-    assert(isinstance(G, graphtools.graphs.LandmarkGraph))
-    assert(isinstance(G, pygsp.graphs.Graph))
+    G = build_graph(
+        X,
+        n_landmark=n_landmark,
+        thresh=1e-3,
+        n_pca=None,
+        decay=10,
+        knn=3 - 1,
+        random_state=42,
+        sample_idx=sample_idx,
+        use_pygsp=True,
+    )
+    assert G.landmark_op.shape == (n_landmark, n_landmark)
+    assert isinstance(G, graphtools.graphs.MNNGraph)
+    assert isinstance(G, graphtools.graphs.LandmarkGraph)
+    assert isinstance(G, pygsp.graphs.Graph)
 
 
 #####################################################
@@ -135,6 +167,7 @@ def test_landmark_mnn_pygsp_graph():
 # Test API
 #############
 
+
 def test_verbose():
     print()
     print("Verbose test: Landmark")
@@ -145,20 +178,21 @@ def test_set_params():
     G = build_graph(data, n_landmark=500, decay=None)
     G.landmark_op
     assert G.get_params() == {
-        'n_pca': 20,
-        'random_state': 42,
-        'kernel_symm': '+',
-        'theta': None,
-        'n_landmark': 500,
-        'anisotropy': 0,
-        'knn': 3,
-        'decay': None,
-        'bandwidth': None,
-        'bandwidth_scale': 1,
-        'distance': 'euclidean',
-        'thresh': 0,
-        'n_jobs': -1,
-        'verbose': 0}
+        "n_pca": 20,
+        "random_state": 42,
+        "kernel_symm": "+",
+        "theta": None,
+        "n_landmark": 500,
+        "anisotropy": 0,
+        "knn": 3,
+        "decay": None,
+        "bandwidth": None,
+        "bandwidth_scale": 1,
+        "distance": "euclidean",
+        "thresh": 0,
+        "n_jobs": -1,
+        "verbose": 0,
+    }
     G.set_params(n_landmark=300)
     assert G.landmark_op.shape == (300, 300)
     G.set_params(n_landmark=G.n_landmark, n_svd=G.n_svd)

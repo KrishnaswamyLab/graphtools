@@ -6,7 +6,7 @@ import numbers
 def if_sparse(sparse_func, dense_func, *args, **kwargs):
     if sparse.issparse(args[0]):
         for arg in args[1:]:
-            assert(sparse.issparse(arg))
+            assert sparse.issparse(arg)
         return sparse_func(*args, **kwargs)
     else:
         return dense_func(*args, **kwargs)
@@ -51,8 +51,9 @@ def set_submatrix(X, i, j, values):
 
 
 def sparse_nonzero_discrete(X, values):
-    if isinstance(X, (sparse.bsr_matrix, sparse.dia_matrix,
-                      sparse.dok_matrix, sparse.lil_matrix)):
+    if isinstance(
+        X, (sparse.bsr_matrix, sparse.dia_matrix, sparse.dok_matrix, sparse.lil_matrix)
+    ):
         X = X.tocsr()
     return dense_nonzero_discrete(X.data, values)
 
