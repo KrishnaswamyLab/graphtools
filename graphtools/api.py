@@ -285,7 +285,7 @@ def Graph(
             ),
         )
     )
-    return Graph(**params, **kwargs)
+    return Graph(**params)
 
 
 def from_igraph(G, attribute="weight", **kwargs):
