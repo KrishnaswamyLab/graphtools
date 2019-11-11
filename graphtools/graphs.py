@@ -69,6 +69,7 @@ class kNNGraph(DataGraph):
         data,
         knn=5,
         decay=None,
+        search_multiplier=20,
         bandwidth=None,
         bandwidth_scale=1.0,
         distance="euclidean",
@@ -108,6 +109,7 @@ class kNNGraph(DataGraph):
             )
 
         self.knn = knn
+        self.search_multiplier = search_multiplier
         self.decay = decay
         self.bandwidth = bandwidth
         self.bandwidth_scale = bandwidth_scale
@@ -328,7 +330,7 @@ class kNNGraph(DataGraph):
             with _logger.task("KNN search"):
                 # sparse fast alpha decay
                 knn_tree = self.knn_tree
-                search_knn = min(knn * 20, self.data_nu.shape[0])
+                search_knn = min(knn * self.search_multiplier, self.data_nu.shape[0])
                 distances, indices = knn_tree.kneighbors(Y, n_neighbors=search_knn)
                 self._check_duplicates(distances, indices)
             with _logger.task("affinities"):
