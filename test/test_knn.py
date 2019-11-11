@@ -1,6 +1,7 @@
 from __future__ import print_function, division
 from sklearn.utils.graph import graph_shortest_path
 from scipy.spatial.distance import pdist, squareform
+import warnings
 from load_tests import (
     graphtools,
     np,
@@ -157,6 +158,53 @@ def test_sparse_alpha_knn_graph():
     assert np.abs(G.W - G2.W).max() < thresh
     assert G.N == G2.N
     assert isinstance(G2, graphtools.graphs.kNNGraph)
+
+
+def test_knnmax():
+    data = datasets.make_swiss_roll()[0]
+    k = 5
+    k_max = 10
+    a = 0.45
+    thresh = 0
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", "K should be symmetric", RuntimeWarning)
+        G = build_graph(
+            data,
+            n_pca=None,  # n_pca,
+            decay=a,
+            knn=k - 1,
+            knn_max=k_max - 1,
+            thresh=0,
+            random_state=42,
+            kernel_symm=None,
+        )
+        assert np.all((G.K > 0).sum(axis=1) == k_max)
+
+    pdx = squareform(pdist(data, metric="euclidean"))
+    knn_dist = np.partition(pdx, k, axis=1)[:, :k]
+    knn_max_dist = np.max(np.partition(pdx, k_max, axis=1)[:, :k_max], axis=1)
+    epsilon = np.max(knn_dist, axis=1)
+    pdx_scale = (pdx.T / epsilon).T
+    K = np.where(pdx <= knn_max_dist[:, None], np.exp(-1 * pdx_scale ** a), 0)
+    K = K + K.T
+    W = np.divide(K, 2)
+    np.fill_diagonal(W, 0)
+    G = pygsp.graphs.Graph(W)
+    G2 = build_graph(
+        data,
+        n_pca=None,  # n_pca,
+        decay=a,
+        knn=k - 1,
+        knn_max=k_max - 1,
+        thresh=0,
+        random_state=42,
+        use_pygsp=True,
+    )
+    assert isinstance(G2, graphtools.graphs.kNNGraph)
+    assert G.N == G2.N
+    assert np.all(G.dw == G2.dw)
+    assert (G.W - G2.W).nnz == 0
 
 
 def test_knn_graph_fixed_bandwidth():
