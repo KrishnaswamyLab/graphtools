@@ -59,6 +59,11 @@ def test_k_too_large():
 
 
 @warns(UserWarning)
+def test_knnmax_too_large():
+    build_graph(data, n_pca=20, decay=10, knn=10, knn_max=9, thresh=1e-4)
+
+
+@warns(UserWarning)
 def test_bandwidth_no_decay():
     build_graph(data, n_pca=20, decay=None, bandwidth=3, thresh=1e-4)
 
@@ -205,6 +210,12 @@ def test_knnmax():
     assert G.N == G2.N
     assert np.all(G.dw == G2.dw)
     assert (G.W - G2.W).nnz == 0
+
+
+def test_thresh_small():
+    data = datasets.make_swiss_roll()[0]
+    G = graphtools.Graph(data, thresh=1e-30)
+    assert G.thresh == np.finfo("float").eps
 
 
 def test_knn_graph_fixed_bandwidth():
@@ -470,6 +481,7 @@ def test_set_params():
         "theta": None,
         "anisotropy": 0,
         "knn": 3,
+        "knn_max": None,
         "decay": None,
         "bandwidth": None,
         "bandwidth_scale": 1,
@@ -477,7 +489,7 @@ def test_set_params():
         "thresh": 0,
         "n_jobs": -1,
         "verbose": 0,
-    }
+    }, G.get_params()
     G.set_params(n_jobs=4)
     assert G.n_jobs == 4
     assert G.knn_tree.n_jobs == 4
@@ -487,6 +499,7 @@ def test_set_params():
     assert G.verbose == 2
     G.set_params(verbose=0)
     assert_raises(ValueError, G.set_params, knn=15)
+    assert_raises(ValueError, G.set_params, knn_max=15)
     assert_raises(ValueError, G.set_params, decay=10)
     assert_raises(ValueError, G.set_params, distance="manhattan")
     assert_raises(ValueError, G.set_params, thresh=1e-3)

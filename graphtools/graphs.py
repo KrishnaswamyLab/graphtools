@@ -79,13 +79,14 @@ class kNNGraph(DataGraph):
         **kwargs
     ):
 
-        if decay is not None and thresh <= 0 and knn_max is None:
-            raise ValueError(
-                "Cannot instantiate a kNNGraph with `decay=None`, "
-                "`thresh=0` and `knn_max=None`. Use a TraditionalGraph instead."
-            )
-        elif thresh < np.finfo(float).eps:
-            thresh = np.finfo(float).eps
+        if decay is not None:
+            if thresh <= 0 and knn_max is None:
+                raise ValueError(
+                    "Cannot instantiate a kNNGraph with `decay=None`, "
+                    "`thresh=0` and `knn_max=None`. Use a TraditionalGraph instead."
+                )
+            elif thresh < np.finfo(float).eps:
+                thresh = np.finfo(float).eps
 
         if callable(bandwidth):
             raise NotImplementedError(
@@ -105,7 +106,7 @@ class kNNGraph(DataGraph):
                 "n_samples ({n}). Setting knn={n}".format(k=knn, n=data.shape[0] - 2)
             )
             knn = data.shape[0] - 2
-        if knn_max < knn:
+        if knn_max is not None and knn_max < knn:
             warnings.warn(
                 "Cannot set knn_max ({knn_max}) to be less than "
                 "knn ({knn}). Setting knn_max={knn}".format(knn=knn, knn_max=knn_max)

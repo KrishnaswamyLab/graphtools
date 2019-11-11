@@ -185,6 +185,7 @@ def test_set_params():
         "n_landmark": 500,
         "anisotropy": 0,
         "knn": 3,
+        "knn_max": None,
         "decay": None,
         "bandwidth": None,
         "bandwidth_scale": 1,
