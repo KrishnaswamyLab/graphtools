@@ -69,6 +69,8 @@ class kNNGraph(DataGraph):
         data,
         knn=5,
         decay=None,
+        knn_max=None,
+        search_multiplier=20,
         bandwidth=None,
         bandwidth_scale=1.0,
         distance="euclidean",
@@ -77,11 +79,15 @@ class kNNGraph(DataGraph):
         **kwargs
     ):
 
-        if decay is not None and thresh <= 0:
-            raise ValueError(
-                "Cannot instantiate a kNNGraph with `decay=None` "
-                "and `thresh=0`. Use a TraditionalGraph instead."
-            )
+        if decay is not None:
+            if thresh <= 0 and knn_max is None:
+                raise ValueError(
+                    "Cannot instantiate a kNNGraph with `decay=None`, "
+                    "`thresh=0` and `knn_max=None`. Use a TraditionalGraph instead."
+                )
+            elif thresh < np.finfo(float).eps:
+                thresh = np.finfo(float).eps
+
         if callable(bandwidth):
             raise NotImplementedError(
                 "Callable bandwidth is only supported by"
@@ -100,6 +106,12 @@ class kNNGraph(DataGraph):
                 "n_samples ({n}). Setting knn={n}".format(k=knn, n=data.shape[0] - 2)
             )
             knn = data.shape[0] - 2
+        if knn_max is not None and knn_max < knn:
+            warnings.warn(
+                "Cannot set knn_max ({knn_max}) to be less than "
+                "knn ({knn}). Setting knn_max={knn}".format(knn=knn, knn_max=knn_max)
+            )
+            knn_max = knn
         if n_pca in [None, 0, False] and data.shape[1] > 500:
             warnings.warn(
                 "Building a kNNGraph on data of shape {} is "
@@ -108,6 +120,8 @@ class kNNGraph(DataGraph):
             )
 
         self.knn = knn
+        self.knn_max = knn_max
+        self.search_multiplier = search_multiplier
         self.decay = decay
         self.bandwidth = bandwidth
         self.bandwidth_scale = bandwidth_scale
@@ -125,6 +139,7 @@ class kNNGraph(DataGraph):
                 "decay": self.decay,
                 "bandwidth": self.bandwidth,
                 "bandwidth_scale": self.bandwidth_scale,
+                "knn_max": self.knn_max,
                 "distance": self.distance,
                 "thresh": self.thresh,
                 "n_jobs": self.n_jobs,
@@ -145,6 +160,7 @@ class kNNGraph(DataGraph):
         - verbose
         Invalid parameters: (these would require modifying the kernel matrix)
         - knn
+        - knn_max
         - decay
         - bandwidth
         - bandwidth_scale
@@ -161,6 +177,8 @@ class kNNGraph(DataGraph):
         """
         if "knn" in params and params["knn"] != self.knn:
             raise ValueError("Cannot update knn. Please create a new graph")
+        if "knn_max" in params and params["knn_max"] != self.knn:
+            raise ValueError("Cannot update knn_max. Please create a new graph")
         if "decay" in params and params["decay"] != self.decay:
             raise ValueError("Cannot update decay. Please create a new graph")
         if "bandwidth" in params and params["bandwidth"] != self.bandwidth:
@@ -237,7 +255,8 @@ class kNNGraph(DataGraph):
             symmetric matrix with ones down the diagonal
             with no non-negative entries.
         """
-        K = self.build_kernel_to_data(self.data_nu, knn=self.knn + 1)
+        knn_max = self.knn_max + 1 if self.knn_max else None
+        K = self.build_kernel_to_data(self.data_nu, knn=self.knn + 1, knn_max=knn_max)
         return K
 
     def _check_duplicates(self, distances, indices):
@@ -272,7 +291,9 @@ class kNNGraph(DataGraph):
                     RuntimeWarning,
                 )
 
-    def build_kernel_to_data(self, Y, knn=None, bandwidth=None, bandwidth_scale=None):
+    def build_kernel_to_data(
+        self, Y, knn=None, knn_max=None, bandwidth=None, bandwidth_scale=None
+    ):
         """Build a kernel from new input data `Y` to the `self.data`
 
         Parameters
@@ -314,8 +335,13 @@ class kNNGraph(DataGraph):
         if knn > self.data.shape[0]:
             warnings.warn(
                 "Cannot set knn ({k}) to be greater than "
-                "n_samples ({n}). Setting knn={n}".format(k=knn, n=self.data.shape[0])
+                "n_samples ({n}). Setting knn={n}".format(
+                    k=knn, n=self.data_nu.shape[0]
+                )
             )
+            knn = self.data_nu.shape[0]
+        if knn_max is None:
+            knn_max = self.data_nu.shape[0]
 
         Y = self._check_extension_shape(Y)
         if self.decay is None or self.thresh == 1:
@@ -328,7 +354,7 @@ class kNNGraph(DataGraph):
             with _logger.task("KNN search"):
                 # sparse fast alpha decay
                 knn_tree = self.knn_tree
-                search_knn = min(knn * 20, self.data_nu.shape[0])
+                search_knn = min(knn * self.search_multiplier, knn_max)
                 distances, indices = knn_tree.kneighbors(Y, n_neighbors=search_knn)
                 self._check_duplicates(distances, indices)
             with _logger.task("affinities"):
@@ -348,12 +374,13 @@ class kNNGraph(DataGraph):
                 if len(update_idx) > 0:
                     distances = [d for d in distances]
                     indices = [i for i in indices]
+                # increase the knn search
+                search_knn = min(search_knn * self.search_multiplier, knn_max)
                 while (
                     len(update_idx) > Y.shape[0] // 10
                     and search_knn < self.data_nu.shape[0] / 2
+                    and search_knn < knn_max
                 ):
-                    # increase the knn search
-                    search_knn = min(search_knn * 20, self.data_nu.shape[0])
                     dist_new, ind_new = knn_tree.kneighbors(
                         Y[update_idx], n_neighbors=search_knn
                     )
@@ -375,22 +402,38 @@ class kNNGraph(DataGraph):
                             search_knn, len(update_idx)
                         )
                     )
+                    # increase the knn search
+                    search_knn = min(search_knn * self.search_multiplier, knn_max)
                 if search_knn > self.data_nu.shape[0] / 2:
                     knn_tree = NearestNeighbors(
                         search_knn, algorithm="brute", n_jobs=self.n_jobs
                     ).fit(self.data_nu)
                 if len(update_idx) > 0:
-                    _logger.debug("radius search on {}".format(len(update_idx)))
-                    # give up - radius search
-                    dist_new, ind_new = knn_tree.radius_neighbors(
-                        Y[update_idx, :],
-                        radius=radius
-                        if isinstance(bandwidth, numbers.Number)
-                        else np.max(radius[update_idx]),
-                    )
-                    for i, idx in enumerate(update_idx):
-                        distances[idx] = dist_new[i]
-                        indices[idx] = ind_new[i]
+                    if search_knn == knn_max:
+                        _logger.debug(
+                            "knn search to knn_max ({}) on {}".format(
+                                knn_max, len(update_idx)
+                            )
+                        )
+                        # give up - search out to knn_max
+                        dist_new, ind_new = knn_tree.kneighbors(
+                            Y[update_idx], n_neighbors=search_knn
+                        )
+                        for i, idx in enumerate(update_idx):
+                            distances[idx] = dist_new[i]
+                            indices[idx] = ind_new[i]
+                    else:
+                        _logger.debug("radius search on {}".format(len(update_idx)))
+                        # give up - radius search
+                        dist_new, ind_new = knn_tree.radius_neighbors(
+                            Y[update_idx, :],
+                            radius=radius
+                            if isinstance(bandwidth, numbers.Number)
+                            else np.max(radius[update_idx]),
+                        )
+                        for i, idx in enumerate(update_idx):
+                            distances[idx] = dist_new[i]
+                            indices[idx] = ind_new[i]
                 if isinstance(bandwidth, numbers.Number):
                     data = np.concatenate(distances) / bandwidth
                 else:

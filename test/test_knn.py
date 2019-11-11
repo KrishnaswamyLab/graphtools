@@ -1,6 +1,8 @@
 from __future__ import print_function, division
 from sklearn.utils.graph import graph_shortest_path
 from scipy.spatial.distance import pdist, squareform
+from sklearn.utils.testing import assert_raise_message, assert_warns_message
+import warnings
 from load_tests import (
     graphtools,
     np,
@@ -58,6 +60,11 @@ def test_k_too_large():
 
 
 @warns(UserWarning)
+def test_knnmax_too_large():
+    build_graph(data, n_pca=20, decay=10, knn=10, knn_max=9, thresh=1e-4)
+
+
+@warns(UserWarning)
 def test_bandwidth_no_decay():
     build_graph(data, n_pca=20, decay=None, bandwidth=3, thresh=1e-4)
 
@@ -94,9 +101,27 @@ def test_knn_graph():
     )
     assert G.N == G2.N
     np.testing.assert_equal(G.dw, G2.dw)
-    assert (G.W != G2.W).nnz == 0
-    assert (G2.W != G.W).sum() == 0
+    assert (G.W - G2.W).nnz == 0
+    assert (G2.W - G.W).sum() == 0
     assert isinstance(G2, graphtools.graphs.kNNGraph)
+
+    K2 = G2.build_kernel_to_data(G2.data_nu, knn=k)
+    K2 = (K2 + K2.T) / 2
+    assert (G2.K - K2).nnz == 0
+    assert (
+        G2.build_kernel_to_data(G2.data_nu, knn=data.shape[0]).nnz
+        == data.shape[0] * data.shape[0]
+    )
+    assert_warns_message(
+        UserWarning,
+        "Cannot set knn ({}) to be greater than "
+        "n_samples ({}). Setting knn={}".format(
+            data.shape[0] + 1, data.shape[0], data.shape[0]
+        ),
+        G2.build_kernel_to_data,
+        Y=G2.data_nu,
+        knn=data.shape[0] + 1,
+    )
 
 
 def test_knn_graph_sparse():
@@ -159,6 +184,59 @@ def test_sparse_alpha_knn_graph():
     assert isinstance(G2, graphtools.graphs.kNNGraph)
 
 
+def test_knnmax():
+    data = datasets.make_swiss_roll()[0]
+    k = 5
+    k_max = 10
+    a = 0.45
+    thresh = 0
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", "K should be symmetric", RuntimeWarning)
+        G = build_graph(
+            data,
+            n_pca=None,  # n_pca,
+            decay=a,
+            knn=k - 1,
+            knn_max=k_max - 1,
+            thresh=0,
+            random_state=42,
+            kernel_symm=None,
+        )
+        assert np.all((G.K > 0).sum(axis=1) == k_max)
+
+    pdx = squareform(pdist(data, metric="euclidean"))
+    knn_dist = np.partition(pdx, k, axis=1)[:, :k]
+    knn_max_dist = np.max(np.partition(pdx, k_max, axis=1)[:, :k_max], axis=1)
+    epsilon = np.max(knn_dist, axis=1)
+    pdx_scale = (pdx.T / epsilon).T
+    K = np.where(pdx <= knn_max_dist[:, None], np.exp(-1 * pdx_scale ** a), 0)
+    K = K + K.T
+    W = np.divide(K, 2)
+    np.fill_diagonal(W, 0)
+    G = pygsp.graphs.Graph(W)
+    G2 = build_graph(
+        data,
+        n_pca=None,  # n_pca,
+        decay=a,
+        knn=k - 1,
+        knn_max=k_max - 1,
+        thresh=0,
+        random_state=42,
+        use_pygsp=True,
+    )
+    assert isinstance(G2, graphtools.graphs.kNNGraph)
+    assert G.N == G2.N
+    assert np.all(G.dw == G2.dw)
+    assert (G.W - G2.W).nnz == 0
+
+
+def test_thresh_small():
+    data = datasets.make_swiss_roll()[0]
+    G = graphtools.Graph(data, thresh=1e-30)
+    assert G.thresh == np.finfo("float").eps
+
+
 def test_knn_graph_fixed_bandwidth():
     k = None
     decay = 5
@@ -184,6 +262,7 @@ def test_knn_graph_fixed_bandwidth():
         knn=k,
         random_state=42,
         thresh=thresh,
+        search_multiplier=2,
         use_pygsp=True,
     )
     assert isinstance(G2, graphtools.graphs.kNNGraph)
@@ -422,6 +501,7 @@ def test_set_params():
         "theta": None,
         "anisotropy": 0,
         "knn": 3,
+        "knn_max": None,
         "decay": None,
         "bandwidth": None,
         "bandwidth_scale": 1,
@@ -429,7 +509,7 @@ def test_set_params():
         "thresh": 0,
         "n_jobs": -1,
         "verbose": 0,
-    }
+    }, G.get_params()
     G.set_params(n_jobs=4)
     assert G.n_jobs == 4
     assert G.knn_tree.n_jobs == 4
@@ -439,6 +519,7 @@ def test_set_params():
     assert G.verbose == 2
     G.set_params(verbose=0)
     assert_raises(ValueError, G.set_params, knn=15)
+    assert_raises(ValueError, G.set_params, knn_max=15)
     assert_raises(ValueError, G.set_params, decay=10)
     assert_raises(ValueError, G.set_params, distance="manhattan")
     assert_raises(ValueError, G.set_params, thresh=1e-3)
