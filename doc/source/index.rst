@@ -30,6 +30,10 @@ graphtools
 
     <a href="https://github.com/KrishnaswamyLab/graphtools/"><img src="https://img.shields.io/github/stars/KrishnaswamyLab/graphtools.svg?style=social&label=Stars" alt="GitHub stars"></a>
 
+.. raw:: html
+
+    <a href="https://github.com/psf/black/"><img src="https://img.shields.io/badge/code%20style-black-000000.svg" alt="Code style: black"></a>
+
 Tools for building and manipulating graphs in Python.
 
 .. toctree::

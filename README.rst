@@ -23,6 +23,9 @@ graphtools
 .. image:: https://img.shields.io/github/stars/KrishnaswamyLab/graphtools.svg?style=social&label=Stars
     :target: https://github.com/KrishnaswamyLab/graphtools/
     :alt: GitHub stars
+.. image:: https://img.shields.io/badge/code%20style-black-000000.svg
+    :target: https://github.com/psf/black
+    :alt: Code style: black
 
 Tools for building and manipulating graphs in Python.
 
