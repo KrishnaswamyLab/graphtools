@@ -182,7 +182,7 @@ def Graph(
     """
     _logger.set_level(verbose)
     if sample_idx is not None and len(np.unique(sample_idx)) == 1:
-        warnings.warn("Only one unique sample. " "Not using MNNGraph")
+        warnings.warn("Only one unique sample. Not using MNNGraph")
         sample_idx = None
         if graphtype == "mnn":
             graphtype = "auto"

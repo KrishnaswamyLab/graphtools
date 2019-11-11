@@ -220,6 +220,21 @@ def test_mnn_adaptive_k():
     )
 
 
+@warns(UserWarning)
+def test_single_sample_idx_warning():
+    build_graph(data, sample_idx=np.repeat(1, len(data)))
+
+
+def test_single_sample_idx():
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore", "Only one unique sample. Not using MNNGraph", UserWarning
+        )
+        G = build_graph(data, sample_idx=np.repeat(1, len(data)))
+    G2 = build_graph(data)
+    assert (G.K - G2.K).nnz == 0
+
+
 def test_mnn_with_non_zero_indexed_sample_idx():
     X, sample_idx = generate_swiss_roll()
     G = build_graph(

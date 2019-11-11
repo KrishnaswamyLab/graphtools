@@ -409,6 +409,37 @@ def test_knn_interpolate():
     )
 
 
+def test_knn_interpolate_wrong_shape():
+    G = build_graph(data, n_pca=10, decay=None)
+    transitions = assert_raise_message(
+        ValueError,
+        "Expected a 2D matrix. Y has shape ({},)".format(data.shape[0]),
+        G.extend_to_data,
+        data[:, 0],
+    )
+    transitions = assert_raise_message(
+        ValueError,
+        "Expected a 2D matrix. Y has shape ({}, {}, 1)".format(
+            data.shape[0], data.shape[1]
+        ),
+        G.extend_to_data,
+        data[:, :, None],
+    )
+    transitions = assert_raise_message(
+        ValueError,
+        "Y must be of shape either (n, 64) or (n, 10)",
+        G.extend_to_data,
+        data[:, : data.shape[1] // 2],
+    )
+    G = build_graph(data, n_pca=None, decay=None)
+    transitions = assert_raise_message(
+        ValueError,
+        "Y must be of shape (n, 64)",
+        G.extend_to_data,
+        data[:, : data.shape[1] // 2],
+    )
+
+
 #################################################
 # Check extra functionality
 #################################################
