@@ -14,21 +14,22 @@ def Graph(
     data,
     n_pca=None,
     rank_threshold=None,
-    sample_idx=None,
-    adaptive_k=None,
-    precomputed=None,
     knn=5,
     decay=40,
     bandwidth=None,
     bandwidth_scale=1.0,
+    knn_max=None,
     anisotropy=0,
     distance="euclidean",
     thresh=1e-4,
     kernel_symm="+",
     theta=None,
+    precomputed=None,
+    beta=1,
+    sample_idx=None,
+    adaptive_k=None,
     n_landmark=None,
     n_svd=100,
-    beta=1,
     n_jobs=-1,
     verbose=False,
     random_state=None,
@@ -89,6 +90,9 @@ def Graph(
 
     bandwidth_scale : `float`, optional (default : 1.0)
         Rescaling factor for bandwidth.
+
+    knn_max : `int` or `None`, optional (default : `None`)
+        Maximum number of neighbors with nonzero affinity
 
     anisotropy : float, optional (default: 0)
         Level of anisotropy between 0 and 1
@@ -193,7 +197,7 @@ def Graph(
         elif decay is None:
             # knn kernel
             graphtype = "knn"
-        elif thresh == 0 or callable(bandwidth):
+        elif (thresh == 0 and knn_max is None) or callable(bandwidth):
             # compute full distance matrix
             graphtype = "exact"
         else:
@@ -281,7 +285,7 @@ def Graph(
             ),
         )
     )
-    return Graph(**params)
+    return Graph(**params, **kwargs)
 
 
 def from_igraph(G, attribute="weight", **kwargs):
