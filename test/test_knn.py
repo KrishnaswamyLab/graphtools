@@ -1,6 +1,7 @@
 from __future__ import print_function, division
 from sklearn.utils.graph import graph_shortest_path
 from scipy.spatial.distance import pdist, squareform
+from sklearn.utils.testing import assert_raise_message, assert_warns_message
 import warnings
 from load_tests import (
     graphtools,
@@ -100,9 +101,27 @@ def test_knn_graph():
     )
     assert G.N == G2.N
     np.testing.assert_equal(G.dw, G2.dw)
-    assert (G.W != G2.W).nnz == 0
-    assert (G2.W != G.W).sum() == 0
+    assert (G.W - G2.W).nnz == 0
+    assert (G2.W - G.W).sum() == 0
     assert isinstance(G2, graphtools.graphs.kNNGraph)
+
+    K2 = G2.build_kernel_to_data(G2.data_nu, knn=k)
+    K2 = (K2 + K2.T) / 2
+    assert (G2.K - K2).nnz == 0
+    assert (
+        G2.build_kernel_to_data(G2.data_nu, knn=data.shape[0]).nnz
+        == data.shape[0] * data.shape[0]
+    )
+    assert_warns_message(
+        UserWarning,
+        "Cannot set knn ({}) to be greater than "
+        "n_samples ({}). Setting knn={}".format(
+            data.shape[0] + 1, data.shape[0], data.shape[0]
+        ),
+        G2.build_kernel_to_data,
+        Y=G2.data_nu,
+        knn=data.shape[0] + 1,
+    )
 
 
 def test_knn_graph_sparse():
@@ -243,6 +262,7 @@ def test_knn_graph_fixed_bandwidth():
         knn=k,
         random_state=42,
         thresh=thresh,
+        search_multiplier=2,
         use_pygsp=True,
     )
     assert isinstance(G2, graphtools.graphs.kNNGraph)
