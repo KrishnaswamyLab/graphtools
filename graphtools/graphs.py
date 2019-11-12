@@ -70,7 +70,7 @@ class kNNGraph(DataGraph):
         knn=5,
         decay=None,
         knn_max=None,
-        search_multiplier=20,
+        search_multiplier=6,
         bandwidth=None,
         bandwidth_scale=1.0,
         distance="euclidean",
