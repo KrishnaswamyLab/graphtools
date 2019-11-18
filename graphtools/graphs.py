@@ -15,6 +15,8 @@ import tasklogger
 from . import utils
 from .base import DataGraph, PyGSPGraph
 
+_logger = tasklogger.get_tasklogger("graphtools")
+
 
 class kNNGraph(DataGraph):
     """
@@ -62,36 +64,64 @@ class kNNGraph(DataGraph):
         between KD tree, ball tree and brute force?
     """
 
-    def __init__(self, data, knn=5, decay=None,
-                 bandwidth=None, bandwidth_scale=1.0, distance='euclidean',
-                 thresh=1e-4, n_pca=None, **kwargs):
+    def __init__(
+        self,
+        data,
+        knn=5,
+        decay=None,
+        knn_max=None,
+        search_multiplier=6,
+        bandwidth=None,
+        bandwidth_scale=1.0,
+        distance="euclidean",
+        thresh=1e-4,
+        n_pca=None,
+        **kwargs
+    ):
 
-        if decay is not None and thresh <= 0:
-            raise ValueError("Cannot instantiate a kNNGraph with `decay=None` "
-                             "and `thresh=0`. Use a TraditionalGraph instead.")
+        if decay is not None:
+            if thresh <= 0 and knn_max is None:
+                raise ValueError(
+                    "Cannot instantiate a kNNGraph with `decay=None`, "
+                    "`thresh=0` and `knn_max=None`. Use a TraditionalGraph instead."
+                )
+            elif thresh < np.finfo(float).eps:
+                thresh = np.finfo(float).eps
+
         if callable(bandwidth):
-            raise NotImplementedError("Callable bandwidth is only supported by"
-                                      " graphtools.graphs.TraditionalGraph.")
+            raise NotImplementedError(
+                "Callable bandwidth is only supported by"
+                " graphtools.graphs.TraditionalGraph."
+            )
         if knn is None and bandwidth is None:
-            raise ValueError(
-                "Either `knn` or `bandwidth` must be provided.")
+            raise ValueError("Either `knn` or `bandwidth` must be provided.")
         elif knn is None and bandwidth is not None:
             # implementation requires a knn value
             knn = 5
         if decay is None and bandwidth is not None:
-            warnings.warn("`bandwidth` is not used when `decay=None`.",
-                          UserWarning)
+            warnings.warn("`bandwidth` is not used when `decay=None`.", UserWarning)
         if knn > data.shape[0] - 2:
-            warnings.warn("Cannot set knn ({k}) to be greater than "
-                          "n_samples ({n}). Setting knn={n}".format(
-                              k=knn, n=data.shape[0] - 2))
+            warnings.warn(
+                "Cannot set knn ({k}) to be greater than "
+                "n_samples ({n}). Setting knn={n}".format(k=knn, n=data.shape[0] - 2)
+            )
             knn = data.shape[0] - 2
-        if n_pca is None and data.shape[1] > 500:
-            warnings.warn("Building a kNNGraph on data of shape {} is "
-                          "expensive. Consider setting n_pca.".format(
-                              data.shape), UserWarning)
+        if knn_max is not None and knn_max < knn:
+            warnings.warn(
+                "Cannot set knn_max ({knn_max}) to be less than "
+                "knn ({knn}). Setting knn_max={knn}".format(knn=knn, knn_max=knn_max)
+            )
+            knn_max = knn
+        if n_pca in [None, 0, False] and data.shape[1] > 500:
+            warnings.warn(
+                "Building a kNNGraph on data of shape {} is "
+                "expensive. Consider setting n_pca.".format(data.shape),
+                UserWarning,
+            )
 
         self.knn = knn
+        self.knn_max = knn_max
+        self.search_multiplier = search_multiplier
         self.decay = decay
         self.bandwidth = bandwidth
         self.bandwidth_scale = bandwidth_scale
@@ -103,15 +133,20 @@ class kNNGraph(DataGraph):
         """Get parameters from this object
         """
         params = super().get_params()
-        params.update({'knn': self.knn,
-                       'decay': self.decay,
-                       'bandwidth': self.bandwidth,
-                       'bandwidth_scale': self.bandwidth_scale,
-                       'distance': self.distance,
-                       'thresh': self.thresh,
-                       'n_jobs': self.n_jobs,
-                       'random_state': self.random_state,
-                       'verbose': self.verbose})
+        params.update(
+            {
+                "knn": self.knn,
+                "decay": self.decay,
+                "bandwidth": self.bandwidth,
+                "bandwidth_scale": self.bandwidth_scale,
+                "knn_max": self.knn_max,
+                "distance": self.distance,
+                "thresh": self.thresh,
+                "n_jobs": self.n_jobs,
+                "random_state": self.random_state,
+                "verbose": self.verbose,
+            }
+        )
         return params
 
     def set_params(self, **params):
@@ -125,6 +160,7 @@ class kNNGraph(DataGraph):
         - verbose
         Invalid parameters: (these would require modifying the kernel matrix)
         - knn
+        - knn_max
         - decay
         - bandwidth
         - bandwidth_scale
@@ -139,31 +175,31 @@ class kNNGraph(DataGraph):
         -------
         self
         """
-        if 'knn' in params and params['knn'] != self.knn:
+        if "knn" in params and params["knn"] != self.knn:
             raise ValueError("Cannot update knn. Please create a new graph")
-        if 'decay' in params and params['decay'] != self.decay:
+        if "knn_max" in params and params["knn_max"] != self.knn:
+            raise ValueError("Cannot update knn_max. Please create a new graph")
+        if "decay" in params and params["decay"] != self.decay:
             raise ValueError("Cannot update decay. Please create a new graph")
-        if 'bandwidth' in params and params['bandwidth'] != self.bandwidth:
-            raise ValueError(
-                "Cannot update bandwidth. Please create a new graph")
-        if 'bandwidth_scale' in params and \
-                params['bandwidth_scale'] != self.bandwidth_scale:
-            raise ValueError(
-                "Cannot update bandwidth_scale. Please create a new graph")
-        if 'distance' in params and params['distance'] != self.distance:
-            raise ValueError("Cannot update distance. "
-                             "Please create a new graph")
-        if 'thresh' in params and params['thresh'] != self.thresh \
-                and self.decay != 0:
+        if "bandwidth" in params and params["bandwidth"] != self.bandwidth:
+            raise ValueError("Cannot update bandwidth. Please create a new graph")
+        if (
+            "bandwidth_scale" in params
+            and params["bandwidth_scale"] != self.bandwidth_scale
+        ):
+            raise ValueError("Cannot update bandwidth_scale. Please create a new graph")
+        if "distance" in params and params["distance"] != self.distance:
+            raise ValueError("Cannot update distance. " "Please create a new graph")
+        if "thresh" in params and params["thresh"] != self.thresh and self.decay != 0:
             raise ValueError("Cannot update thresh. Please create a new graph")
-        if 'n_jobs' in params:
-            self.n_jobs = params['n_jobs']
+        if "n_jobs" in params:
+            self.n_jobs = params["n_jobs"]
             if hasattr(self, "_knn_tree"):
                 self.knn_tree.set_params(n_jobs=self.n_jobs)
-        if 'random_state' in params:
-            self.random_state = params['random_state']
-        if 'verbose' in params:
-            self.verbose = params['verbose']
+        if "random_state" in params:
+            self.random_state = params["random_state"]
+        if "verbose" in params:
+            self.verbose = params["verbose"]
         # update superclass parameters
         super().set_params(**params)
         return self
@@ -186,21 +222,25 @@ class kNNGraph(DataGraph):
             try:
                 self._knn_tree = NearestNeighbors(
                     n_neighbors=self.knn + 1,
-                    algorithm='ball_tree',
+                    algorithm="ball_tree",
                     metric=self.distance,
-                    n_jobs=self.n_jobs).fit(self.data_nu)
+                    n_jobs=self.n_jobs,
+                ).fit(self.data_nu)
             except ValueError:
                 # invalid metric
                 warnings.warn(
                     "Metric {} not valid for `sklearn.neighbors.BallTree`. "
                     "Graph instantiation may be slower than normal.".format(
-                        self.distance),
-                    UserWarning)
+                        self.distance
+                    ),
+                    UserWarning,
+                )
                 self._knn_tree = NearestNeighbors(
                     n_neighbors=self.knn + 1,
-                    algorithm='auto',
+                    algorithm="auto",
                     metric=self.distance,
-                    n_jobs=self.n_jobs).fit(self.data_nu)
+                    n_jobs=self.n_jobs,
+                ).fit(self.data_nu)
             return self._knn_tree
 
     def build_kernel(self):
@@ -215,37 +255,45 @@ class kNNGraph(DataGraph):
             symmetric matrix with ones down the diagonal
             with no non-negative entries.
         """
-        K = self.build_kernel_to_data(self.data_nu, knn=self.knn + 1)
+        knn_max = self.knn_max + 1 if self.knn_max else None
+        K = self.build_kernel_to_data(self.data_nu, knn=self.knn + 1, knn_max=knn_max)
         return K
 
     def _check_duplicates(self, distances, indices):
         if np.any(distances[:, 1] == 0):
             has_duplicates = distances[:, 1] == 0
             if np.sum(distances[:, 1:] == 0) < 20:
-                idx = np.argwhere((distances == 0) &
-                                  has_duplicates[:, None])
+                idx = np.argwhere((distances == 0) & has_duplicates[:, None])
                 duplicate_ids = np.array(
-                    [[indices[i[0], i[1]], i[0]]
-                     for i in idx if indices[i[0], i[1]] < i[0]])
-                duplicate_ids = duplicate_ids[
-                    np.argsort(duplicate_ids[:, 0])]
-                duplicate_names = ", ".join(["{} and {}".format(i[0], i[1])
-                                             for i in duplicate_ids])
+                    [
+                        [indices[i[0], i[1]], i[0]]
+                        for i in idx
+                        if indices[i[0], i[1]] < i[0]
+                    ]
+                )
+                duplicate_ids = duplicate_ids[np.argsort(duplicate_ids[:, 0])]
+                duplicate_names = ", ".join(
+                    ["{} and {}".format(i[0], i[1]) for i in duplicate_ids]
+                )
                 warnings.warn(
                     "Detected zero distance between samples {}. "
                     "Consider removing duplicates to avoid errors in "
                     "downstream processing.".format(duplicate_names),
-                    RuntimeWarning)
+                    RuntimeWarning,
+                )
             else:
                 warnings.warn(
                     "Detected zero distance between {} pairs of samples. "
                     "Consider removing duplicates to avoid errors in "
                     "downstream processing.".format(
-                        np.sum(np.sum(distances[:, 1:] == 0))),
-                    RuntimeWarning)
+                        np.sum(np.sum(distances[:, 1:] == 0))
+                    ),
+                    RuntimeWarning,
+                )
 
-    def build_kernel_to_data(self, Y, knn=None, bandwidth=None,
-                             bandwidth_scale=None):
+    def build_kernel_to_data(
+        self, Y, knn=None, knn_max=None, bandwidth=None, bandwidth_scale=None
+    ):
         """Build a kernel from new input data `Y` to the `self.data`
 
         Parameters
@@ -285,95 +333,127 @@ class kNNGraph(DataGraph):
         if bandwidth_scale is None:
             bandwidth_scale = self.bandwidth_scale
         if knn > self.data.shape[0]:
-            warnings.warn("Cannot set knn ({k}) to be greater than "
-                          "n_samples ({n}). Setting knn={n}".format(
-                              k=knn, n=self.data.shape[0]))
+            warnings.warn(
+                "Cannot set knn ({k}) to be greater than "
+                "n_samples ({n}). Setting knn={n}".format(
+                    k=knn, n=self.data_nu.shape[0]
+                )
+            )
+            knn = self.data_nu.shape[0]
+        if knn_max is None:
+            knn_max = self.data_nu.shape[0]
 
         Y = self._check_extension_shape(Y)
-        tasklogger.log_start("KNN search")
         if self.decay is None or self.thresh == 1:
-            # binary connectivity matrix
-            K = self.knn_tree.kneighbors_graph(
-                Y, n_neighbors=knn,
-                mode='connectivity')
-            tasklogger.log_complete("KNN search")
+            with _logger.task("KNN search"):
+                # binary connectivity matrix
+                K = self.knn_tree.kneighbors_graph(
+                    Y, n_neighbors=knn, mode="connectivity"
+                )
         else:
-            # sparse fast alpha decay
-            knn_tree = self.knn_tree
-            search_knn = min(knn * 20, self.data_nu.shape[0])
-            distances, indices = knn_tree.kneighbors(
-                Y, n_neighbors=search_knn)
-            self._check_duplicates(distances, indices)
-            tasklogger.log_complete("KNN search")
-            tasklogger.log_start("affinities")
-            if bandwidth is None:
-                bandwidth = distances[:, knn - 1]
+            with _logger.task("KNN search"):
+                # sparse fast alpha decay
+                knn_tree = self.knn_tree
+                search_knn = min(knn * self.search_multiplier, knn_max)
+                distances, indices = knn_tree.kneighbors(Y, n_neighbors=search_knn)
+                self._check_duplicates(distances, indices)
+            with _logger.task("affinities"):
+                if bandwidth is None:
+                    bandwidth = distances[:, knn - 1]
 
-            bandwidth = bandwidth * bandwidth_scale
+                bandwidth = bandwidth * bandwidth_scale
 
-            # check for zero bandwidth
-            bandwidth = np.maximum(bandwidth, np.finfo(float).eps)
+                # check for zero bandwidth
+                bandwidth = np.maximum(bandwidth, np.finfo(float).eps)
 
-            radius = bandwidth * np.power(-1 * np.log(self.thresh),
-                                          1 / self.decay)
-            update_idx = np.argwhere(
-                np.max(distances, axis=1) < radius).reshape(-1)
-            tasklogger.log_debug("search_knn = {}; {} remaining".format(
-                search_knn, len(update_idx)))
-            if len(update_idx) > 0:
-                distances = [d for d in distances]
-                indices = [i for i in indices]
-            while len(update_idx) > Y.shape[0] // 10 and \
-                    search_knn < self.data_nu.shape[0] / 2:
+                radius = bandwidth * np.power(-1 * np.log(self.thresh), 1 / self.decay)
+                update_idx = np.argwhere(np.max(distances, axis=1) < radius).reshape(-1)
+                _logger.debug(
+                    "search_knn = {}; {} remaining".format(search_knn, len(update_idx))
+                )
+                if len(update_idx) > 0:
+                    distances = [d for d in distances]
+                    indices = [i for i in indices]
                 # increase the knn search
-                search_knn = min(search_knn * 20, self.data_nu.shape[0])
-                dist_new, ind_new = knn_tree.kneighbors(
-                    Y[update_idx], n_neighbors=search_knn)
-                for i, idx in enumerate(update_idx):
-                    distances[idx] = dist_new[i]
-                    indices[idx] = ind_new[i]
-                update_idx = [i for i, d in enumerate(distances) if np.max(d) <
-                              (radius if isinstance(bandwidth, numbers.Number)
-                               else radius[i])]
-                tasklogger.log_debug("search_knn = {}; {} remaining".format(
-                    search_knn,
-                    len(update_idx)))
-            if search_knn > self.data_nu.shape[0] / 2:
-                knn_tree = NearestNeighbors(
-                    search_knn, algorithm='brute',
-                    n_jobs=self.n_jobs).fit(self.data_nu)
-            if len(update_idx) > 0:
-                tasklogger.log_debug(
-                    "radius search on {}".format(len(update_idx)))
-                # give up - radius search
-                dist_new, ind_new = knn_tree.radius_neighbors(
-                    Y[update_idx, :],
-                    radius=radius
-                    if isinstance(bandwidth, numbers.Number)
-                    else np.max(radius[update_idx]))
-                for i, idx in enumerate(update_idx):
-                    distances[idx] = dist_new[i]
-                    indices[idx] = ind_new[i]
-            if isinstance(bandwidth, numbers.Number):
-                data = np.concatenate(distances) / bandwidth
-            else:
-                data = np.concatenate([distances[i] / bandwidth[i]
-                                       for i in range(len(distances))])
+                search_knn = min(search_knn * self.search_multiplier, knn_max)
+                while (
+                    len(update_idx) > Y.shape[0] // 10
+                    and search_knn < self.data_nu.shape[0] / 2
+                    and search_knn < knn_max
+                ):
+                    dist_new, ind_new = knn_tree.kneighbors(
+                        Y[update_idx], n_neighbors=search_knn
+                    )
+                    for i, idx in enumerate(update_idx):
+                        distances[idx] = dist_new[i]
+                        indices[idx] = ind_new[i]
+                    update_idx = [
+                        i
+                        for i, d in enumerate(distances)
+                        if np.max(d)
+                        < (
+                            radius
+                            if isinstance(bandwidth, numbers.Number)
+                            else radius[i]
+                        )
+                    ]
+                    _logger.debug(
+                        "search_knn = {}; {} remaining".format(
+                            search_knn, len(update_idx)
+                        )
+                    )
+                    # increase the knn search
+                    search_knn = min(search_knn * self.search_multiplier, knn_max)
+                if search_knn > self.data_nu.shape[0] / 2:
+                    knn_tree = NearestNeighbors(
+                        search_knn, algorithm="brute", n_jobs=self.n_jobs
+                    ).fit(self.data_nu)
+                if len(update_idx) > 0:
+                    if search_knn == knn_max:
+                        _logger.debug(
+                            "knn search to knn_max ({}) on {}".format(
+                                knn_max, len(update_idx)
+                            )
+                        )
+                        # give up - search out to knn_max
+                        dist_new, ind_new = knn_tree.kneighbors(
+                            Y[update_idx], n_neighbors=search_knn
+                        )
+                        for i, idx in enumerate(update_idx):
+                            distances[idx] = dist_new[i]
+                            indices[idx] = ind_new[i]
+                    else:
+                        _logger.debug("radius search on {}".format(len(update_idx)))
+                        # give up - radius search
+                        dist_new, ind_new = knn_tree.radius_neighbors(
+                            Y[update_idx, :],
+                            radius=radius
+                            if isinstance(bandwidth, numbers.Number)
+                            else np.max(radius[update_idx]),
+                        )
+                        for i, idx in enumerate(update_idx):
+                            distances[idx] = dist_new[i]
+                            indices[idx] = ind_new[i]
+                if isinstance(bandwidth, numbers.Number):
+                    data = np.concatenate(distances) / bandwidth
+                else:
+                    data = np.concatenate(
+                        [distances[i] / bandwidth[i] for i in range(len(distances))]
+                    )
 
-            indices = np.concatenate(indices)
-            indptr = np.concatenate(
-                [[0], np.cumsum([len(d) for d in distances])])
-            K = sparse.csr_matrix((data, indices, indptr),
-                                  shape=(Y.shape[0], self.data_nu.shape[0]))
-            K.data = np.exp(-1 * np.power(K.data, self.decay))
-            # handle nan
-            K.data = np.where(np.isnan(K.data), 1, K.data)
-            # TODO: should we zero values that are below thresh?
-            K.data[K.data < self.thresh] = 0
-            K = K.tocoo()
-            K.eliminate_zeros()
-            K = K.tocsr()
-            tasklogger.log_complete("affinities")
+                indices = np.concatenate(indices)
+                indptr = np.concatenate([[0], np.cumsum([len(d) for d in distances])])
+                K = sparse.csr_matrix(
+                    (data, indices, indptr), shape=(Y.shape[0], self.data_nu.shape[0])
+                )
+                K.data = np.exp(-1 * np.power(K.data, self.decay))
+                # handle nan
+                K.data = np.where(np.isnan(K.data), 1, K.data)
+                # TODO: should we zero values that are below thresh?
+                K.data[K.data < self.thresh] = 0
+                K = K.tocoo()
+                K.eliminate_zeros()
+                K = K.tocsr()
         return K
 
 
@@ -429,12 +509,14 @@ class LandmarkGraph(DataGraph):
         if n_landmark >= data.shape[0]:
             raise ValueError(
                 "n_landmark ({}) >= n_samples ({}). Use "
-                "kNNGraph instead".format(n_landmark, data.shape[0]))
+                "kNNGraph instead".format(n_landmark, data.shape[0])
+            )
         if n_svd >= data.shape[0]:
-            warnings.warn("n_svd ({}) >= n_samples ({}) Consider "
-                          "using kNNGraph or lower n_svd".format(
-                              n_svd, data.shape[0]),
-                          RuntimeWarning)
+            warnings.warn(
+                "n_svd ({}) >= n_samples ({}) Consider "
+                "using kNNGraph or lower n_svd".format(n_svd, data.shape[0]),
+                RuntimeWarning,
+            )
         self.n_landmark = n_landmark
         self.n_svd = n_svd
         super().__init__(data, **kwargs)
@@ -443,8 +525,7 @@ class LandmarkGraph(DataGraph):
         """Get parameters from this object
         """
         params = super().get_params()
-        params.update({'n_landmark': self.n_landmark,
-                       'n_pca': self.n_pca})
+        params.update({"n_landmark": self.n_landmark, "n_pca": self.n_pca})
         return params
 
     def set_params(self, **params):
@@ -466,11 +547,11 @@ class LandmarkGraph(DataGraph):
         """
         # update parameters
         reset_landmarks = False
-        if 'n_landmark' in params and params['n_landmark'] != self.n_landmark:
-            self.n_landmark = params['n_landmark']
+        if "n_landmark" in params and params["n_landmark"] != self.n_landmark:
+            self.n_landmark = params["n_landmark"]
             reset_landmarks = True
-        if 'n_svd' in params and params['n_svd'] != self.n_svd:
-            self.n_svd = params['n_svd']
+        if "n_svd" in params and params["n_svd"] != self.n_svd:
+            self.n_svd = params["n_svd"]
             reset_landmarks = True
         # update superclass parameters
         super().set_params(**params)
@@ -549,15 +630,19 @@ class LandmarkGraph(DataGraph):
         landmarks = np.unique(self.clusters)
         if sparse.issparse(self.kernel):
             pmn = sparse.vstack(
-                [sparse.csr_matrix(self.kernel[self.clusters == i, :].sum(
-                    axis=0)) for i in landmarks])
+                [
+                    sparse.csr_matrix(self.kernel[self.clusters == i, :].sum(axis=0))
+                    for i in landmarks
+                ]
+            )
         else:
-            pmn = np.array([np.sum(self.kernel[self.clusters == i, :], axis=0)
-                            for i in landmarks])
+            pmn = np.array(
+                [np.sum(self.kernel[self.clusters == i, :], axis=0) for i in landmarks]
+            )
         return pmn
 
     def _data_transitions(self):
-        return normalize(self._landmarks_to_data(), 'l1', axis=1)
+        return normalize(self._landmarks_to_data(), "l1", axis=1)
 
     def build_landmark_op(self):
         """Build the landmark operator
@@ -566,40 +651,38 @@ class LandmarkGraph(DataGraph):
         probabilities between cluster centers by using transition probabilities
         between samples assigned to each cluster.
         """
-        tasklogger.log_start("landmark operator")
-        is_sparse = sparse.issparse(self.kernel)
-        # spectral clustering
-        tasklogger.log_start("SVD")
-        _, _, VT = randomized_svd(self.diff_aff,
-                                  n_components=self.n_svd,
-                                  random_state=self.random_state)
-        tasklogger.log_complete("SVD")
-        tasklogger.log_start("KMeans")
-        kmeans = MiniBatchKMeans(
-            self.n_landmark,
-            init_size=3 * self.n_landmark,
-            batch_size=10000,
-            random_state=self.random_state)
-        self._clusters = kmeans.fit_predict(
-            self.diff_op.dot(VT.T))
-        # some clusters are not assigned
-        tasklogger.log_complete("KMeans")
+        with _logger.task("landmark operator"):
+            is_sparse = sparse.issparse(self.kernel)
+            # spectral clustering
+            with _logger.task("SVD"):
+                _, _, VT = randomized_svd(
+                    self.diff_aff,
+                    n_components=self.n_svd,
+                    random_state=self.random_state,
+                )
+            with _logger.task("KMeans"):
+                kmeans = MiniBatchKMeans(
+                    self.n_landmark,
+                    init_size=3 * self.n_landmark,
+                    batch_size=10000,
+                    random_state=self.random_state,
+                )
+                self._clusters = kmeans.fit_predict(self.diff_op.dot(VT.T))
 
-        # transition matrices
-        pmn = self._landmarks_to_data()
+            # transition matrices
+            pmn = self._landmarks_to_data()
 
-        # row normalize
-        pnm = pmn.transpose()
-        pmn = normalize(pmn, norm='l1', axis=1)
-        pnm = normalize(pnm, norm='l1', axis=1)
-        landmark_op = pmn.dot(pnm)  # sparsity agnostic matrix multiplication
-        if is_sparse:
-            # no need to have a sparse landmark operator
-            landmark_op = landmark_op.toarray()
-        # store output
-        self._landmark_op = landmark_op
-        self._transitions = pnm
-        tasklogger.log_complete("landmark operator")
+            # row normalize
+            pnm = pmn.transpose()
+            pmn = normalize(pmn, norm="l1", axis=1)
+            pnm = normalize(pnm, norm="l1", axis=1)
+            landmark_op = pmn.dot(pnm)  # sparsity agnostic matrix multiplication
+            if is_sparse:
+                # no need to have a sparse landmark operator
+                landmark_op = landmark_op.toarray()
+            # store output
+            self._landmark_op = landmark_op
+            self._transitions = pnm
 
     def extend_to_data(self, data, **kwargs):
         """Build transition matrix from new data to the graph
@@ -628,13 +711,19 @@ class LandmarkGraph(DataGraph):
         kernel = self.build_kernel_to_data(data, **kwargs)
         if sparse.issparse(kernel):
             pnm = sparse.hstack(
-                [sparse.csr_matrix(kernel[:, self.clusters == i].sum(
-                    axis=1)) for i in np.unique(self.clusters)])
+                [
+                    sparse.csr_matrix(kernel[:, self.clusters == i].sum(axis=1))
+                    for i in np.unique(self.clusters)
+                ]
+            )
         else:
-            pnm = np.array([np.sum(
-                kernel[:, self.clusters == i],
-                axis=1).T for i in np.unique(self.clusters)]).transpose()
-        pnm = normalize(pnm, norm='l1', axis=1)
+            pnm = np.array(
+                [
+                    np.sum(kernel[:, self.clusters == i], axis=1).T
+                    for i in np.unique(self.clusters)
+                ]
+            ).transpose()
+        pnm = normalize(pnm, norm="l1", axis=1)
         return pnm
 
     def interpolate(self, transform, transitions=None, Y=None):
@@ -683,7 +772,7 @@ class TraditionalGraph(DataGraph):
     knn : `int`, optional (default: 5)
         Number of nearest neighbors (including self) to use to build the graph
 
-    decay : `int` or `None`, optional (default: `None`)
+    decay : `int` or `None`, optional (default: 40)
         Rate of alpha decay to use. If `None`, alpha decay is not used.
 
     bandwidth : `float`, list-like,`callable`, or `None`, optional (default: `None`)
@@ -700,11 +789,25 @@ class TraditionalGraph(DataGraph):
         distance metric for building kNN graph.
         TODO: actually sklearn.neighbors has even more choices
 
-    n_pca : `int` or `None`, optional (default: `None`)
+    n_pca : {`int`, `None`, `bool`, 'auto'}, optional (default: `None`)
         number of PC dimensions to retain for graph building.
-        If `None`, uses the original data.
-        Note: if data is sparse, uses SVD instead of PCA.
-        Only one of `precomputed` and `n_pca` can be set.
+        If n_pca in `[None,False,0]`, uses the original data.
+        If `True` then estimate using a singular value threshold
+        Note: if data is sparse, uses SVD instead of PCA
+        TODO: should we subtract and store the mean?
+
+    rank_threshold : `float`, 'auto', optional (default: 'auto')
+        threshold to use when estimating rank for
+        `n_pca in [True, 'auto']`.
+        Note that the default kwarg is `None` for this parameter.
+        It is subsequently parsed to 'auto' if necessary.
+        If 'auto', this threshold is
+        smax * np.finfo(data.dtype).eps * max(data.shape)
+        where smax is the maximum singular value of the data matrix.
+        For reference, see, e.g.
+        W. Press, S. Teukolsky, W. Vetterling and B. Flannery,
+        “Numerical Recipes (3rd edition)”,
+        Cambridge University Press, 2007, page 795.
 
     thresh : `float`, optional (default: `1e-4`)
         Threshold above which to calculate alpha decay kernel.
@@ -718,44 +821,58 @@ class TraditionalGraph(DataGraph):
         Only one of `precomputed` and `n_pca` can be set.
     """
 
-    def __init__(self, data,
-                 knn=5, decay=10,
-                 bandwidth=None,
-                 bandwidth_scale=1.0,
-                 distance='euclidean',
-                 n_pca=None,
-                 thresh=1e-4,
-                 precomputed=None, **kwargs):
-        if decay is None and precomputed not in ['affinity', 'adjacency']:
+    def __init__(
+        self,
+        data,
+        knn=5,
+        decay=40,
+        bandwidth=None,
+        bandwidth_scale=1.0,
+        distance="euclidean",
+        n_pca=None,
+        thresh=1e-4,
+        precomputed=None,
+        **kwargs
+    ):
+        if decay is None and precomputed not in ["affinity", "adjacency"]:
             # decay high enough is basically a binary kernel
             raise ValueError(
                 "`decay` must be provided for a "
-                "TraditionalGraph. For kNN kernel, use kNNGraph.")
-        if precomputed is not None and n_pca is not None:
+                "TraditionalGraph. For kNN kernel, use kNNGraph."
+            )
+        if precomputed is not None and n_pca not in [None, 0, False]:
             # the data itself is a matrix of distances / affinities
             n_pca = None
-            warnings.warn("n_pca cannot be given on a precomputed graph."
-                          " Setting n_pca=None", RuntimeWarning)
+            warnings.warn(
+                "n_pca cannot be given on a precomputed graph." " Setting n_pca=None",
+                RuntimeWarning,
+            )
         if knn is None and bandwidth is None:
-            raise ValueError(
-                "Either `knn` or `bandwidth` must be provided.")
+            raise ValueError("Either `knn` or `bandwidth` must be provided.")
         if knn is not None and knn > data.shape[0] - 2:
-            warnings.warn("Cannot set knn ({k}) to be greater than "
-                          " n_samples - 2 ({n}). Setting knn={n}".format(
-                              k=knn, n=data.shape[0] - 2))
+            warnings.warn(
+                "Cannot set knn ({k}) to be greater than "
+                " n_samples - 2 ({n}). Setting knn={n}".format(
+                    k=knn, n=data.shape[0] - 2
+                )
+            )
             knn = data.shape[0] - 2
         if precomputed is not None:
             if precomputed not in ["distance", "affinity", "adjacency"]:
-                raise ValueError("Precomputed value {} not recognized. "
-                                 "Choose from ['distance', 'affinity', "
-                                 "'adjacency']")
+                raise ValueError(
+                    "Precomputed value {} not recognized. "
+                    "Choose from ['distance', 'affinity', "
+                    "'adjacency']"
+                )
             elif data.shape[0] != data.shape[1]:
-                raise ValueError("Precomputed {} must be a square matrix. "
-                                 "{} was given".format(precomputed,
-                                                       data.shape))
+                raise ValueError(
+                    "Precomputed {} must be a square matrix. "
+                    "{} was given".format(precomputed, data.shape)
+                )
             elif (data < 0).sum() > 0:
-                raise ValueError("Precomputed {} should be "
-                                 "non-negative".format(precomputed))
+                raise ValueError(
+                    "Precomputed {} should be " "non-negative".format(precomputed)
+                )
         self.knn = knn
         self.decay = decay
         self.bandwidth = bandwidth
@@ -764,19 +881,22 @@ class TraditionalGraph(DataGraph):
         self.thresh = thresh
         self.precomputed = precomputed
 
-        super().__init__(data, n_pca=n_pca,
-                         **kwargs)
+        super().__init__(data, n_pca=n_pca, **kwargs)
 
     def get_params(self):
         """Get parameters from this object
         """
         params = super().get_params()
-        params.update({'knn': self.knn,
-                       'decay': self.decay,
-                       'bandwidth': self.bandwidth,
-                       'bandwidth_scale': self.bandwidth_scale,
-                       'distance': self.distance,
-                       'precomputed': self.precomputed})
+        params.update(
+            {
+                "knn": self.knn,
+                "decay": self.decay,
+                "bandwidth": self.bandwidth,
+                "bandwidth_scale": self.bandwidth_scale,
+                "distance": self.distance,
+                "precomputed": self.precomputed,
+            }
+        )
         return params
 
     def set_params(self, **params):
@@ -800,29 +920,33 @@ class TraditionalGraph(DataGraph):
         -------
         self
         """
-        if 'precomputed' in params and \
-                params['precomputed'] != self.precomputed:
-            raise ValueError("Cannot update precomputed. "
-                             "Please create a new graph")
-        if 'distance' in params and params['distance'] != self.distance and \
-                self.precomputed is None:
-            raise ValueError("Cannot update distance. "
-                             "Please create a new graph")
-        if 'knn' in params and params['knn'] != self.knn and \
-                self.precomputed is None:
+        if "precomputed" in params and params["precomputed"] != self.precomputed:
+            raise ValueError("Cannot update precomputed. " "Please create a new graph")
+        if (
+            "distance" in params
+            and params["distance"] != self.distance
+            and self.precomputed is None
+        ):
+            raise ValueError("Cannot update distance. " "Please create a new graph")
+        if "knn" in params and params["knn"] != self.knn and self.precomputed is None:
             raise ValueError("Cannot update knn. Please create a new graph")
-        if 'decay' in params and params['decay'] != self.decay and \
-                self.precomputed is None:
+        if (
+            "decay" in params
+            and params["decay"] != self.decay
+            and self.precomputed is None
+        ):
             raise ValueError("Cannot update decay. Please create a new graph")
-        if 'bandwidth' in params and \
-            params['bandwidth'] != self.bandwidth and \
-                self.precomputed is None:
-            raise ValueError(
-                "Cannot update bandwidth. Please create a new graph")
-        if 'bandwidth_scale' in params and \
-                params['bandwidth_scale'] != self.bandwidth_scale:
-            raise ValueError(
-                "Cannot update bandwidth_scale. Please create a new graph")
+        if (
+            "bandwidth" in params
+            and params["bandwidth"] != self.bandwidth
+            and self.precomputed is None
+        ):
+            raise ValueError("Cannot update bandwidth. Please create a new graph")
+        if (
+            "bandwidth_scale" in params
+            and params["bandwidth_scale"] != self.bandwidth_scale
+        ):
+            raise ValueError("Cannot update bandwidth_scale. Please create a new graph")
         # update superclass parameters
         super().set_params(**params)
         return self
@@ -853,57 +977,62 @@ class TraditionalGraph(DataGraph):
         elif self.precomputed == "adjacency":
             # need to set diagonal to one to make it an affinity matrix
             K = self.data_nu
-            if sparse.issparse(K) and \
-                not (isinstance(K, sparse.dok_matrix) or
-                     isinstance(K, sparse.lil_matrix)):
+            if sparse.issparse(K) and not (
+                isinstance(K, sparse.dok_matrix) or isinstance(K, sparse.lil_matrix)
+            ):
                 K = K.tolil()
             K = utils.set_diagonal(K, 1)
         else:
-            tasklogger.log_start("affinities")
-            if sparse.issparse(self.data_nu):
-                self.data_nu = self.data_nu.toarray()
-            if self.precomputed == "distance":
-                pdx = self.data_nu
-            elif self.precomputed is None:
-                pdx = pdist(self.data_nu, metric=self.distance)
-                if np.any(pdx == 0):
-                    pdx = squareform(pdx)
-                    duplicate_ids = np.array(
-                        [i for i in np.argwhere(pdx == 0)
-                         if i[1] > i[0]])
-                    duplicate_names = ", ".join(["{} and {}".format(i[0], i[1])
-                                                 for i in duplicate_ids])
-                    warnings.warn(
-                        "Detected zero distance between samples {}. "
-                        "Consider removing duplicates to avoid errors in "
-                        "downstream processing.".format(duplicate_names),
-                        RuntimeWarning)
+            with _logger.task("affinities"):
+                if sparse.issparse(self.data_nu):
+                    self.data_nu = self.data_nu.toarray()
+                if self.precomputed == "distance":
+                    pdx = self.data_nu
+                elif self.precomputed is None:
+                    pdx = pdist(self.data_nu, metric=self.distance)
+                    if np.any(pdx == 0):
+                        pdx = squareform(pdx)
+                        duplicate_ids = np.array(
+                            [i for i in np.argwhere(pdx == 0) if i[1] > i[0]]
+                        )
+                        duplicate_names = ", ".join(
+                            ["{} and {}".format(i[0], i[1]) for i in duplicate_ids]
+                        )
+                        warnings.warn(
+                            "Detected zero distance between samples {}. "
+                            "Consider removing duplicates to avoid errors in "
+                            "downstream processing.".format(duplicate_names),
+                            RuntimeWarning,
+                        )
+                    else:
+                        pdx = squareform(pdx)
                 else:
-                    pdx = squareform(pdx)
-            else:
-                raise ValueError(
-                    "precomputed='{}' not recognized. "
-                    "Choose from ['affinity', 'adjacency', 'distance', "
-                    "None]".format(self.precomputed))
-            if self.bandwidth is None:
-                knn_dist = np.partition(
-                    pdx, self.knn + 1, axis=1)[:, :self.knn + 1]
-                bandwidth = np.max(knn_dist, axis=1)
-            elif callable(self.bandwidth):
-                bandwidth = self.bandwidth(pdx)
-            else:
-                bandwidth = self.bandwidth
-            bandwidth = bandwidth * self.bandwidth_scale
-            pdx = (pdx.T / bandwidth).T
-            K = np.exp(-1 * np.power(pdx, self.decay))
-            # handle nan
-            K = np.where(np.isnan(K), 1, K)
-            tasklogger.log_complete("affinities")
+                    raise ValueError(
+                        "precomputed='{}' not recognized. "
+                        "Choose from ['affinity', 'adjacency', 'distance', "
+                        "None]".format(self.precomputed)
+                    )
+                if self.bandwidth is None:
+                    knn_dist = np.partition(pdx, self.knn + 1, axis=1)[
+                        :, : self.knn + 1
+                    ]
+                    bandwidth = np.max(knn_dist, axis=1)
+                elif callable(self.bandwidth):
+                    bandwidth = self.bandwidth(pdx)
+                else:
+                    bandwidth = self.bandwidth
+                bandwidth = bandwidth * self.bandwidth_scale
+                pdx = (pdx.T / bandwidth).T
+                K = np.exp(-1 * np.power(pdx, self.decay))
+                # handle nan
+                K = np.where(np.isnan(K), 1, K)
         # truncate
         if sparse.issparse(K):
-            if not (isinstance(K, sparse.csr_matrix) or
-                    isinstance(K, sparse.csc_matrix) or
-                    isinstance(K, sparse.bsr_matrix)):
+            if not (
+                isinstance(K, sparse.csr_matrix)
+                or isinstance(K, sparse.csc_matrix)
+                or isinstance(K, sparse.bsr_matrix)
+            ):
                 K = K.tocsr()
             K.data[K.data < self.thresh] = 0
             K = K.tocoo()
@@ -952,21 +1081,20 @@ class TraditionalGraph(DataGraph):
         if self.precomputed is not None:
             raise ValueError("Cannot extend kernel on precomputed graph")
         else:
-            tasklogger.log_start("affinities")
-            Y = self._check_extension_shape(Y)
-            pdx = cdist(Y, self.data_nu, metric=self.distance)
-            if bandwidth is None:
-                knn_dist = np.partition(pdx, knn, axis=1)[:, :knn]
-                bandwidth = np.max(knn_dist, axis=1)
-            elif callable(bandwidth):
-                bandwidth = bandwidth(pdx)
-            bandwidth = bandwidth_scale * bandwidth
-            pdx = (pdx.T / bandwidth).T
-            K = np.exp(-1 * pdx**self.decay)
-            # handle nan
-            K = np.where(np.isnan(K), 1, K)
-            K[K < self.thresh] = 0
-            tasklogger.log_complete("affinities")
+            with _logger.task("affinities"):
+                Y = self._check_extension_shape(Y)
+                pdx = cdist(Y, self.data_nu, metric=self.distance)
+                if bandwidth is None:
+                    knn_dist = np.partition(pdx, knn, axis=1)[:, :knn]
+                    bandwidth = np.max(knn_dist, axis=1)
+                elif callable(bandwidth):
+                    bandwidth = bandwidth(pdx)
+                bandwidth = bandwidth_scale * bandwidth
+                pdx = (pdx.T / bandwidth).T
+                K = np.exp(-1 * pdx ** self.decay)
+                # handle nan
+                K = np.where(np.isnan(K), 1, K)
+                K[K < self.thresh] = 0
         return K
 
     @property
@@ -978,18 +1106,19 @@ class TraditionalGraph(DataGraph):
 
     def _check_shortest_path_distance(self, distance):
         if self.precomputed is not None:
-            if distance == 'data':
+            if distance == "data":
                 raise ValueError(
                     "Graph shortest path with data distance not "
                     "valid for precomputed graphs. For precomputed graphs, "
                     "use `distance='constant'` for unweighted graphs and "
-                    "`distance='affinity'` for weighted graphs.")
+                    "`distance='affinity'` for weighted graphs."
+                )
         super()._check_shortest_path_distance(distance)
 
     def _default_shortest_path_distance(self):
         if self.precomputed is not None and not self.weighted:
-            distance = 'constant'
-            tasklogger.log_info("Using constant distances.")
+            distance = "constant"
+            _logger.info("Using constant distances.")
         else:
             distance = super()._default_shortest_path_distance()
         return distance
@@ -1026,19 +1155,24 @@ class MNNGraph(DataGraph):
         Graphs representing each batch separately
     """
 
-    def __init__(self, data, sample_idx,
-                 knn=5, beta=1, n_pca=None,
-                 decay=None,
-                 adaptive_k=None,
-                 bandwidth=None,
-                 distance='euclidean',
-                 thresh=1e-4,
-                 n_jobs=1,
-                 **kwargs):
+    def __init__(
+        self,
+        data,
+        sample_idx,
+        knn=5,
+        beta=1,
+        n_pca=None,
+        decay=None,
+        adaptive_k=None,
+        bandwidth=None,
+        distance="euclidean",
+        thresh=1e-4,
+        n_jobs=1,
+        **kwargs
+    ):
         self.beta = beta
         self.sample_idx = sample_idx
-        self.samples, self.n_cells = np.unique(
-            self.sample_idx, return_counts=True)
+        self.samples, self.n_cells = np.unique(self.sample_idx, return_counts=True)
         self.knn = knn
         self.decay = decay
         self.distance = distance
@@ -1047,26 +1181,33 @@ class MNNGraph(DataGraph):
         self.n_jobs = n_jobs
 
         if sample_idx is None:
-            raise ValueError("sample_idx must be given. For a graph without"
-                             " batch correction, use kNNGraph.")
-        elif len(sample_idx) != data.shape[0]:
-            raise ValueError("sample_idx ({}) must be the same length as "
-                             "data ({})".format(len(sample_idx),
-                                                data.shape[0]))
-        elif len(self.samples) == 1:
             raise ValueError(
-                "sample_idx must contain more than one unique value")
+                "sample_idx must be given. For a graph without"
+                " batch correction, use kNNGraph."
+            )
+        elif len(sample_idx) != data.shape[0]:
+            raise ValueError(
+                "sample_idx ({}) must be the same length as "
+                "data ({})".format(len(sample_idx), data.shape[0])
+            )
+        elif len(self.samples) == 1:
+            raise ValueError("sample_idx must contain more than one unique value")
         if adaptive_k is not None:
-            warnings.warn("`adaptive_k` has been deprecated. Using fixed knn.",
-                          DeprecationWarning)
+            warnings.warn(
+                "`adaptive_k` has been deprecated. Using fixed knn.", DeprecationWarning
+            )
 
         super().__init__(data, n_pca=n_pca, **kwargs)
 
     def _check_symmetrization(self, kernel_symm, theta):
-        if kernel_symm == 'theta' and theta is not None and \
-                not isinstance(theta, numbers.Number):
-            raise TypeError("Expected `theta` as a float. "
-                            "Got {}.".format(type(theta)))
+        if (
+            (kernel_symm == "theta" or kernel_symm == "mnn")
+            and theta is not None
+            and not isinstance(theta, numbers.Number)
+        ):
+            raise TypeError(
+                "Expected `theta` as a float. " "Got {}.".format(type(theta))
+            )
         else:
             super()._check_symmetrization(kernel_symm, theta)
 
@@ -1074,13 +1215,17 @@ class MNNGraph(DataGraph):
         """Get parameters from this object
         """
         params = super().get_params()
-        params.update({'beta': self.beta,
-                       'knn': self.knn,
-                       'decay': self.decay,
-                       'bandwidth': self.bandwidth,
-                       'distance': self.distance,
-                       'thresh': self.thresh,
-                       'n_jobs': self.n_jobs})
+        params.update(
+            {
+                "beta": self.beta,
+                "knn": self.knn,
+                "decay": self.decay,
+                "bandwidth": self.bandwidth,
+                "distance": self.distance,
+                "thresh": self.thresh,
+                "n_jobs": self.n_jobs,
+            }
+        )
         return params
 
     def set_params(self, **params):
@@ -1109,16 +1254,17 @@ class MNNGraph(DataGraph):
         self
         """
         # mnn specific arguments
-        if 'beta' in params and params['beta'] != self.beta:
+        if "beta" in params and params["beta"] != self.beta:
             raise ValueError("Cannot update beta. Please create a new graph")
 
         # knn arguments
-        knn_kernel_args = ['knn', 'decay', 'distance', 'thresh', 'bandwidth']
-        knn_other_args = ['n_jobs', 'random_state', 'verbose']
+        knn_kernel_args = ["knn", "decay", "distance", "thresh", "bandwidth"]
+        knn_other_args = ["n_jobs", "random_state", "verbose"]
         for arg in knn_kernel_args:
             if arg in params and params[arg] != getattr(self, arg):
-                raise ValueError("Cannot update {}. "
-                                 "Please create a new graph".format(arg))
+                raise ValueError(
+                    "Cannot update {}. " "Please create a new graph".format(arg)
+                )
         for arg in knn_other_args:
             if arg in params:
                 self.__setattr__(arg, params[arg])
@@ -1140,66 +1286,74 @@ class MNNGraph(DataGraph):
             symmetric matrix with ones down the diagonal
             with no non-negative entries.
         """
-        tasklogger.log_start("subgraphs")
-        self.subgraphs = []
-        from .api import Graph
-        # iterate through sample ids
-        for i, idx in enumerate(self.samples):
-            tasklogger.log_debug("subgraph {}: sample {}, "
-                                 "n = {}, knn = {}".format(
-                                     i, idx, np.sum(self.sample_idx == idx),
-                                     self.knn))
-            # select data for sample
-            data = self.data_nu[self.sample_idx == idx]
-            # build a kNN graph for cells within sample
-            graph = Graph(data, n_pca=None,
-                          knn=self.knn,
-                          decay=self.decay,
-                          bandwidth=self.bandwidth,
-                          distance=self.distance,
-                          thresh=self.thresh,
-                          verbose=self.verbose,
-                          random_state=self.random_state,
-                          n_jobs=self.n_jobs,
-                          kernel_symm='+',
-                          initialize=True)
-            self.subgraphs.append(graph)  # append to list of subgraphs
-        tasklogger.log_complete("subgraphs")
+        with _logger.task("subgraphs"):
+            self.subgraphs = []
+            from .api import Graph
 
-        tasklogger.log_start("MNN kernel")
-        if self.thresh > 0 or self.decay is None:
-            K = sparse.lil_matrix(
-                (self.data_nu.shape[0], self.data_nu.shape[0]))
-        else:
-            K = np.zeros([self.data_nu.shape[0], self.data_nu.shape[0]])
-        for i, X in enumerate(self.subgraphs):
-            K = utils.set_submatrix(
-                K, self.sample_idx == self.samples[i],
-                self.sample_idx == self.samples[i], X.K)
-            within_batch_norm = np.array(np.sum(X.K, 1)).flatten()
-            for j, Y in enumerate(self.subgraphs):
-                if i == j:
-                    continue
-                tasklogger.log_start(
-                    "kernel from sample {} to {}".format(self.samples[i],
-                                                         self.samples[j]))
-                Kij = Y.build_kernel_to_data(
-                    X.data_nu,
-                    knn=self.knn)
-                between_batch_norm = np.array(np.sum(Kij, 1)).flatten()
-                scale = np.minimum(1, within_batch_norm /
-                                   between_batch_norm) * self.beta
-                if sparse.issparse(Kij):
-                    Kij = Kij.multiply(scale[:, None])
-                else:
-                    Kij = Kij * scale[:, None]
+            # iterate through sample ids
+            for i, idx in enumerate(self.samples):
+                _logger.debug(
+                    "subgraph {}: sample {}, "
+                    "n = {}, knn = {}".format(
+                        i, idx, np.sum(self.sample_idx == idx), self.knn
+                    )
+                )
+                # select data for sample
+                data = self.data_nu[self.sample_idx == idx]
+                # build a kNN graph for cells within sample
+                graph = Graph(
+                    data,
+                    n_pca=None,
+                    knn=self.knn,
+                    decay=self.decay,
+                    bandwidth=self.bandwidth,
+                    distance=self.distance,
+                    thresh=self.thresh,
+                    verbose=self.verbose,
+                    random_state=self.random_state,
+                    n_jobs=self.n_jobs,
+                    kernel_symm="+",
+                    initialize=True,
+                )
+                self.subgraphs.append(graph)  # append to list of subgraphs
+
+        with _logger.task("MNN kernel"):
+            if self.thresh > 0 or self.decay is None:
+                K = sparse.lil_matrix((self.data_nu.shape[0], self.data_nu.shape[0]))
+            else:
+                K = np.zeros([self.data_nu.shape[0], self.data_nu.shape[0]])
+            for i, X in enumerate(self.subgraphs):
                 K = utils.set_submatrix(
-                    K, self.sample_idx == self.samples[i],
-                    self.sample_idx == self.samples[j], Kij)
-                tasklogger.log_complete(
-                    "kernel from sample {} to {}".format(self.samples[i],
-                                                         self.samples[j]))
-        tasklogger.log_complete("MNN kernel")
+                    K,
+                    self.sample_idx == self.samples[i],
+                    self.sample_idx == self.samples[i],
+                    X.K,
+                )
+                within_batch_norm = np.array(np.sum(X.K, 1)).flatten()
+                for j, Y in enumerate(self.subgraphs):
+                    if i == j:
+                        continue
+                    with _logger.task(
+                        "kernel from sample {} to {}".format(
+                            self.samples[i], self.samples[j]
+                        )
+                    ):
+                        Kij = Y.build_kernel_to_data(X.data_nu, knn=self.knn)
+                        between_batch_norm = np.array(np.sum(Kij, 1)).flatten()
+                        scale = (
+                            np.minimum(1, within_batch_norm / between_batch_norm)
+                            * self.beta
+                        )
+                        if sparse.issparse(Kij):
+                            Kij = Kij.multiply(scale[:, None])
+                        else:
+                            Kij = Kij * scale[:, None]
+                        K = utils.set_submatrix(
+                            K,
+                            self.sample_idx == self.samples[i],
+                            self.sample_idx == self.samples[j],
+                            Kij,
+                        )
         return K
 
     def build_kernel_to_data(self, Y, theta=None):

@@ -22,28 +22,42 @@ def reset_warnings():
 
 def ignore_numpy_warning():
     warnings.filterwarnings(
-        "ignore", category=PendingDeprecationWarning,
+        "ignore",
+        category=PendingDeprecationWarning,
         message="the matrix subclass is not the recommended way to represent "
-        "matrices or deal with linear algebra ")
+        "matrices or deal with linear algebra ",
+    )
 
 
 def ignore_igraph_warning():
     warnings.filterwarnings(
-        "ignore", category=DeprecationWarning,
+        "ignore",
+        category=DeprecationWarning,
         message="The SafeConfigParser class has been renamed to ConfigParser "
         "in Python 3.2. This alias will be removed in future versions. Use "
-        "ConfigParser directly instead")
+        "ConfigParser directly instead",
+    )
     warnings.filterwarnings(
-        "ignore", category=DeprecationWarning,
-        message="Using or importing the ABCs from 'collections' instead of from"
-        " 'collections.abc' is deprecated, and in 3.8 it will stop working")
+        "ignore",
+        category=DeprecationWarning,
+        message="Using or importing the ABCs from 'collections' instead of from "
+        "'collections.abc' is deprecated since Python 3.3,and in 3.9 it will stop working",
+    )
+    warnings.filterwarnings(
+        "ignore",
+        category=DeprecationWarning,
+        message="Using or importing the ABCs from 'collections' instead of from "
+        "'collections.abc' is deprecated, and in 3.8 it will stop working",
+    )
 
 
 def ignore_joblib_warning():
     warnings.filterwarnings(
-        "ignore", category=DeprecationWarning,
+        "ignore",
+        category=DeprecationWarning,
         message="check_pickle is deprecated in joblib 0.12 and will be removed"
-        " in 0.13")
+        " in 0.13",
+    )
 
 
 reset_warnings()
@@ -51,7 +65,7 @@ reset_warnings()
 global digits
 global data
 digits = datasets.load_digits()
-data = digits['data']
+data = digits["data"]
 
 
 def generate_swiss_roll(n_samples=1000, noise=0.5, seed=42):
@@ -69,19 +83,30 @@ def generate_swiss_roll(n_samples=1000, noise=0.5, seed=42):
     return X, sample_idx
 
 
-def build_graph(data, n_pca=20, thresh=0,
-                decay=10, knn=3,
-                random_state=42,
-                sparse=False,
-                graph_class=graphtools.Graph,
-                verbose=0,
-                **kwargs):
+def build_graph(
+    data,
+    n_pca=20,
+    thresh=0,
+    decay=10,
+    knn=3,
+    random_state=42,
+    sparse=False,
+    graph_class=graphtools.Graph,
+    verbose=0,
+    **kwargs
+):
     if sparse:
         data = sp.coo_matrix(data)
-    return graph_class(data, thresh=thresh, n_pca=n_pca,
-                       decay=decay, knn=knn,
-                       random_state=42, verbose=verbose,
-                       **kwargs)
+    return graph_class(
+        data,
+        thresh=thresh,
+        n_pca=n_pca,
+        decay=decay,
+        knn=knn,
+        random_state=42,
+        verbose=verbose,
+        **kwargs
+    )
 
 
 def warns(*warns):
@@ -94,7 +119,7 @@ def warns(*warns):
       def test_that_fails_by_passing():
           pass
     """
-    valid = ' or '.join([w.__name__ for w in warns])
+    valid = " or ".join([w.__name__ for w in warns])
 
     def decorate(func):
         name = func.__name__
@@ -114,6 +139,8 @@ def warns(*warns):
             else:
                 message = "%s() did not raise %s" % (name, valid)
                 raise AssertionError(message)
+
         newfunc = make_decorator(func)(newfunc)
         return newfunc
+
     return decorate

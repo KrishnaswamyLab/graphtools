@@ -1,38 +1,43 @@
 import numpy as np
 import warnings
-import tasklogger
 from scipy import sparse
 import pickle
 import pygsp
+import tasklogger
 
-from . import base
-from . import graphs
+from . import base, graphs
+
+_logger = tasklogger.get_tasklogger("graphtools")
 
 
-def Graph(data,
-          n_pca=None,
-          sample_idx=None,
-          adaptive_k=None,
-          precomputed=None,
-          knn=5,
-          decay=10,
-          bandwidth=None,
-          bandwidth_scale=1.0,
-          anisotropy=0,
-          distance='euclidean',
-          thresh=1e-4,
-          kernel_symm='+',
-          theta=None,
-          n_landmark=None,
-          n_svd=100,
-          beta=1,
-          n_jobs=-1,
-          verbose=False,
-          random_state=None,
-          graphtype='auto',
-          use_pygsp=False,
-          initialize=True,
-          **kwargs):
+def Graph(
+    data,
+    n_pca=None,
+    rank_threshold=None,
+    knn=5,
+    decay=40,
+    bandwidth=None,
+    bandwidth_scale=1.0,
+    knn_max=None,
+    anisotropy=0,
+    distance="euclidean",
+    thresh=1e-4,
+    kernel_symm="+",
+    theta=None,
+    precomputed=None,
+    beta=1,
+    sample_idx=None,
+    adaptive_k=None,
+    n_landmark=None,
+    n_svd=100,
+    n_jobs=-1,
+    verbose=False,
+    random_state=None,
+    graphtype="auto",
+    use_pygsp=False,
+    initialize=True,
+    **kwargs
+):
     """Create a graph built on data.
 
     Automatically selects the appropriate DataGraph subclass based on
@@ -53,18 +58,27 @@ def Graph(data,
     ----------
     data : array-like, shape=[n_samples,n_features]
         accepted types: `numpy.ndarray`, `scipy.sparse.spmatrix`.
-        TODO: accept pandas dataframes
+        TODO: accept pandas dataframes'
 
-    n_pca : `int` or `None`, optional (default: `None`)
+    n_pca : {`int`, `None`, `bool`, 'auto'}, optional (default: `None`)
         number of PC dimensions to retain for graph building.
-        If `None`, uses the original data.
+        If n_pca in `[None, False, 0]`, uses the original data.
+        If 'auto' or `True` then estimate using a singular value threshold
         Note: if data is sparse, uses SVD instead of PCA
         TODO: should we subtract and store the mean?
+
+    rank_threshold : `float`, 'auto', optional (default: 'auto')
+        threshold to use when estimating rank for
+        `n_pca in [True, 'auto']`.
+        If 'auto', this threshold is
+        s_max * eps * max(n_samples, n_features)
+        where s_max is the maximum singular value of the data matrix
+        and eps is numerical precision. [press2007]_.
 
     knn : `int`, optional (default: 5)
         Number of nearest neighbors (including self) to use to build the graph
 
-    decay : `int` or `None`, optional (default: 10)
+    decay : `int` or `None`, optional (default: 40)
         Rate of alpha decay to use. If `None`, alpha decay is not used and a vanilla
         k-Nearest Neighbors graph is returned.
 
@@ -76,6 +90,9 @@ def Graph(data,
 
     bandwidth_scale : `float`, optional (default : 1.0)
         Rescaling factor for bandwidth.
+
+    knn_max : `int` or `None`, optional (default : `None`)
+        Maximum number of neighbors with nonzero affinity
 
     anisotropy : float, optional (default: 0)
         Level of anisotropy between 0 and 1
@@ -92,14 +109,14 @@ def Graph(data,
         on time and memory constraints.
 
     kernel_symm : string, optional (default: '+')
-        Defines method of MNN symmetrization.
+        Defines method of kernel symmetrization.
         '+'  : additive
         '*'  : multiplicative
-        'theta' : min-max
+        'mnn' : min-max MNN symmetrization
         'none' : no symmetrization
 
     theta: float (default: None)
-        Min-max symmetrization constant or matrix. Only used if kernel_symm='theta'.
+        Min-max symmetrization constant or matrix. Only used if kernel_symm='mnn'.
         K = `theta * min(K, K.T) + (1 - theta) * max(K, K.T)`
 
     precomputed : {'distance', 'affinity', 'adjacency', `None`}, optional (default: `None`)
@@ -156,15 +173,20 @@ def Graph(data,
     Raises
     ------
     ValueError : if selected parameters are incompatible.
+
+    References
+    ----------
+    .. [press2007] W. Press, S. Teukolsky, W. Vetterling and B. Flannery,
+        “Numerical Recipes (3rd edition)”,
+        Cambridge University Press, 2007, page 795.
     """
-    tasklogger.set_level(verbose)
+    _logger.set_level(verbose)
     if sample_idx is not None and len(np.unique(sample_idx)) == 1:
-        warnings.warn("Only one unique sample. "
-                      "Not using MNNGraph")
+        warnings.warn("Only one unique sample. Not using MNNGraph")
         sample_idx = None
-        if graphtype == 'mnn':
-            graphtype = 'auto'
-    if graphtype == 'auto':
+        if graphtype == "mnn":
+            graphtype = "auto"
+    if graphtype == "auto":
         # automatic graph selection
         if sample_idx is not None:
             # only mnn does batch correction
@@ -175,7 +197,7 @@ def Graph(data,
         elif decay is None:
             # knn kernel
             graphtype = "knn"
-        elif thresh == 0 or callable(bandwidth):
+        elif (thresh == 0 and knn_max is None) or callable(bandwidth):
             # compute full distance matrix
             graphtype = "exact"
         else:
@@ -186,29 +208,39 @@ def Graph(data,
     if graphtype == "knn":
         basegraph = graphs.kNNGraph
         if precomputed is not None:
-            raise ValueError("kNNGraph does not support precomputed "
-                             "values. Use `graphtype='exact'` or "
-                             "`precomputed=None`")
+            raise ValueError(
+                "kNNGraph does not support precomputed "
+                "values. Use `graphtype='exact'` or "
+                "`precomputed=None`"
+            )
         if sample_idx is not None:
-            raise ValueError("kNNGraph does not support batch "
-                             "correction. Use `graphtype='mnn'` or "
-                             "`sample_idx=None`")
+            raise ValueError(
+                "kNNGraph does not support batch "
+                "correction. Use `graphtype='mnn'` or "
+                "`sample_idx=None`"
+            )
 
     elif graphtype == "mnn":
         basegraph = graphs.MNNGraph
         if precomputed is not None:
-            raise ValueError("MNNGraph does not support precomputed "
-                             "values. Use `graphtype='exact'` and "
-                             "`sample_idx=None` or `precomputed=None`")
+            raise ValueError(
+                "MNNGraph does not support precomputed "
+                "values. Use `graphtype='exact'` and "
+                "`sample_idx=None` or `precomputed=None`"
+            )
     elif graphtype == "exact":
         basegraph = graphs.TraditionalGraph
         if sample_idx is not None:
-            raise ValueError("TraditionalGraph does not support batch "
-                             "correction. Use `graphtype='mnn'` or "
-                             "`sample_idx=None`")
+            raise ValueError(
+                "TraditionalGraph does not support batch "
+                "correction. Use `graphtype='mnn'` or "
+                "`sample_idx=None`"
+            )
     else:
-        raise ValueError("graphtype '{}' not recognized. Choose from "
-                         "['knn', 'mnn', 'exact', 'auto']")
+        raise ValueError(
+            "graphtype '{}' not recognized. Choose from "
+            "['knn', 'mnn', 'exact', 'auto']"
+        )
 
     # set add landmarks if necessary
     parent_classes = [basegraph]
@@ -223,7 +255,7 @@ def Graph(data,
         else:
             msg = msg + " and PyGSP inheritance"
 
-    tasklogger.log_debug(msg)
+    _logger.debug(msg)
 
     class_names = [p.__name__.replace("Graph", "") for p in parent_classes]
     try:
@@ -241,11 +273,18 @@ def Graph(data,
                 pass
 
     # build graph and return
-    tasklogger.log_debug("Initializing {} with arguments {}".format(
-        parent_classes,
-        ", ".join(["{}='{}'".format(key, value)
-                   for key, value in params.items()
-                   if key != "data"])))
+    _logger.debug(
+        "Initializing {} with arguments {}".format(
+            parent_classes,
+            ", ".join(
+                [
+                    "{}='{}'".format(key, value)
+                    for key, value in params.items()
+                    if key != "data"
+                ]
+            ),
+        )
+    )
     return Graph(**params)
 
 
@@ -269,23 +308,25 @@ def from_igraph(G, attribute="weight", **kwargs):
     -------
     G : graphtools.graphs.TraditionalGraph
     """
-    if 'precomputed' in kwargs:
-        if kwargs['precomputed'] != 'adjacency':
+    if "precomputed" in kwargs:
+        if kwargs["precomputed"] != "adjacency":
             warnings.warn(
                 "Cannot build graph from igraph with precomputed={}. "
-                "Use 'adjacency' instead.".format(kwargs['precomputed']),
-                UserWarning)
-        del kwargs['precomputed']
+                "Use 'adjacency' instead.".format(kwargs["precomputed"]),
+                UserWarning,
+            )
+        del kwargs["precomputed"]
     try:
         K = G.get_adjacency(attribute=attribute).data
     except ValueError as e:
         if str(e) == "Attribute does not exist":
-            warnings.warn("Edge attribute {} not found. "
-                          "Returning unweighted graph".format(attribute),
-                          UserWarning)
+            warnings.warn(
+                "Edge attribute {} not found. "
+                "Returning unweighted graph".format(attribute),
+                UserWarning,
+            )
         K = G.get_adjacency(attribute=None).data
-    return Graph(sparse.coo_matrix(K),
-                 precomputed='adjacency', **kwargs)
+    return Graph(sparse.coo_matrix(K), precomputed="adjacency", **kwargs)
 
 
 def read_pickle(path):
@@ -296,12 +337,11 @@ def read_pickle(path):
     path : str
         File path where the pickled object will be loaded.
     """
-    with open(path, 'rb') as f:
+    with open(path, "rb") as f:
         G = pickle.load(f)
 
     if not isinstance(G, base.BaseGraph):
-        warnings.warn(
-            'Returning object that is not a graphtools.base.BaseGraph')
+        warnings.warn("Returning object that is not a graphtools.base.BaseGraph")
     elif isinstance(G, base.PyGSPGraph) and isinstance(G.logger, str):
         G.logger = pygsp.utils.build_logger(G.logger)
     return G
