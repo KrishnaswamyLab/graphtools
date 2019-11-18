@@ -7,21 +7,21 @@ import scprep
 from sklearn.exceptions import NotFittedError
 
 
-class HNSW():
+class HNSW:
 
-    _DENSE_TYPES = {'l2': 'l2_sparse'}
-    _SPARSE_TYPES = {'l2_sparse': 'l2'}
+    _DENSE_TYPES = {"l2": "l2_sparse"}
+    _SPARSE_TYPES = {"l2_sparse": "l2"}
 
-    def __init__(self, n_neighbors, space='l2',
-                 data_type=None,
-                 n_jobs=1):
+    def __init__(self, n_neighbors, space="l2", data_type=None, n_jobs=1):
         n_jobs = int(n_jobs)
         if n_jobs <= 0:
             n_jobs = multiprocessing.cpu_count() + 1 + n_jobs
         tasklogger.log_debug(
             "Init HNSW index with arguments "
             "n_neighbors={}, space={}, data_type={}, n_jobs={}".format(
-                n_neighbors, space, data_type, n_jobs))
+                n_neighbors, space, data_type, n_jobs
+            )
+        )
         self.n_neighbors = n_neighbors
         self.n_jobs = n_jobs
         self.space = space
@@ -41,12 +41,10 @@ class HNSW():
         return space
 
     def _check_data(self, X):
-        if self.data_type == nmslib.DataType.SPARSE_VECTOR and \
-                not sparse.issparse(X):
+        if self.data_type == nmslib.DataType.SPARSE_VECTOR and not sparse.issparse(X):
             # convert to CSR matrix
             X = sparse.csr_matrix(scprep.utils.to_array_or_spmatrix(X))
-        elif self.data_type == nmslib.DataType.DENSE_VECTOR and \
-                sparse.issparse(X):
+        elif self.data_type == nmslib.DataType.DENSE_VECTOR and sparse.issparse(X):
             # convert to dense matrix
             X = scprep.utils.toarray(X)
         else:
@@ -72,18 +70,27 @@ class HNSW():
 
     def fit(self, X, M=15, efConstruction=100, post=0):
         self.X = self._check_data(X)
-        tasklogger.log_debug("Building HNSW index with {} of shape {}".format(
-            type(X), X.shape))
+        tasklogger.log_debug(
+            "Building HNSW index with {} of shape {}".format(type(X), X.shape)
+        )
         tasklogger.log_debug(
             "Arguments "
             "M={}, efConstruction={}, post={}, data_type={}".format(
-                M, efConstruction, post, self.data_type))
-        self.index = nmslib.init(method='hnsw', space=self.space,
-                                 data_type=self.data_type)
+                M, efConstruction, post, self.data_type
+            )
+        )
+        self.index = nmslib.init(
+            method="hnsw", space=self.space, data_type=self.data_type
+        )
         self.index.addDataPointBatch(X)
         self.index.createIndex(
-            {'M': M, 'indexThreadQty': self.n_jobs,
-             'efConstruction': efConstruction, 'post': post})
+            {
+                "M": M,
+                "indexThreadQty": self.n_jobs,
+                "efConstruction": efConstruction,
+                "post": post,
+            }
+        )
         self._fitted = True
         return self
 
@@ -101,16 +108,18 @@ class HNSW():
             n_neighbors = self.n_neighbors
         if efSearch is None:
             efSearch = max(100, n_neighbors)
-        tasklogger.log_debug("Querying HNSW index with {} of shape {}".format(
-            type(X), X.shape))
+        tasklogger.log_debug(
+            "Querying HNSW index with {} of shape {}".format(type(X), X.shape)
+        )
         complete = False
         while not complete:
             tasklogger.log_debug(
-                "Arguments n_neighbors={}, efSearch={}".format(
-                    n_neighbors, efSearch))
-            self.index.setQueryTimeParams({'efSearch': efSearch})
-            indices, distances = zip(*(self.index.knnQueryBatch(
-                X, k=n_neighbors, num_threads=self.n_jobs)))
+                "Arguments n_neighbors={}, efSearch={}".format(n_neighbors, efSearch)
+            )
+            self.index.setQueryTimeParams({"efSearch": efSearch})
+            indices, distances = zip(
+                *(self.index.knnQueryBatch(X, k=n_neighbors, num_threads=self.n_jobs))
+            )
             try:
                 distances, indices = np.vstack(distances), np.vstack(indices)
                 tasklogger.log_debug("Complete")
@@ -120,21 +129,25 @@ class HNSW():
                 efSearch = efSearch * 2
         return distances, indices
 
-    def kneighbors_graph(self, X=None, n_neighbors=None,
-                         mode='connectivity', efSearch=100, **kwargs):
-        if mode != 'connectivity':
+    def kneighbors_graph(
+        self, X=None, n_neighbors=None, mode="connectivity", efSearch=100, **kwargs
+    ):
+        if mode != "connectivity":
             raise NotImplementedError
         if X is not None and X is not self.X:
             self.fit(X)
         if n_neighbors is None:
             n_neighbors = self.n_neighbors
-        _, indices = self.kneighbors(X=X, n_neighbors=n_neighbors,
-                                     efSearch=efSearch, **kwargs)
+        _, indices = self.kneighbors(
+            X=X, n_neighbors=n_neighbors, efSearch=efSearch, **kwargs
+        )
         return sparse.coo_matrix(
-            (np.ones(self.X.shape[0] * n_neighbors),
-             (np.repeat(np.arange(self.X.shape[0]), n_neighbors),
-              indices.flatten())),
-            shape=(self.X.shape[0], self.X.shape[0]))
+            (
+                np.ones(self.X.shape[0] * n_neighbors),
+                (np.repeat(np.arange(self.X.shape[0]), n_neighbors), indices.flatten()),
+            ),
+            shape=(self.X.shape[0], self.X.shape[0]),
+        )
 
     def set_params(self, n_neighbors=None, n_jobs=None):
         if n_neighbors is not None:
