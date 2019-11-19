@@ -16,6 +16,7 @@
         libjs-mathjax
 
   script:
+    - python -c "import graphtools"
     - pip install -U .[test]
     - if [ "$TRAVIS_PYTHON_VERSION" != "3.5" ]; then black . --check --diff; fi
     - python setup.py test
