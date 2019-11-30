@@ -83,11 +83,12 @@ def to_array(X):
 
 
 class MarcenkoPastur(object):
-    ''' A collection of methods for computing statistics of the Marcenko-Pastur distribution
-    Translated to Python by Jay Stanley from 
-        Code Supplement for 
+    ''' A collection of methods for computing statistics
+        from the Marcenko-Pastur distribution
+        Translated to Python by Jay Stanley from
+        Code Supplement for
         "The Optimal Hard Threshold for Singular Values is 4/sqrt(3)" (2014)
-        Matan Gavish, David L. Donoho 
+        Matan Gavish, David L. Donoho
         https://arxiv.org/abs/1305.5870
     '''
     @staticmethod
@@ -100,7 +101,7 @@ class MarcenkoPastur(object):
         """
         Numerically evaluate the median of the Marcenko-Pastur distribution
         """
-        mar_pas = lambda x: 1 - MarcenkoPastur._incremental(x, beta, 0)
+        def mar_pas(x): 1 - MarcenkoPastur._incremental(x, beta, 0)
         low_bound = (1 - np.sqrt(beta)) ** 2
         high_bound = (1 + np.sqrt(beta)) ** 2
         iterating = True
@@ -122,8 +123,6 @@ class MarcenkoPastur(object):
 
     @staticmethod
     def _incremental(x0, beta, gamma):
-        """ To DO: Make mar_pas a scipy.LowLevelCallable for integration performance
-        """
         if beta > 1:
             raise ValueError("Beta must be less than 1 for the MP distribution")
 
@@ -132,19 +131,15 @@ class MarcenkoPastur(object):
 
         def mar_pas(x):
             x_shift = (top_spec - x) * (x - bottom_spec)
-            Q = x_shift > 0 
+            Q = x_shift > 0
             y = np.sqrt(np.where(Q, x_shift, 0)) / (2 * np.pi * beta * x)
             return y
 
-
         if gamma != 0:
-            function = lambda x: (x ** gamma * mar_pas(x))
+            def function(x): (x ** gamma * mar_pas(x))
         else:
-            function = lambda x: mar_pas(x)
+            def function(x): mar_pas(x)
 
-        y = definite_integral(function,x0,top_spec)[0]
+        y = definite_integral(function, 0, top_spec)[0]
 
         return y
-
-
-       

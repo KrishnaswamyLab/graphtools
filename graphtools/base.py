@@ -250,7 +250,7 @@ class Data(Base):
         If data is dense, uses randomized PCA. If data is sparse, uses
         randomized SVD.
         TODO: should we subtract and store the mean?
-        TODO: Fix the rank estimation so we do not compute the full SVD. 
+        TODO: Fix the rank estimation so we do not compute the full SVD.
         Returns
         -------
         Reduced data matrix
@@ -258,7 +258,10 @@ class Data(Base):
         if self.n_pca is not None and (
             self.n_pca == "auto" or self.n_pca < self.data.shape[1]
         ):
-            reduced_data = LowRankApproximation.reduce_data(self.data, self.n_pca, self.rank_threshold,self.svd_iters,self.random_state)
+            reduced_data = LowRankApproximation.reduce_data(
+                    self.data, self.n_pca, self.rank_threshold,
+                    self.svd_iters, self.random_state)
+                            
             data_nu, self.data_pca, self.data, self.n_pca, self.rank_threshold = reduced_data
             return data_nu
         else:
@@ -268,6 +271,7 @@ class Data(Base):
             ):
                 data_nu = data_nu.tocsr()
             return data_nu
+
     def get_params(self):
         """Get parameters from this object
         """
@@ -1136,12 +1140,11 @@ class DataGraph(with_metaclass(abc.ABCMeta, Data, BaseGraph)):
         return self
 
 
-
 class LowRankApproximation(object):
     """Static Class that handles PCA thresholding
     TODO: Make better interface with `data` class. """
     @staticmethod
-    def reduce_data(data, n_pca, rank_threshold, iters=5, random_state = 42):
+    def reduce_data(data, n_pca, rank_threshold, iters=5, random_state=42):
         """ Reduce data using PCA to n_pca or rank_threshold dimensions
         data : array-like, shape=[n_samples,n_features]
             accepted types: `numpy.ndarray`, `scipy.sparse.spmatrix`.
@@ -1158,14 +1161,14 @@ class LowRankApproximation(object):
             threshold to use when estimating rank for
             `n_pca in [True, 'auto']`.
             If 'auto', this threshold is
-            derived from the size ratio of the matrix, the median singular value, 
+            derived from the size ratio of the matrix, median singular value,
             and optimal statistics defined in
-            "The Optimal Hard Threshold for Singular Values is 4/sqrt(3)" (2014)
-            Matan Gavish, David L. Donoho 
+            "The Optimal Hard Threshold for Singular Values is 4/sqrt(3)"(2014)
+            Matan Gavish, David L. Donoho
             https://arxiv.org/abs/1305.5870
 
         n_iters : `int`, optional (default: 5)
-            number of iterations for sklearn randomized_svd 
+            number of iterations for sklearn randomized_svd
 
         random_state : `int` or `None`, optional (default: `None`)
             Random state for random PCA
@@ -1180,10 +1183,12 @@ class LowRankApproximation(object):
                 ):
                     data = data.tocsr()
 
-                data_pca = TruncatedSVD(n_pca_temp, n_iter=iters, random_state=random_state)
+                data_pca = TruncatedSVD(n_pca_temp, n_iter=iters,
+                                        random_state=random_state)
             else:
                 data_pca = PCA(
-                    n_pca_temp, svd_solver="randomized", iterated_power=iters, random_state=random_state
+                    n_pca_temp, svd_solver="randomized", iterated_power=iters,
+                    random_state=random_state
                 )
             data_pca.fit(data)
             if n_pca == "auto":
@@ -1191,7 +1196,7 @@ class LowRankApproximation(object):
                 if rank_threshold == "auto":
                     threshold = (
                         LowRankApproximation.threshold_from_sigma(
-                            np.min(data.shape),np.max(data.shape), s)
+                            np.min(data.shape), np.max(data.shape), s)
                     )
                     rank_threshold = threshold
 
@@ -1214,17 +1219,16 @@ class LowRankApproximation(object):
                 op.explained_variance_ratio_ = op.explained_variance_ratio_[gate]
                 op.singular_values_ = op.singular_values_[gate]
                 data_pca = (
-                    op  # im not clear if this is needed due to assignment rules
+                    op  # im not clear if this is needed for assignment rules
                 )
             data_nu = data_pca.transform(data)
         return data_nu, data_pca, data, n_pca, rank_threshold
 
-
     @staticmethod
-    def threshold_from_sigma(m, n, sigma, exact = True):
-        """Adapted from 
-            "The Optimal Hard Threshold for Singular Values is 4/sqrt(3)" (2014)
-            Matan Gavish, David L. Donoho 
+    def threshold_from_sigma(m, n, sigma, exact=True):
+        """Adapted from
+            "The Optimal Hard Threshold for Singular Values is 4/sqrt(3)"(2014)
+            Matan Gavish, David L. Donoho
             https://arxiv.org/abs/1305.5870"""
 
         beta = m/n
@@ -1236,21 +1240,21 @@ class LowRankApproximation(object):
 
     @staticmethod
     def _exact_hard_threshold(beta):
-        """Adapted from 
-            "The Optimal Hard Threshold for Singular Values is 4/sqrt(3)" (2014)
-            Matan Gavish, David L. Donoho 
+        """Adapted from
+            "The Optimal Hard Threshold for Singular Values is 4/sqrt(3)"(2014)
+            Matan Gavish, David L. Donoho
             https://arxiv.org/abs/1305.5870"""
 
         lamstar = np.sqrt(2 * (beta + 1) + 
-            ( (8 * beta) / 
-            ( (beta + 1) + np.sqrt(beta ** 2 + 14 * beta + 1) ) ) )
+            ((8 * beta) /
+            ((beta + 1) + np.sqrt(beta ** 2 + 14 * beta + 1))))
         return lamstar / np.sqrt(MarcenkoPastur.median(beta))
+
     @staticmethod
     def _approximate_hard_threshold(beta):
-        """Adapted from 
-            "The Optimal Hard Threshold for Singular Values is 4/sqrt(3)" (2014)
-            Matan Gavish, David L. Donoho 
+        """Adapted from
+            "The Optimal Hard Threshold for Singular Values is 4/sqrt(3)"(2014)
+            Matan Gavish, David L. Donoho
             https://arxiv.org/abs/1305.5870"""
 
         return 0.56*beta**3 - 0.95*beta**2 + 1.82*beta + 1.43
-    
