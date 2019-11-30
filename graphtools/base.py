@@ -28,6 +28,7 @@ except (ImportError, SyntaxError):
     pass
 
 from . import utils
+from .utils import MarcenkoPastur
 
 _logger = tasklogger.get_tasklogger("graphtools")
 
@@ -99,9 +100,14 @@ class Data(Base):
         threshold to use when estimating rank for
         `n_pca in [True, 'auto']`.
         If 'auto', this threshold is
-        s_max * eps * max(n_samples, n_features)
-        where s_max is the maximum singular value of the data matrix
-        and eps is numerical precision. [press2007]_.
+        derived from the size ratio of the matrix, the median singular value, 
+        and optimal statistics defined in
+        "The Optimal Hard Threshold for Singular Values is 4/sqrt(3)" (2014)
+        Matan Gavish, David L. Donoho 
+        https://arxiv.org/abs/1305.5870
+
+    n_iters : `int`, optional (default: 5)
+        number of iterations for sklearn randomized_svd 
 
     random_state : `int` or `None`, optional (default: `None`)
         Random state for random PCA
@@ -121,7 +127,7 @@ class Data(Base):
     """
 
     def __init__(
-        self, data, n_pca=None, rank_threshold=None, random_state=None, **kwargs
+        self, data, n_pca=None, rank_threshold=None, svd_iters = 5, random_state=None, **kwargs
     ):
 
         self._check_data(data)
@@ -148,6 +154,7 @@ class Data(Base):
         self.n_pca = n_pca
         self.rank_threshold = rank_threshold
         self.random_state = random_state
+        self.svd_iters = svd_iters
         self.data_nu = self._reduce_data()
         super().__init__(**kwargs)
 
@@ -240,12 +247,10 @@ class Data(Base):
 
     def _reduce_data(self):
         """Private method to reduce data dimension.
-
         If data is dense, uses randomized PCA. If data is sparse, uses
         randomized SVD.
         TODO: should we subtract and store the mean?
         TODO: Fix the rank estimation so we do not compute the full SVD. 
-
         Returns
         -------
         Reduced data matrix
@@ -253,51 +258,8 @@ class Data(Base):
         if self.n_pca is not None and (
             self.n_pca == "auto" or self.n_pca < self.data.shape[1]
         ):
-            with _logger.task("PCA"):
-                n_pca = self.data.shape[1] - 1 if self.n_pca == "auto" else self.n_pca
-                if sparse.issparse(self.data):
-                    if (
-                        isinstance(self.data, sparse.coo_matrix)
-                        or isinstance(self.data, sparse.lil_matrix)
-                        or isinstance(self.data, sparse.dok_matrix)
-                    ):
-                        self.data = self.data.tocsr()
-                    self.data_pca = TruncatedSVD(n_pca, random_state=self.random_state)
-                else:
-                    self.data_pca = PCA(
-                        n_pca, svd_solver="randomized", random_state=self.random_state
-                    )
-                self.data_pca.fit(self.data)
-                if self.n_pca == "auto":
-                    s = self.data_pca.singular_values_
-                    smax = s.max()
-                    if self.rank_threshold == "auto":
-                        threshold = (
-                            smax * np.finfo(self.data.dtype).eps * max(self.data.shape)
-                        )
-                        self.rank_threshold = threshold
-                    threshold = self.rank_threshold
-                    gate = np.where(s >= threshold)[0]
-                    self.n_pca = gate.shape[0]
-                    if self.n_pca == 0:
-                        raise ValueError(
-                            "Supplied threshold {} was greater than "
-                            "maximum singular value {} "
-                            "for the data matrix".format(threshold, smax)
-                        )
-                    _logger.info(
-                        "Using rank estimate of {} as n_pca".format(self.n_pca)
-                    )
-                    # reset the sklearn operator
-                    op = self.data_pca  # for line-width brevity..
-                    op.components_ = op.components_[gate, :]
-                    op.explained_variance_ = op.explained_variance_[gate]
-                    op.explained_variance_ratio_ = op.explained_variance_ratio_[gate]
-                    op.singular_values_ = op.singular_values_[gate]
-                    self.data_pca = (
-                        op  # im not clear if this is needed due to assignment rules
-                    )
-                data_nu = self.data_pca.transform(self.data)
+            reduced_data = LowRankApproximation.reduce_data(self.data, self.n_pca, self.rank_threshold,self.svd_iters,self.random_state)
+            data_nu, self.data_pca, self.data, self.n_pca, self.rank_threshold = reduced_data
             return data_nu
         else:
             data_nu = self.data
@@ -306,7 +268,6 @@ class Data(Base):
             ):
                 data_nu = data_nu.tocsr()
             return data_nu
-
     def get_params(self):
         """Get parameters from this object
         """
@@ -1173,3 +1134,123 @@ class DataGraph(with_metaclass(abc.ABCMeta, Data, BaseGraph)):
             _logger.set_level(self.verbose)
         super().set_params(**params)
         return self
+
+
+
+class LowRankApproximation(object):
+    """Static Class that handles PCA thresholding
+    TODO: Make better interface with `data` class. """
+    @staticmethod
+    def reduce_data(data, n_pca, rank_threshold, iters=5, random_state = 42):
+        """ Reduce data using PCA to n_pca or rank_threshold dimensions
+        data : array-like, shape=[n_samples,n_features]
+            accepted types: `numpy.ndarray`, `scipy.sparse.spmatrix`.
+            `pandas.DataFrame`, `pandas.SparseDataFrame`.
+
+        n_pca : {`int`, `None`, `bool`, 'auto'}, optional (default: `None`)
+            number of PC dimensions to retain for graph building.
+            If n_pca in `[None, False, 0]`, uses the original data.
+            If 'auto' or `True` then estimate using a singular value threshold
+            Note: if data is sparse, uses SVD instead of PCA
+            TODO: should we subtract and store the mean?
+
+        rank_threshold : `float`, 'auto', optional (default: 'auto')
+            threshold to use when estimating rank for
+            `n_pca in [True, 'auto']`.
+            If 'auto', this threshold is
+            derived from the size ratio of the matrix, the median singular value, 
+            and optimal statistics defined in
+            "The Optimal Hard Threshold for Singular Values is 4/sqrt(3)" (2014)
+            Matan Gavish, David L. Donoho 
+            https://arxiv.org/abs/1305.5870
+
+        n_iters : `int`, optional (default: 5)
+            number of iterations for sklearn randomized_svd 
+
+        random_state : `int` or `None`, optional (default: `None`)
+            Random state for random PCA
+        """
+        with _logger.task("PCA"):
+            n_pca_temp = data.shape[1] - 1 if n_pca == "auto" else n_pca
+            if sparse.issparse(data):
+                if (
+                    isinstance(data, sparse.coo_matrix)
+                    or isinstance(data, sparse.lil_matrix)
+                    or isinstance(data, sparse.dok_matrix)
+                ):
+                    data = data.tocsr()
+
+                data_pca = TruncatedSVD(n_pca_temp, n_iter=iters, random_state=random_state)
+            else:
+                data_pca = PCA(
+                    n_pca_temp, svd_solver="randomized", iterated_power=iters, random_state=random_state
+                )
+            data_pca.fit(data)
+            if n_pca == "auto":
+                s = data_pca.singular_values_
+                if rank_threshold == "auto":
+                    threshold = (
+                        LowRankApproximation.threshold_from_sigma(
+                            np.min(data.shape),np.max(data.shape), s)
+                    )
+                    rank_threshold = threshold
+
+                threshold = rank_threshold
+                gate = np.where(s > threshold)[0]
+                n_pca = gate.shape[0]
+                if n_pca == 0:
+                    raise ValueError(
+                        "Supplied threshold {} was greater than "
+                        "maximum singular value {} "
+                        "for the data matrix".format(threshold, s.max())
+                    )
+                _logger.info(
+                    "Using rank estimate of {} as n_pca".format(n_pca)
+                )
+                # reset the sklearn operator
+                op = data_pca  # for line-width brevity..
+                op.components_ = op.components_[gate, :]
+                op.explained_variance_ = op.explained_variance_[gate]
+                op.explained_variance_ratio_ = op.explained_variance_ratio_[gate]
+                op.singular_values_ = op.singular_values_[gate]
+                data_pca = (
+                    op  # im not clear if this is needed due to assignment rules
+                )
+            data_nu = data_pca.transform(data)
+        return data_nu, data_pca, data, n_pca, rank_threshold
+
+
+    @staticmethod
+    def threshold_from_sigma(m, n, sigma, exact = True):
+        """Adapted from 
+            "The Optimal Hard Threshold for Singular Values is 4/sqrt(3)" (2014)
+            Matan Gavish, David L. Donoho 
+            https://arxiv.org/abs/1305.5870"""
+
+        beta = m/n
+        if exact:
+            omega = LowRankApproximation._exact_hard_threshold(beta)
+        else:
+            omega = LowRankApproximation._approx_hard_threshold(beta)
+        return np.median(sigma) * omega
+
+    @staticmethod
+    def _exact_hard_threshold(beta):
+        """Adapted from 
+            "The Optimal Hard Threshold for Singular Values is 4/sqrt(3)" (2014)
+            Matan Gavish, David L. Donoho 
+            https://arxiv.org/abs/1305.5870"""
+
+        lamstar = np.sqrt(2 * (beta + 1) + 
+            ( (8 * beta) / 
+            ( (beta + 1) + np.sqrt(beta ** 2 + 14 * beta + 1) ) ) )
+        return lamstar / np.sqrt(MarcenkoPastur.median(beta))
+    @staticmethod
+    def _approximate_hard_threshold(beta):
+        """Adapted from 
+            "The Optimal Hard Threshold for Singular Values is 4/sqrt(3)" (2014)
+            Matan Gavish, David L. Donoho 
+            https://arxiv.org/abs/1305.5870"""
+
+        return 0.56*beta**3 - 0.95*beta**2 + 1.82*beta + 1.43
+    

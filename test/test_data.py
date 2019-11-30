@@ -15,7 +15,7 @@ from load_tests import (
 )
 import numbers
 import warnings
-
+from load_tests import optimal_singular_value_thresholding_constants as osvth 
 try:
     import anndata
 except (ImportError, SyntaxError):
@@ -288,10 +288,10 @@ def test_transform_adaptive_pca():
     assert np.allclose(G2.data_nu, G2.transform(G2.data))
     assert np.allclose(G2.data_nu, G.transform(G.data))
 
-    G3 = build_graph(data, n_pca=G2.n_pca, random_state=42)
+    G3 = build_graph(data, n_pca=G2.n_pca, random_state=42,svd_iters=200)
 
     assert np.allclose(G3.data_nu, G3.transform(G3.data))
-    assert np.allclose(G3.data_nu, G2.transform(G2.data))
+    assert np.allclose((G2.data_pca.components_.T*G2.data_pca.singular_values_)@G2.data_pca.components_,(G3.data_pca.components_.T*G3.data_pca.singular_values_)@G3.data_pca.components_)
 
 
 def test_transform_sparse_adaptive_pca():
@@ -306,10 +306,43 @@ def test_transform_sparse_adaptive_pca():
     assert np.allclose(G2.data_nu, G2.transform(G2.data))
     assert np.allclose(G2.data_nu, G.transform(G.data))
 
-    G3 = build_graph(data, sparse=True, n_pca=G2.n_pca, random_state=42)
+    G3 = build_graph(data, sparse=True, n_pca=G2.n_pca, random_state=42, svd_iters = 200)
     assert np.allclose(G3.data_nu, G3.transform(G3.data))
-    assert np.allclose(G3.data_nu, G2.transform(G2.data))
+    #Note: there are some numerical stability issues with random svd that seem to be related to the number of components taken
+    #and the powers used.  Note that G2 and G1 have their singular vectors computed by doing the full SVD whereas G3 only takes
+    # a subspace.
+    #I have opted to compare the LRAs themselves rather than the PCA implementation.
+    #If you take a different number of components here I think you would be able to recover the previous tests of PC approx= PC
+    #You can see this by computing the singular values.  They diverge for lower order singular vecs when you are just computing a few.
+    assert np.allclose((G2.data_pca.components_.T*G2.data_pca.singular_values_)@G2.data_pca.components_,(G3.data_pca.components_.T*G3.data_pca.singular_values_)@G3.data_pca.components_)
 
+def test_marcenkopastur_thresholding_exact():
+    """ We can test Marcenko-Pastur threshold out to 4 decimal places by using the table defined in 
+            "The Optimal Hard Threshold for Singular Values is 4/sqrt(3)" (2014)
+            Matan Gavish, David L. Donoho 
+            https://arxiv.org/abs/1305.5870" """
+
+    #Our algorithm will compute more digits though!
+    #To get any more testing accuracy we need a reference implementation (such as their matlab one)
+    x = np.arange(0.05, 1.0, 0.05)
+    x = np.round(x,2)
+
+    for v in x:
+        table_mp_omega = (osvth['omega'][v])
+        assert np.isclose(graphtools.base.LowRankApproximation._exact_hard_threshold(v),table_mp_omega, 1e-4)
+
+def test_marcenkopastur_thresholding_approximate():
+    """ We can test Marcenko-Pastur threshold out to 2 decimal places by using the approximation defined in
+            "The Optimal Hard Threshold for Singular Values is 4/sqrt(3)" (2014)
+            Matan Gavish, David L. Donoho 
+            https://arxiv.org/abs/1305.5870" """
+
+    #Our algorithm will compute more digits though!
+    #To get any more testing accuracy we need a reference implementation (such as their matlab one)
+    x = np.linspace(0.001,1,100)
+
+    for v in x:
+        assert np.isclose(np.round(graphtools.base.LowRankApproximation._exact_hard_threshold(v),2),np.round(graphtools.base.LowRankApproximation._approximate_hard_threshold(v),2), 1e-2)
 
 #############
 # Test API

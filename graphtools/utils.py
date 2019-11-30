@@ -1,5 +1,6 @@
 import numpy as np
 from scipy import sparse
+from scipy.integrate import quad as definite_integral
 import numbers
 
 
@@ -79,3 +80,71 @@ def to_array(X):
     elif isinstance(X, np.matrix):
         X = X.A
     return X
+
+
+class MarcenkoPastur(object):
+    ''' A collection of methods for computing statistics of the Marcenko-Pastur distribution
+    Translated to Python by Jay Stanley from 
+        Code Supplement for 
+        "The Optimal Hard Threshold for Singular Values is 4/sqrt(3)" (2014)
+        Matan Gavish, David L. Donoho 
+        https://arxiv.org/abs/1305.5870
+    '''
+    @staticmethod
+    def median(beta):
+        f = MarcenkoPastur._median_exact
+        return f(beta)
+
+    @staticmethod
+    def _median_exact(beta):
+        """
+        Numerically evaluate the median of the Marcenko-Pastur distribution
+        """
+        mar_pas = lambda x: 1 - MarcenkoPastur._incremental(x, beta, 0)
+        low_bound = (1 - np.sqrt(beta)) ** 2
+        high_bound = (1 + np.sqrt(beta)) ** 2
+        iterating = True
+
+        while (iterating and (high_bound - low_bound) > 0.001):
+            iterating = False
+            x = np.linspace(low_bound, high_bound, num = 5)
+            y = np.array([mar_pas(x_i) for x_i in x])
+            low = y < 0.5
+            high = y > 0.5
+            if low.any():
+                low_bound = np.max(x[low])
+                iterating = True
+            if high.any():
+                high_bound = np.min(x[high])
+                iterating = True
+            median = (high_bound + low_bound)/2
+        return median
+
+    @staticmethod
+    def _incremental(x0, beta, gamma):
+        """ To DO: Make mar_pas a scipy.LowLevelCallable for integration performance
+        """
+        if beta > 1:
+            raise ValueError("Beta must be less than 1 for the MP distribution")
+
+        top_spec = (1 + np.sqrt(beta)) ** 2
+        bottom_spec = (1 - np.sqrt(beta)) ** 2
+
+        def mar_pas(x):
+            x_shift = (top_spec - x) * (x - bottom_spec)
+            Q = x_shift > 0 
+            y = np.sqrt(np.where(Q, x_shift, 0)) / (2 * np.pi * beta * x)
+            return y
+
+
+        if gamma != 0:
+            function = lambda x: (x ** gamma * mar_pas(x))
+        else:
+            function = lambda x: mar_pas(x)
+
+        y = definite_integral(function,x0,top_spec)[0]
+
+        return y
+
+
+       
