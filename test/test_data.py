@@ -16,6 +16,7 @@ from load_tests import (
 import numbers
 import warnings
 from load_tests import optimal_singular_value_thresholding_constants as osvth
+
 try:
     import anndata
 except (ImportError, SyntaxError):
@@ -278,42 +279,48 @@ def test_inverse_transform_sparse_no_pca():
 
 
 def test_transform_adaptive_pca():
-    G = build_graph(data, n_pca=True, random_state=42)
+    G = build_graph(data, n_pca=True, random_state=42, svd_iters=50)
     assert np.all(G.data_nu == G.transform(G.data))
     assert_raises(ValueError, G.transform, G.data[:, 0])
     assert_raises(ValueError, G.transform, G.data[:, None, :15])
     assert_raises(ValueError, G.transform, G.data[:, :15])
 
-    G2 = build_graph(data, n_pca=True, rank_threshold=G.rank_threshold, random_state=42)
+    G2 = build_graph(
+        data, n_pca=True, rank_threshold=G.rank_threshold, random_state=42, svd_iters=50
+    )
     assert np.allclose(G2.data_nu, G2.transform(G2.data))
     assert np.allclose(G2.data_nu, G.transform(G.data))
 
-    G3 = build_graph(data, n_pca=G2.n_pca, random_state=42, svd_iters=200)
+    G3 = build_graph(data, n_pca=G2.n_pca, random_state=42, svd_iters=50)
 
     assert np.allclose(G3.data_nu, G3.transform(G3.data))
-    assert np.allclose((G2.data_pca.components_.T * G2.data_pca.singular_values_)@G2.data_pca.components_, (G3.data_pca.components_.T * G3.data_pca.singular_values_)@G3.data_pca.components_)
+    assert np.allclose(
+        (G2.data_nu) @ G2.data_pca.components_, (G3.data_nu) @ G3.data_pca.components_
+    )
 
 
 def test_transform_sparse_adaptive_pca():
-    G = build_graph(data, sparse=True, n_pca=True, random_state=42)
+    G = build_graph(data, sparse=True, n_pca=True, random_state=42, svd_iters=50)
     assert np.all(G.data_nu == G.transform(G.data))
     assert_raises(ValueError, G.transform, sp.csr_matrix(G.data)[:, 0])
     assert_raises(ValueError, G.transform, sp.csr_matrix(G.data)[:, :15])
 
     G2 = build_graph(
-        data, sparse=True, n_pca=True, rank_threshold=G.rank_threshold,
-        random_state=42
+        data,
+        sparse=True,
+        n_pca=True,
+        rank_threshold=G.rank_threshold,
+        random_state=42,
+        svd_iters=50,
     )
     assert np.allclose(G2.data_nu, G2.transform(G2.data))
     assert np.allclose(G2.data_nu, G.transform(G.data))
 
-    G3 = build_graph(
-        data, sparse=True, n_pca=G2.n_pca, random_state=42, svd_iters=200
-        )
+    G3 = build_graph(data, sparse=True, n_pca=G2.n_pca, random_state=42, svd_iters=50)
     assert np.allclose(G3.data_nu, G3.transform(G3.data))
     # JAY: there are some numerical stability issues with random svd that seem
     # to be related to the number of components taken
-    # and the powers used.  Note that G2 and G1 have their singular vectors
+    # and the powers svd_iters used.  Note that G2 and G1 have their singular vectors
     # computed by doing the full SVD whereas G3 only takes a subspace.
     # I have opted to compare the LRAs rather than the PCA transformation.
     # If you take a different number of components here
@@ -321,8 +328,8 @@ def test_transform_sparse_adaptive_pca():
     # You can see this by computing the singular values.
     # Sigmas diverge for lower order singular vecs when you compute only a few.
     assert np.allclose(
-        (G2.data_pca.components_.T * G2.data_pca.singular_values_)@G2.data_pca.components_,
-        (G3.data_pca.components_.T * G3.data_pca.singular_values_)@G3.data_pca.components_)
+        (G2.data_nu) @ G2.data_pca.components_, (G3.data_nu) @ G3.data_pca.components_
+    )
 
 
 def test_marcenkopastur_thresholding_exact():
@@ -340,11 +347,12 @@ def test_marcenkopastur_thresholding_exact():
     x = np.round(x, 2)
 
     for v in x:
-        table_mp_omega = (osvth['omega'][v])
+        table_mp_omega = osvth["omega"][v]
         assert np.isclose(
             graphtools.base.LowRankApproximation._exact_hard_threshold(v),
-             table_mp_omega, 1e-4
-             )
+            table_mp_omega,
+            1e-4,
+        )
 
 
 def test_marcenkopastur_thresholding_approximate():
@@ -361,8 +369,12 @@ def test_marcenkopastur_thresholding_approximate():
     for v in x:
         assert np.isclose(
             np.round(graphtools.base.LowRankApproximation._exact_hard_threshold(v), 2),
-            np.round(graphtools.base.LowRankApproximation._approximate_hard_threshold(v), 2),
-            1e-2)
+            np.round(
+                graphtools.base.LowRankApproximation._approximate_hard_threshold(v), 2
+            ),
+            1e-2,
+        )
+
 
 #############
 # Test API

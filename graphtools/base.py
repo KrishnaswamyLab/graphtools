@@ -127,7 +127,13 @@ class Data(Base):
     """
 
     def __init__(
-        self, data, n_pca=None, rank_threshold=None, svd_iters = 5, random_state=None, **kwargs
+        self,
+        data,
+        n_pca=None,
+        rank_threshold=None,
+        svd_iters=5,
+        random_state=None,
+        **kwargs
     ):
 
         self._check_data(data)
@@ -259,10 +265,20 @@ class Data(Base):
             self.n_pca == "auto" or self.n_pca < self.data.shape[1]
         ):
             reduced_data = LowRankApproximation.reduce_data(
-                    self.data, self.n_pca, self.rank_threshold, 
-                    self.svd_iters, self.random_state)
-                            
-            data_nu, self.data_pca, self.data, self.n_pca, self.rank_threshold = reduced_data
+                self.data,
+                self.n_pca,
+                self.rank_threshold,
+                self.svd_iters,
+                self.random_state,
+            )
+
+            (
+                data_nu,
+                self.data_pca,
+                self.data,
+                self.n_pca,
+                self.rank_threshold,
+            ) = reduced_data
             return data_nu
         else:
             data_nu = self.data
@@ -1143,6 +1159,7 @@ class DataGraph(with_metaclass(abc.ABCMeta, Data, BaseGraph)):
 class LowRankApproximation(object):
     """Static Class that handles PCA thresholding
     TODO: Make better interface with `data` class. """
+
     @staticmethod
     def reduce_data(data, n_pca, rank_threshold, iters=5, random_state=42):
         """ Reduce data using PCA to n_pca or rank_threshold dimensions
@@ -1174,7 +1191,11 @@ class LowRankApproximation(object):
             Random state for random PCA
         """
         with _logger.task("PCA"):
-            n_pca_temp = data.shape[1] - 1 if n_pca == "auto" else n_pca
+            n_pca_temp = (
+                np.ceil(np.min(data.shape) / 2).astype(int)
+                if n_pca == "auto"
+                else n_pca
+            )
             if sparse.issparse(data):
                 if (
                     isinstance(data, sparse.coo_matrix)
@@ -1183,20 +1204,23 @@ class LowRankApproximation(object):
                 ):
                     data = data.tocsr()
 
-                data_pca = TruncatedSVD(n_pca_temp, n_iter=iters,
-                                        random_state=random_state)
+                data_pca = TruncatedSVD(
+                    n_pca_temp, n_iter=iters, random_state=random_state
+                )
             else:
                 data_pca = PCA(
-                    n_pca_temp, svd_solver="randomized", iterated_power=iters,
-                    random_state=random_state
+                    n_pca_temp,
+                    svd_solver="randomized",
+                    iterated_power=iters,
+                    random_state=random_state,
                 )
             data_pca.fit(data)
             if n_pca == "auto":
                 s = data_pca.singular_values_
+                smedian = s[-1]
                 if rank_threshold == "auto":
-                    threshold = (
-                        LowRankApproximation.threshold_from_sigma(
-                            np.min(data.shape), np.max(data.shape), s)
+                    threshold = LowRankApproximation.threshold_from_sigma(
+                        np.min(data.shape), np.max(data.shape), smedian
                     )
                     rank_threshold = threshold
 
@@ -1209,18 +1233,14 @@ class LowRankApproximation(object):
                         "maximum singular value {} "
                         "for the data matrix".format(threshold, s.max())
                     )
-                _logger.info(
-                    "Using rank estimate of {} as n_pca".format(n_pca)
-                )
+                _logger.info("Using rank estimate of {} as n_pca".format(n_pca))
                 # reset the sklearn operator
                 op = data_pca  # for line-width brevity..
                 op.components_ = op.components_[gate, :]
                 op.explained_variance_ = op.explained_variance_[gate]
                 op.explained_variance_ratio_ = op.explained_variance_ratio_[gate]
                 op.singular_values_ = op.singular_values_[gate]
-                data_pca = (
-                    op  # im not clear if this is needed for assignment rules
-                )
+                data_pca = op  # im not clear if this is needed for assignment rules
             data_nu = data_pca.transform(data)
         return data_nu, data_pca, data, n_pca, rank_threshold
 
@@ -1231,12 +1251,12 @@ class LowRankApproximation(object):
             Matan Gavish, David L. Donoho
             https://arxiv.org/abs/1305.5870"""
 
-        beta = m/n
+        beta = m / n
         if exact:
             omega = LowRankApproximation._exact_hard_threshold(beta)
         else:
             omega = LowRankApproximation._approx_hard_threshold(beta)
-        return np.median(sigma) * omega
+        return sigma * omega
 
     @staticmethod
     def _exact_hard_threshold(beta):
@@ -1244,9 +1264,10 @@ class LowRankApproximation(object):
             "The Optimal Hard Threshold for Singular Values is 4/sqrt(3)"(2014)
             Matan Gavish, David L. Donoho
             https://arxiv.org/abs/1305.5870"""
-        lamstar = np.sqrt(2 * (beta + 1) +
-            ((8 * beta) /
-            ((beta + 1) + np.sqrt(beta ** 2 + 14 * beta + 1))))
+        lamstar = np.sqrt(
+            2 * (beta + 1)
+            + ((8 * beta) / ((beta + 1) + np.sqrt(beta ** 2 + 14 * beta + 1)))
+        )
         return lamstar / np.sqrt(MarcenkoPastur.median(beta))
 
     @staticmethod
@@ -1256,4 +1277,4 @@ class LowRankApproximation(object):
             Matan Gavish, David L. Donoho
             https://arxiv.org/abs/1305.5870"""
 
-        return 0.56*beta**3 - 0.95*beta**2 + 1.82*beta + 1.43
+        return 0.56 * beta ** 3 - 0.95 * beta ** 2 + 1.82 * beta + 1.43
