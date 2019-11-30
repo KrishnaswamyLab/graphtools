@@ -334,7 +334,7 @@ def test_marcenkopastur_thresholding_exact():
         """
 
     # Our algorithm will compute more digits though!
-    # To get any more testing accuracy we need a reference implementation 
+    # To get any more testing accuracy we need a reference implementation
     # (such as the Gavish matlab one)
     x = np.arange(0.05, 1.0, 0.05)
     x = np.round(x, 2)

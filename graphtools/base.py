@@ -259,7 +259,7 @@ class Data(Base):
             self.n_pca == "auto" or self.n_pca < self.data.shape[1]
         ):
             reduced_data = LowRankApproximation.reduce_data(
-                    self.data, self.n_pca, self.rank_threshold,
+                    self.data, self.n_pca, self.rank_threshold, 
                     self.svd_iters, self.random_state)
                             
             data_nu, self.data_pca, self.data, self.n_pca, self.rank_threshold = reduced_data
@@ -1244,8 +1244,7 @@ class LowRankApproximation(object):
             "The Optimal Hard Threshold for Singular Values is 4/sqrt(3)"(2014)
             Matan Gavish, David L. Donoho
             https://arxiv.org/abs/1305.5870"""
-
-        lamstar = np.sqrt(2 * (beta + 1) + 
+        lamstar = np.sqrt(2 * (beta + 1) +
             ((8 * beta) /
             ((beta + 1) + np.sqrt(beta ** 2 + 14 * beta + 1))))
         return lamstar / np.sqrt(MarcenkoPastur.median(beta))
