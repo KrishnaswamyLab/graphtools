@@ -106,7 +106,7 @@ class Data(Base):
         Matan Gavish, David L. Donoho 
         https://arxiv.org/abs/1305.5870
 
-    n_iters : `int`, optional (default: 5)
+    n_iters : `int`, 'auto', optional (default: 'auto')
         number of iterations for sklearn randomized_svd 
 
     random_state : `int` or `None`, optional (default: `None`)
@@ -131,7 +131,7 @@ class Data(Base):
         data,
         n_pca=None,
         rank_threshold=None,
-        svd_iters=5,
+        svd_iters="auto",
         random_state=None,
         **kwargs
     ):
@@ -1161,7 +1161,7 @@ class LowRankApproximation(object):
     TODO: Make better interface with `data` class. """
 
     @staticmethod
-    def reduce_data(data, n_pca, rank_threshold, iters=5, random_state=42):
+    def reduce_data(data, n_pca, rank_threshold, n_iters="auto", random_state=42):
         """ Reduce data using PCA to n_pca or rank_threshold dimensions
         data : array-like, shape=[n_samples,n_features]
             accepted types: `numpy.ndarray`, `scipy.sparse.spmatrix`.
@@ -1184,7 +1184,7 @@ class LowRankApproximation(object):
             Matan Gavish, David L. Donoho
             https://arxiv.org/abs/1305.5870
 
-        n_iters : `int`, optional (default: 5)
+        n_iters : `int`,'auto', optional (default: 'auto')
             number of iterations for sklearn randomized_svd
 
         random_state : `int` or `None`, optional (default: `None`)
@@ -1203,15 +1203,16 @@ class LowRankApproximation(object):
                     or isinstance(data, sparse.dok_matrix)
                 ):
                     data = data.tocsr()
-
+                if n_iters == "auto":
+                    n_iters = 5
                 data_pca = TruncatedSVD(
-                    n_pca_temp, n_iter=iters, random_state=random_state
+                    n_pca_temp, random_state=random_state, n_iter=n_iters
                 )
             else:
                 data_pca = PCA(
                     n_pca_temp,
                     svd_solver="randomized",
-                    iterated_power=iters,
+                    iterated_power="auto",
                     random_state=random_state,
                 )
             data_pca.fit(data)
