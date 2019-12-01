@@ -279,28 +279,22 @@ def test_inverse_transform_sparse_no_pca():
 
 
 def test_transform_adaptive_pca():
-    G = build_graph(data, n_pca=True, random_state=42, svd_iters=50)
+    G = build_graph(data, n_pca=True, random_state=42)
     assert np.all(G.data_nu == G.transform(G.data))
     assert_raises(ValueError, G.transform, G.data[:, 0])
     assert_raises(ValueError, G.transform, G.data[:, None, :15])
     assert_raises(ValueError, G.transform, G.data[:, :15])
 
-    G2 = build_graph(
-        data, n_pca=True, rank_threshold=G.rank_threshold, random_state=42, svd_iters=50
-    )
+    G2 = build_graph(data, n_pca=True, rank_threshold=G.rank_threshold, random_state=42)
     assert np.allclose(G2.data_nu, G2.transform(G2.data))
     assert np.allclose(G2.data_nu, G.transform(G.data))
 
-    G3 = build_graph(data, n_pca=G2.n_pca, random_state=42, svd_iters=50)
-
+    G3 = build_graph(data, n_pca=G2.n_pca, random_state=42)
     assert np.allclose(G3.data_nu, G3.transform(G3.data))
-    assert np.allclose(
-        (G2.data_nu) @ G2.data_pca.components_, (G3.data_nu) @ G3.data_pca.components_
-    )
 
 
 def test_transform_sparse_adaptive_pca():
-    G = build_graph(data, sparse=True, n_pca=True, random_state=42, svd_iters=50)
+    G = build_graph(data, sparse=True, n_pca=True, random_state=42, n_iters=50)
     assert np.all(G.data_nu == G.transform(G.data))
     assert_raises(ValueError, G.transform, sp.csr_matrix(G.data)[:, 0])
     assert_raises(ValueError, G.transform, sp.csr_matrix(G.data)[:, :15])
@@ -311,12 +305,12 @@ def test_transform_sparse_adaptive_pca():
         n_pca=True,
         rank_threshold=G.rank_threshold,
         random_state=42,
-        svd_iters=50,
+        n_iters=50,
     )
     assert np.allclose(G2.data_nu, G2.transform(G2.data))
     assert np.allclose(G2.data_nu, G.transform(G.data))
 
-    G3 = build_graph(data, sparse=True, n_pca=G2.n_pca, random_state=42, svd_iters=50)
+    G3 = build_graph(data, sparse=True, n_pca=G2.n_pca, random_state=42, n_iters=50)
     assert np.allclose(G3.data_nu, G3.transform(G3.data))
     # JAY: there are some numerical stability issues with random svd that seem
     # to be related to the number of components taken

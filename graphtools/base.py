@@ -131,7 +131,7 @@ class Data(Base):
         data,
         n_pca=None,
         rank_threshold=None,
-        svd_iters="auto",
+        n_iters="auto",
         random_state=None,
         **kwargs
     ):
@@ -160,7 +160,7 @@ class Data(Base):
         self.n_pca = n_pca
         self.rank_threshold = rank_threshold
         self.random_state = random_state
-        self.svd_iters = svd_iters
+        self.n_iters = n_iters
         self.data_nu = self._reduce_data()
         super().__init__(**kwargs)
 
@@ -268,7 +268,7 @@ class Data(Base):
                 self.data,
                 self.n_pca,
                 self.rank_threshold,
-                self.svd_iters,
+                self.n_iters,
                 self.random_state,
             )
 
