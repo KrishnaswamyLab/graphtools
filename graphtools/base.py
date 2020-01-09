@@ -659,22 +659,22 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
             return self._diff_op
 
     @property
-    def dw(self):
+    def kernel_degree(self):
         """Weighted degree vector (cached)
 
-        Return or calculate the degree vector
+        Return or calculate the degree vector from the affinity matrix
 
         Returns
         -------
 
-        dw : array-like, shape=[n_samples]
+        degrees : array-like, shape=[n_samples]
             Row sums of graph kernel
         """
         try:
-            return self._dw
+            return self._kernel_degree
         except AttributeError:
-            self._dw = utils.to_array(self.kernel.sum(axis=1))
-            return self._dw
+            self._kernel_degree = utils.to_array(self.kernel.sum(axis=1))
+            return self._kernel_degree
 
     @property
     def diff_aff(self):
@@ -693,7 +693,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
             symmetric diffusion affinity matrix defined as a
             doubly-stochastic form of the kernel matrix
         """
-        row_degrees = self.dw
+        row_degrees = self.kernel_degree
         if sparse.issparse(self.kernel):
             # diagonal matrix
             degrees = sparse.csr_matrix(
@@ -957,20 +957,6 @@ class PyGSPGraph(with_metaclass(abc.ABCMeta, pygsp.graphs.Graph, Base)):
             ones down the diagonal
         """
         raise NotImplementedError
-
-    @property
-    def dw(self):
-        """Weighted degree vector (cached)
-
-        Return or calculate the degree vector
-
-        Returns
-        -------
-
-        dw : array-like, shape=[n_samples]
-            Row sums of graph kernel
-        """
-        return pygsp.graphs.Graph.dw(self)
 
     def _build_weight_from_kernel(self, kernel):
         """Private method to build an adjacency matrix from
