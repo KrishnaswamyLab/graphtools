@@ -673,7 +673,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         try:
             return self._kernel_degree
         except AttributeError:
-            self._kernel_degree = utils.to_array(self.kernel.sum(axis=1))
+            self._kernel_degree = utils.to_array(self.kernel.sum(axis=1)).reshape(-1, 1)
             return self._kernel_degree
 
     @property
