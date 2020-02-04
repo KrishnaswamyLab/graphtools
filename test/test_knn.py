@@ -305,6 +305,13 @@ def test_thresh_small():
     assert G.thresh == np.finfo("float").eps
 
 
+def test_no_initialize():
+    G = graphtools.Graph(data, thresh=1e-4, initialize=False)
+    assert not hasattr(G, "_kernel")
+    G.K
+    assert hasattr(G, "_kernel")
+
+
 def test_knn_graph_fixed_bandwidth():
     k = None
     decay = 5
