@@ -1,6 +1,13 @@
 import numpy as np
 from scipy import sparse
 import numbers
+import warnings
+
+try:
+    import pandas as pd
+except ImportError:
+    # pandas not installed
+    pass
 
 
 def if_sparse(sparse_func, dense_func, *args, **kwargs):
@@ -82,10 +89,16 @@ def to_array(X):
 
 
 def is_SparseDataFrame(X):
-    with warnings.catchwarnings():
+    try:
+        pd
+    except NameError:
+        # pandas not installed
+        return False
+    with warnings.catch_warnings():
         warnings.filterwarnings(
-            FutureWarning,
+            "ignore",
             "The SparseDataFrame class is removed from pandas. Accessing it from the top-level namespace will also be removed in the next version",
+            FutureWarning,
         )
         try:
             return isinstance(X, pd.SparseDataFrame)

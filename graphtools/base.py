@@ -127,6 +127,11 @@ class Data(Base):
         self._check_data(data)
         n_pca, rank_threshold = self._parse_n_pca_threshold(data, n_pca, rank_threshold)
         try:
+            pd
+        except NameError:
+            # pandas not installed
+            pass
+        else:
             if utils.is_SparseDataFrame(data):
                 data = data.to_coo()
             elif isinstance(data, pd.DataFrame):
@@ -134,16 +139,15 @@ class Data(Base):
                     data = data.sparse.to_coo()
                 except AttributeError:
                     data = np.array(data)
-        except NameError:
-            # pandas not installed
-            pass
 
         try:
-            if isinstance(data, anndata.AnnData):
-                data = data.X
+            anndata
         except NameError:
             # anndata not installed
             pass
+        else:
+            if isinstance(data, anndata.AnnData):
+                data = data.X
         self.data = data
         self.n_pca = n_pca
         self.rank_threshold = rank_threshold
