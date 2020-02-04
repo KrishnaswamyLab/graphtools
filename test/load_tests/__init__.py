@@ -9,7 +9,18 @@ import warnings
 import pandas as pd
 
 import nose2
-from nose.tools import raises, assert_raises, make_decorator
+from nose.tools import assert_raises_regex, assert_warns_regex
+import re
+
+
+def assert_warns_message(expected_warning, expected_message, *args, **kwargs):
+    expected_regex = re.escape(expected_message)
+    return assert_warns_regex(expected_warning, expected_regex, *args, **kwargs)
+
+
+def assert_raises_message(expected_warning, expected_message, *args, **kwargs):
+    expected_regex = re.escape(expected_message)
+    return assert_raises_regex(expected_warning, expected_regex, *args, **kwargs)
 
 
 def reset_warnings():
@@ -41,7 +52,7 @@ def ignore_igraph_warning():
         "ignore",
         category=DeprecationWarning,
         message="Using or importing the ABCs from 'collections' instead of from "
-        "'collections.abc' is deprecated since Python 3.3,and in 3.9 it will stop working",
+        "'collections.abc' is deprecated since Python 3.3, and in 3.9 it will stop working",
     )
     warnings.filterwarnings(
         "ignore",
@@ -107,40 +118,3 @@ def build_graph(
         verbose=verbose,
         **kwargs
     )
-
-
-def warns(*warns):
-    """Test must raise one of expected warnings to pass.
-    Example use::
-      @warns(RuntimeWarning, UserWarning)
-      def test_raises_type_error():
-          warnings.warn("This test passes", RuntimeWarning)
-      @warns(ImportWarning)
-      def test_that_fails_by_passing():
-          pass
-    """
-    valid = " or ".join([w.__name__ for w in warns])
-
-    def decorate(func):
-        name = func.__name__
-
-        def newfunc(*arg, **kw):
-            with warnings.catch_warnings(record=True) as w:
-                warnings.resetwarnings()
-                warnings.simplefilter("always")
-                ignore_numpy_warning()
-                func(*arg, **kw)
-                reset_warnings()
-            try:
-                for warn in w:
-                    raise warn.category
-            except warns:
-                pass
-            else:
-                message = "%s() did not raise %s" % (name, valid)
-                raise AssertionError(message)
-
-        newfunc = make_decorator(func)(newfunc)
-        return newfunc
-
-    return decorate

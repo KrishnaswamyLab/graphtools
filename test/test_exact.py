@@ -8,86 +8,115 @@ from load_tests import (
     nose2,
     data,
     build_graph,
-    assert_raises,
-    raises,
-    warns,
     squareform,
     pdist,
     PCA,
     TruncatedSVD,
+    assert_raises_message,
+    assert_warns_message,
 )
+from nose.tools import assert_warns_regex
 
 #####################################################
 # Check parameters
 #####################################################
 
 
-@raises(ValueError)
 def test_sample_idx_and_precomputed():
-    build_graph(
-        squareform(pdist(data)),
-        n_pca=None,
-        sample_idx=np.arange(10),
-        precomputed="distance",
-        decay=10,
-    )
+    with assert_raises_message(
+        ValueError,
+        "MNNGraph does not support precomputed values. Use `graphtype='exact'` and `sample_idx=None` or `precomputed=None`",
+    ):
+        build_graph(
+            squareform(pdist(data)),
+            n_pca=None,
+            sample_idx=np.arange(10),
+            precomputed="distance",
+            decay=10,
+        )
 
 
-@raises(ValueError)
-def test_invalid_precomputed():
-    build_graph(
-        squareform(pdist(data)), n_pca=None, precomputed="hello world", decay=10
-    )
-
-
-@raises(ValueError)
 def test_precomputed_not_square():
-    build_graph(data, n_pca=None, precomputed="distance", decay=10)
+    with assert_raises_message(
+        ValueError, "Precomputed distance must be a square matrix. (1797, 64) was given"
+    ):
+        build_graph(data, n_pca=None, precomputed="distance", decay=10)
 
 
-@raises(ValueError)
 def test_build_exact_with_sample_idx():
-    build_graph(data, graphtype="exact", sample_idx=np.arange(len(data)), decay=10)
+    with assert_raises_message(
+        ValueError,
+        "TraditionalGraph does not support batch correction. Use `graphtype='mnn'` or `sample_idx=None`",
+    ):
+        build_graph(data, graphtype="exact", sample_idx=np.arange(len(data)), decay=10)
 
 
-@warns(RuntimeWarning)
 def test_precomputed_with_pca():
-    build_graph(squareform(pdist(data)), precomputed="distance", n_pca=20, decay=10)
+    with assert_warns_message(
+        RuntimeWarning,
+        "n_pca cannot be given on a precomputed graph. Setting n_pca=None",
+    ):
+        build_graph(squareform(pdist(data)), precomputed="distance", n_pca=20, decay=10)
 
 
-@raises(ValueError)
 def test_exact_no_decay():
-    build_graph(data, graphtype="exact", decay=None)
+    with assert_raises_message(
+        ValueError,
+        "`decay` must be provided for a TraditionalGraph. For kNN kernel, use kNNGraph.",
+    ):
+        build_graph(data, graphtype="exact", decay=None)
 
 
-@raises(ValueError)
 def test_exact_no_knn_no_bandwidth():
-    build_graph(data, graphtype="exact", knn=None, bandwidth=None)
+    with assert_raises_message(
+        ValueError, "Either `knn` or `bandwidth` must be provided."
+    ):
+        build_graph(data, graphtype="exact", knn=None, bandwidth=None)
 
 
-@raises(ValueError)
 def test_precomputed_negative():
-    build_graph(np.random.normal(0, 1, [200, 200]), precomputed="distance", n_pca=None)
+    with assert_raises_message(
+        ValueError, "Precomputed distance should be non-negative"
+    ):
+        build_graph(
+            np.random.normal(0, 1, [200, 200]), precomputed="distance", n_pca=None
+        )
 
 
-@raises(ValueError)
 def test_precomputed_invalid():
-    build_graph(np.random.uniform(0, 1, [200, 200]), precomputed="invalid", n_pca=None)
+    with assert_raises_message(
+        ValueError,
+        "Precomputed value invalid not recognized. Choose from ['distance', 'affinity', 'adjacency']",
+    ):
+        build_graph(
+            np.random.uniform(0, 1, [200, 200]), precomputed="invalid", n_pca=None
+        )
 
 
-@warns(RuntimeWarning)
 def test_duplicate_data():
-    build_graph(np.vstack([data, data[:10]]), n_pca=20, decay=10, thresh=0)
+    with assert_warns_regex(
+        RuntimeWarning,
+        "Detected zero distance between samples ([0-9and,\s]*). Consider removing duplicates to avoid errors in downstream processing.",
+    ):
+        build_graph(np.vstack([data, data[:10]]), n_pca=20, decay=10, thresh=0)
 
 
-@warns(RuntimeWarning)
 def test_many_duplicate_data():
-    build_graph(np.vstack([data, data]), n_pca=20, decay=10, thresh=0)
+    with assert_warns_regex(
+        RuntimeWarning,
+        "Detected zero distance between ([0-9]*) pairs of samples. Consider removing duplicates to avoid errors in downstream processing.",
+    ):
+        build_graph(np.vstack([data, data]), n_pca=20, decay=10, thresh=0)
 
 
-@warns(UserWarning)
 def test_k_too_large():
-    build_graph(data, n_pca=20, decay=10, knn=len(data) - 1, thresh=0)
+    with assert_warns_message(
+        UserWarning,
+        "Cannot set knn ({0}) to be greater than  n_samples - 2 ({1}). Setting knn={1}".format(
+            data.shape[0] - 1, data.shape[0] - 2
+        ),
+    ):
+        build_graph(data, n_pca=20, decay=10, knn=len(data) - 1, thresh=0)
 
 
 #####################################################
@@ -507,42 +536,41 @@ def test_exact_graph_anisotropy():
     np.testing.assert_equal(G.dw, G2.dw)
     assert (G2.W != G.W).sum() == 0
     assert (G.W != G2.W).nnz == 0
-    assert_raises(
-        ValueError,
-        build_graph,
-        data_small,
-        thresh=0,
-        n_pca=n_pca,
-        decay=a,
-        knn=k - 1,
-        random_state=42,
-        use_pygsp=True,
-        anisotropy=-1,
-    )
-    assert_raises(
-        ValueError,
-        build_graph,
-        data_small,
-        thresh=0,
-        n_pca=n_pca,
-        decay=a,
-        knn=k - 1,
-        random_state=42,
-        use_pygsp=True,
-        anisotropy=2,
-    )
-    assert_raises(
-        ValueError,
-        build_graph,
-        data_small,
-        thresh=0,
-        n_pca=n_pca,
-        decay=a,
-        knn=k - 1,
-        random_state=42,
-        use_pygsp=True,
-        anisotropy="invalid",
-    )
+    with assert_raises_message(ValueError, "Expected 0 <= anisotropy <= 1. Got -1"):
+        build_graph(
+            data_small,
+            thresh=0,
+            n_pca=n_pca,
+            decay=a,
+            knn=k - 1,
+            random_state=42,
+            use_pygsp=True,
+            anisotropy=-1,
+        )
+    with assert_raises_message(ValueError, "Expected 0 <= anisotropy <= 1. Got 2"):
+        build_graph(
+            data_small,
+            thresh=0,
+            n_pca=n_pca,
+            decay=a,
+            knn=k - 1,
+            random_state=42,
+            use_pygsp=True,
+            anisotropy=2,
+        )
+    with assert_raises_message(
+        ValueError, "Expected 0 <= anisotropy <= 1. Got invalid"
+    ):
+        build_graph(
+            data_small,
+            thresh=0,
+            n_pca=n_pca,
+            decay=a,
+            knn=k - 1,
+            random_state=42,
+            use_pygsp=True,
+            anisotropy="invalid",
+        )
 
 
 #####################################################
@@ -577,34 +605,46 @@ def test_shortest_path_affinity_precomputed():
     np.testing.assert_allclose(P, G.shortest_path())
 
 
-@raises(NotImplementedError)
 def test_shortest_path_decay_constant():
-    data_small = data[np.random.choice(len(data), len(data) // 4, replace=False)]
-    G = build_graph(data_small, knn=5, decay=15)
-    G.shortest_path(distance="constant")
+    with assert_raises_message(
+        NotImplementedError,
+        "Graph shortest path with constant distance only implemented for unweighted graphs. For weighted graphs, use `distance='affinity'`.",
+    ):
+        data_small = data[np.random.choice(len(data), len(data) // 4, replace=False)]
+        G = build_graph(data_small, knn=5, decay=15)
+        G.shortest_path(distance="constant")
 
 
-@raises(NotImplementedError)
 def test_shortest_path_precomputed_decay_constant():
-    data_small = data[np.random.choice(len(data), len(data) // 4, replace=False)]
-    G = build_graph(data_small, knn=5, decay=15)
-    G = graphtools.Graph(G.K, precomputed="affinity")
-    G.shortest_path(distance="constant")
+    with assert_raises_message(
+        NotImplementedError,
+        "Graph shortest path with constant distance only implemented for unweighted graphs. For weighted graphs, use `distance='affinity'`.",
+    ):
+        data_small = data[np.random.choice(len(data), len(data) // 4, replace=False)]
+        G = build_graph(data_small, knn=5, decay=15)
+        G = graphtools.Graph(G.K, precomputed="affinity")
+        G.shortest_path(distance="constant")
 
 
-@raises(NotImplementedError)
 def test_shortest_path_decay_data():
-    data_small = data[np.random.choice(len(data), len(data) // 4, replace=False)]
-    G = build_graph(data_small, knn=5, decay=15)
-    G.shortest_path(distance="data")
+    with assert_raises_message(
+        NotImplementedError,
+        "Graph shortest path with constant or data distance only implemented for unweighted graphs. For weighted graphs, use `distance='affinity'`.",
+    ):
+        data_small = data[np.random.choice(len(data), len(data) // 4, replace=False)]
+        G = build_graph(data_small, knn=5, decay=15)
+        G.shortest_path(distance="data")
 
 
-@raises(ValueError)
 def test_shortest_path_precomputed_data():
-    data_small = data[np.random.choice(len(data), len(data) // 4, replace=False)]
-    G = build_graph(data_small, knn=5, decay=15)
-    G = graphtools.Graph(G.K, precomputed="affinity")
-    G.shortest_path(distance="data")
+    with assert_raises_message(
+        ValueError,
+        "Graph shortest path with data distance not valid for precomputed graphs. For precomputed graphs, use `distance='constant'` for unweighted graphs and `distance='affinity'` for weighted graphs.",
+    ):
+        data_small = data[np.random.choice(len(data), len(data) // 4, replace=False)]
+        G = build_graph(data_small, knn=5, decay=15)
+        G = graphtools.Graph(G.K, precomputed="affinity")
+        G.shortest_path(distance="data")
 
 
 #####################################################
@@ -647,7 +687,10 @@ def test_build_sparse_exact_kernel_to_data(**kwargs):
 
 def test_exact_interpolate():
     G = build_graph(data, decay=10, thresh=0)
-    assert_raises(ValueError, G.interpolate, data)
+    with assert_raises_message(
+        ValueError, "Either `transitions` or `Y` must be provided."
+    ):
+        G.interpolate(data)
     pca_data = PCA(2).fit_transform(data)
     transitions = G.extend_to_data(data)
     assert np.all(
@@ -656,10 +699,10 @@ def test_exact_interpolate():
     )
 
 
-@raises(ValueError)
 def test_precomputed_interpolate():
-    G = build_graph(squareform(pdist(data)), n_pca=None, precomputed="distance")
-    G.build_kernel_to_data(data)
+    with assert_raises_message(ValueError, "Cannot extend kernel on precomputed graph"):
+        G = build_graph(squareform(pdist(data)), n_pca=None, precomputed="distance")
+        G.build_kernel_to_data(data)
 
 
 ####################
@@ -688,12 +731,30 @@ def test_set_params():
         "distance": "euclidean",
         "precomputed": None,
     }
-    assert_raises(ValueError, G.set_params, knn=15)
-    assert_raises(ValueError, G.set_params, decay=15)
-    assert_raises(ValueError, G.set_params, distance="manhattan")
-    assert_raises(ValueError, G.set_params, precomputed="distance")
-    assert_raises(ValueError, G.set_params, bandwidth=5)
-    assert_raises(ValueError, G.set_params, bandwidth_scale=5)
+    with assert_raises_message(
+        ValueError, "Cannot update knn. Please create a new graph"
+    ):
+        G.set_params(knn=15)
+    with assert_raises_message(
+        ValueError, "Cannot update decay. Please create a new graph"
+    ):
+        G.set_params(decay=15)
+    with assert_raises_message(
+        ValueError, "Cannot update distance. Please create a new graph"
+    ):
+        G.set_params(distance="manhattan")
+    with assert_raises_message(
+        ValueError, "Cannot update precomputed. Please create a new graph"
+    ):
+        G.set_params(precomputed="distance")
+    with assert_raises_message(
+        ValueError, "Cannot update bandwidth. Please create a new graph"
+    ):
+        G.set_params(bandwidth=5)
+    with assert_raises_message(
+        ValueError, "Cannot update bandwidth_scale. Please create a new graph"
+    ):
+        G.set_params(bandwidth_scale=5)
     G.set_params(
         knn=G.knn, decay=G.decay, distance=G.distance, precomputed=G.precomputed
     )

@@ -10,9 +10,8 @@ from load_tests import (
     digits,
     build_graph,
     generate_swiss_roll,
-    assert_raises,
-    raises,
-    warns,
+    assert_raises_message,
+    assert_warns_message,
     cdist,
 )
 from scipy.linalg import norm
@@ -23,207 +22,244 @@ from scipy.linalg import norm
 #####################################################
 
 
-@raises(ValueError)
 def test_sample_idx_and_precomputed():
-    build_graph(data, n_pca=None, sample_idx=np.arange(10), precomputed="distance")
+    with assert_raises_message(
+        ValueError,
+        "MNNGraph does not support precomputed values. Use `graphtype='exact'` and `sample_idx=None` or `precomputed=None`",
+    ):
+        build_graph(data, n_pca=None, sample_idx=np.arange(10), precomputed="distance")
 
 
-@raises(ValueError)
 def test_sample_idx_wrong_length():
-    build_graph(data, graphtype="mnn", sample_idx=np.arange(10))
+    with assert_raises_message(
+        ValueError,
+        "sample_idx (10) must be the same length as data ({})".format(data.shape[0]),
+    ):
+        build_graph(data, graphtype="mnn", sample_idx=np.arange(10))
 
 
-@raises(ValueError)
 def test_sample_idx_unique():
-    build_graph(
-        data, graph_class=graphtools.graphs.MNNGraph, sample_idx=np.ones(len(data))
-    )
+    with assert_raises_message(
+        ValueError, "sample_idx must contain more than one unique value"
+    ):
+        build_graph(
+            data, graph_class=graphtools.graphs.MNNGraph, sample_idx=np.ones(len(data))
+        )
 
 
-@raises(ValueError)
 def test_sample_idx_none():
-    build_graph(data, graphtype="mnn", sample_idx=None)
+    with assert_raises_message(
+        ValueError,
+        "sample_idx must be given. For a graph without batch correction, use kNNGraph.",
+    ):
+        build_graph(data, graphtype="mnn", sample_idx=None)
 
 
-@raises(ValueError)
 def test_build_mnn_with_precomputed():
-    build_graph(data, n_pca=None, graphtype="mnn", precomputed="distance")
+    with assert_raises_message(
+        ValueError,
+        "MNNGraph does not support precomputed values. Use `graphtype='exact'` and `sample_idx=None` or `precomputed=None`",
+    ):
+        build_graph(data, n_pca=None, graphtype="mnn", precomputed="distance")
 
 
-@raises(TypeError)
 def test_mnn_with_matrix_theta():
-    n_sample = len(np.unique(digits["target"]))
-    # square matrix theta of the wrong size
-    build_graph(
-        data,
-        thresh=0,
-        n_pca=20,
-        decay=10,
-        knn=5,
-        random_state=42,
-        sample_idx=digits["target"],
-        kernel_symm="mnn",
-        theta=np.tile(np.linspace(0, 1, n_sample), n_sample).reshape(
-            n_sample, n_sample
-        ),
-    )
+    with assert_raises_message(
+        TypeError, "Expected `theta` as a float. Got <class 'numpy.ndarray'>."
+    ):
+        n_sample = len(np.unique(digits["target"]))
+        # square matrix theta of the wrong size
+        build_graph(
+            data,
+            thresh=0,
+            n_pca=20,
+            decay=10,
+            knn=5,
+            random_state=42,
+            sample_idx=digits["target"],
+            kernel_symm="mnn",
+            theta=np.tile(np.linspace(0, 1, n_sample), n_sample).reshape(
+                n_sample, n_sample
+            ),
+        )
 
 
-@raises(TypeError)
 def test_mnn_with_vector_theta():
-    n_sample = len(np.unique(digits["target"]))
-    # vector theta
-    build_graph(
-        data,
-        thresh=0,
-        n_pca=20,
-        decay=10,
-        knn=5,
-        random_state=42,
-        sample_idx=digits["target"],
-        kernel_symm="mnn",
-        theta=np.linspace(0, 1, n_sample - 1),
-    )
+    with assert_raises_message(
+        TypeError, "Expected `theta` as a float. Got <class 'numpy.ndarray'>."
+    ):
+        n_sample = len(np.unique(digits["target"]))
+        # vector theta
+        build_graph(
+            data,
+            thresh=0,
+            n_pca=20,
+            decay=10,
+            knn=5,
+            random_state=42,
+            sample_idx=digits["target"],
+            kernel_symm="mnn",
+            theta=np.linspace(0, 1, n_sample - 1),
+        )
 
 
-@raises(ValueError)
 def test_mnn_with_unbounded_theta():
-    build_graph(
-        data,
-        thresh=0,
-        n_pca=20,
-        decay=10,
-        knn=5,
-        random_state=42,
-        sample_idx=digits["target"],
-        kernel_symm="mnn",
-        theta=2,
-    )
+    with assert_raises_message(
+        ValueError, "theta 2 not recognized. Expected a float between 0 and 1"
+    ):
+        build_graph(
+            data,
+            thresh=0,
+            n_pca=20,
+            decay=10,
+            knn=5,
+            random_state=42,
+            sample_idx=digits["target"],
+            kernel_symm="mnn",
+            theta=2,
+        )
 
 
-@raises(TypeError)
 def test_mnn_with_string_theta():
-    build_graph(
-        data,
-        thresh=0,
-        n_pca=20,
-        decay=10,
-        knn=5,
-        random_state=42,
-        sample_idx=digits["target"],
-        kernel_symm="mnn",
-        theta="invalid",
-    )
+    with assert_raises_message(
+        TypeError, "Expected `theta` as a float. Got <class 'str'>."
+    ):
+        build_graph(
+            data,
+            thresh=0,
+            n_pca=20,
+            decay=10,
+            knn=5,
+            random_state=42,
+            sample_idx=digits["target"],
+            kernel_symm="mnn",
+            theta="invalid",
+        )
 
 
-@warns(FutureWarning)
 def test_mnn_with_gamma():
-    build_graph(
-        data,
-        thresh=0,
-        n_pca=20,
-        decay=10,
-        knn=5,
-        random_state=42,
-        sample_idx=digits["target"],
-        kernel_symm="mnn",
-        gamma=0.9,
-    )
+    with assert_warns_message(FutureWarning, "gamma is deprecated. Setting theta=0.9"):
+        build_graph(
+            data,
+            thresh=0,
+            n_pca=20,
+            decay=10,
+            knn=5,
+            random_state=42,
+            sample_idx=digits["target"],
+            kernel_symm="mnn",
+            gamma=0.9,
+        )
 
 
-@warns(FutureWarning)
 def test_mnn_with_kernel_symm_gamma():
-    build_graph(
-        data,
-        thresh=0,
-        n_pca=20,
-        decay=10,
-        knn=5,
-        random_state=42,
-        sample_idx=digits["target"],
-        kernel_symm="gamma",
-        theta=0.9,
-    )
+    with assert_warns_message(
+        FutureWarning, "kernel_symm='gamma' is deprecated. Setting kernel_symm='mnn'"
+    ):
+        build_graph(
+            data,
+            thresh=0,
+            n_pca=20,
+            decay=10,
+            knn=5,
+            random_state=42,
+            sample_idx=digits["target"],
+            kernel_symm="gamma",
+            theta=0.9,
+        )
 
 
-@raises(ValueError)
 def test_mnn_with_kernel_symm_invalid():
-    build_graph(
-        data,
-        thresh=0,
-        n_pca=20,
-        decay=10,
-        knn=5,
-        random_state=42,
-        sample_idx=digits["target"],
-        kernel_symm="invalid",
-        theta=0.9,
-    )
+    with assert_raises_message(
+        ValueError,
+        "kernel_symm 'invalid' not recognized. Choose from '+', '*', 'mnn', or 'none'.",
+    ):
+        build_graph(
+            data,
+            thresh=0,
+            n_pca=20,
+            decay=10,
+            knn=5,
+            random_state=42,
+            sample_idx=digits["target"],
+            kernel_symm="invalid",
+            theta=0.9,
+        )
 
 
-@warns(FutureWarning)
 def test_mnn_with_kernel_symm_theta():
-    build_graph(
-        data,
-        thresh=0,
-        n_pca=20,
-        decay=10,
-        knn=5,
-        random_state=42,
-        sample_idx=digits["target"],
-        kernel_symm="theta",
-        theta=0.9,
-    )
+    with assert_warns_message(
+        FutureWarning, "kernel_symm='theta' is deprecated. Setting kernel_symm='mnn'"
+    ):
+        build_graph(
+            data,
+            thresh=0,
+            n_pca=20,
+            decay=10,
+            knn=5,
+            random_state=42,
+            sample_idx=digits["target"],
+            kernel_symm="theta",
+            theta=0.9,
+        )
 
 
-@warns(UserWarning)
 def test_mnn_with_theta_and_kernel_symm_not_theta():
-    build_graph(
-        data,
-        thresh=0,
-        n_pca=20,
-        decay=10,
-        knn=5,
-        random_state=42,
-        sample_idx=digits["target"],
-        kernel_symm="+",
-        theta=0.9,
-    )
+    with assert_warns_message(
+        UserWarning, "kernel_symm='+' but theta is not None. Setting kernel_symm='mnn'."
+    ):
+        build_graph(
+            data,
+            thresh=0,
+            n_pca=20,
+            decay=10,
+            knn=5,
+            random_state=42,
+            sample_idx=digits["target"],
+            kernel_symm="+",
+            theta=0.9,
+        )
 
 
-@warns(UserWarning)
 def test_mnn_with_kernel_symmm_theta_and_no_theta():
-    build_graph(
-        data,
-        thresh=0,
-        n_pca=20,
-        decay=10,
-        knn=5,
-        random_state=42,
-        sample_idx=digits["target"],
-        kernel_symm="mnn",
-    )
+    with assert_warns_message(
+        UserWarning, "kernel_symm='mnn' but theta not given. Defaulting to theta=1."
+    ):
+        build_graph(
+            data,
+            thresh=0,
+            n_pca=20,
+            decay=10,
+            knn=5,
+            random_state=42,
+            sample_idx=digits["target"],
+            kernel_symm="mnn",
+        )
 
 
-@warns(DeprecationWarning)
 def test_mnn_adaptive_k():
-    build_graph(
-        data,
-        thresh=0,
-        n_pca=20,
-        decay=10,
-        knn=5,
-        random_state=42,
-        sample_idx=digits["target"],
-        kernel_symm="mnn",
-        theta=0.9,
-        adaptive_k="sqrt",
-    )
+    with assert_warns_message(
+        DeprecationWarning, "`adaptive_k` has been deprecated. Using fixed knn."
+    ):
+        build_graph(
+            data,
+            thresh=0,
+            n_pca=20,
+            decay=10,
+            knn=5,
+            random_state=42,
+            sample_idx=digits["target"],
+            kernel_symm="mnn",
+            theta=0.9,
+            adaptive_k="sqrt",
+        )
 
 
-@warns(UserWarning)
 def test_single_sample_idx_warning():
-    build_graph(data, sample_idx=np.repeat(1, len(data)))
+    with assert_warns_message(
+        UserWarning, "Only one unique sample. Not using MNNGraph"
+    ):
+        build_graph(data, sample_idx=np.repeat(1, len(data)))
 
 
 def test_single_sample_idx():
@@ -474,11 +510,26 @@ def test_set_params():
     for graph in G.subgraphs:
         assert graph.verbose == 2
     G.set_params(verbose=0)
-    assert_raises(ValueError, G.set_params, knn=15)
-    assert_raises(ValueError, G.set_params, decay=15)
-    assert_raises(ValueError, G.set_params, distance="manhattan")
-    assert_raises(ValueError, G.set_params, thresh=1e-3)
-    assert_raises(ValueError, G.set_params, beta=0.2)
+    with assert_raises_message(
+        ValueError, "Cannot update knn. Please create a new graph"
+    ):
+        G.set_params(knn=15)
+    with assert_raises_message(
+        ValueError, "Cannot update decay. Please create a new graph"
+    ):
+        G.set_params(decay=15)
+    with assert_raises_message(
+        ValueError, "Cannot update distance. Please create a new graph"
+    ):
+        G.set_params(distance="manhattan")
+    with assert_raises_message(
+        ValueError, "Cannot update thresh. Please create a new graph"
+    ):
+        G.set_params(thresh=1e-3)
+    with assert_raises_message(
+        ValueError, "Cannot update beta. Please create a new graph"
+    ):
+        G.set_params(beta=0.2)
     G.set_params(
         knn=G.knn, decay=G.decay, thresh=G.thresh, distance=G.distance, beta=G.beta
     )

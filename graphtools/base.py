@@ -158,7 +158,7 @@ class Data(Base):
                 raise ValueError(
                     "n_pca must be an integer "
                     "0 <= n_pca < min(n_samples,n_features), "
-                    "or in [None,False,True,'auto']."
+                    "or in [None, False, True, 'auto']."
                 )
         if isinstance(n_pca, numbers.Number):
             if not float(n_pca).is_integer():  # cast it to integer
@@ -228,14 +228,15 @@ class Data(Base):
 
     def _check_data(self, data):
         if len(data.shape) != 2:
-            msg = (
-                "ValueError: Expected 2D array, got {}D array "
-                "instead (shape: {}.) ".format(len(data.shape), data.shape)
+            msg = "Expected 2D array, got {}D array " "instead (shape: {}.) ".format(
+                len(data.shape), data.shape
             )
             if len(data.shape) < 2:
-                msg += "\nReshape your data either using array.reshape(-1, 1) "
-                "if your data has a single feature or array.reshape(1, -1) if "
-                "it contains a single sample."
+                msg += (
+                    "\nReshape your data either using array.reshape(-1, 1) "
+                    "if your data has a single feature or array.reshape(1, -1) if "
+                    "it contains a single sample."
+                )
             raise ValueError(msg)
 
     def _reduce_data(self):
@@ -357,23 +358,28 @@ class Data(Base):
         """
         try:
             # try PCA first
-
             return self.data_pca.transform(Y)
-        except AttributeError:  # no pca, try to return data
-            try:
-                if Y.shape[1] != self.data.shape[1]:
-                    # shape is wrong
-                    raise ValueError
-                return Y
-            except IndexError:
-                # len(Y.shape) < 2
-                raise ValueError
         except ValueError:
-            # more informative error
+            # shape is wrong
             raise ValueError(
-                "data of shape {} cannot be transformed"
-                " to graph built on data of shape {}".format(Y.shape, self.data.shape)
+                "data of shape {0} cannot be transformed"
+                " to graph built on data of shape {1}. "
+                "Expected shape ({2}, {3})".format(
+                    Y.shape, self.data.shape, Y.shape[0], self.data.shape[1]
+                )
             )
+        except AttributeError:  # no pca, try to return data
+            if len(Y.shape) < 2 or Y.shape[1] != self.data.shape[1]:
+                # shape is wrong
+                raise ValueError(
+                    "data of shape {0} cannot be transformed"
+                    " to graph built on data of shape {1}. "
+                    "Expected shape ({2}, {3})".format(
+                        Y.shape, self.data.shape, Y.shape[0], self.data.shape[1]
+                    )
+                )
+            else:
+                return Y
 
     def inverse_transform(self, Y, columns=None):
         """Transform input data `Y` to ambient data space defined by `self.data`
@@ -427,9 +433,9 @@ class Data(Base):
         except ValueError:
             # more informative error
             raise ValueError(
-                "data of shape {} cannot be inverse transformed"
-                " from graph built on data of shape {}".format(
-                    Y.shape, self.data_nu.shape
+                "data of shape {0} cannot be inverse transformed"
+                " from graph built on reduced data of shape ({1}, {2}). Expected shape ({3}, {2})".format(
+                    Y.shape, self.data_nu.shape[0], self.data_nu.shape[1], Y.shape[0]
                 )
             )
 
