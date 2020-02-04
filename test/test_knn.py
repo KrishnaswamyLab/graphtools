@@ -49,7 +49,7 @@ def test_build_knn_with_sample_idx():
 def test_duplicate_data():
     with assert_warns_regex(
         RuntimeWarning,
-        "Detected zero distance between samples ([0-9and,\s]*). Consider removing duplicates to avoid errors in downstream processing.",
+        r"Detected zero distance between samples ([0-9and,\s]*). Consider removing duplicates to avoid errors in downstream processing.",
     ):
         build_graph(np.vstack([data, data[:10]]), n_pca=20, decay=10, thresh=1e-4)
 
@@ -332,7 +332,10 @@ def test_knn_graph_callable_bandwidth():
     ):
         k = 3
         decay = 5
-        bandwidth = lambda x: 2
+
+        def bandwidth(x):
+            return 2
+
         n_pca = 20
         thresh = 1e-4
         build_graph(

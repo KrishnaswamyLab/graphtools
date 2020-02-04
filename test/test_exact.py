@@ -96,7 +96,7 @@ def test_precomputed_invalid():
 def test_duplicate_data():
     with assert_warns_regex(
         RuntimeWarning,
-        "Detected zero distance between samples ([0-9and,\s]*). Consider removing duplicates to avoid errors in downstream processing.",
+        r"Detected zero distance between samples ([0-9and,\s]*). Consider removing duplicates to avoid errors in downstream processing.",
     ):
         build_graph(np.vstack([data, data[:10]]), n_pca=20, decay=10, thresh=0)
 
@@ -447,7 +447,10 @@ def test_exact_graph_fixed_bandwidth():
 def test_exact_graph_callable_bandwidth():
     decay = 2
     knn = 5
-    bandwidth = lambda x: 2
+
+    def bandwidth(x):
+        return 2
+
     n_pca = 20
     thresh = 1e-4
     pca = PCA(n_pca, svd_solver="randomized", random_state=42).fit(data)
@@ -474,7 +477,10 @@ def test_exact_graph_callable_bandwidth():
     np.testing.assert_equal(G.dw, G2.dw)
     assert (G2.W != G.W).sum() == 0
     assert (G.W != G2.W).nnz == 0
-    bandwidth = lambda x: np.percentile(x, 10, axis=1)
+
+    def bandwidth(x):
+        return np.percentile(x, 10, axis=1)
+
     K = np.exp(-1 * (pdx / bandwidth(pdx)) ** decay)
     K[K < thresh] = 0
     K = K + K.T

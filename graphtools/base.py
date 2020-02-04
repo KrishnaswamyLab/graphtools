@@ -245,7 +245,7 @@ class Data(Base):
         If data is dense, uses randomized PCA. If data is sparse, uses
         randomized SVD.
         TODO: should we subtract and store the mean?
-        TODO: Fix the rank estimation so we do not compute the full SVD. 
+        TODO: Fix the rank estimation so we do not compute the full SVD.
 
         Returns
         -------
