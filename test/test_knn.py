@@ -102,6 +102,14 @@ def test_knn_no_knn_no_bandwidth():
         build_graph(data, graphtype="knn", knn=None, bandwidth=None, thresh=1e-4)
 
 
+def test_knn_graph_invalid_symm():
+    with assert_raises_message(
+        ValueError,
+        "kernel_symm 'invalid' not recognized. Choose from '+', '*', 'mnn', or 'none'.",
+    ):
+        build_graph(data, graphtype="knn", knn=5, thresh=1e-4, kernel_symm="invalid")
+
+
 #####################################################
 # Check kernel
 #####################################################
@@ -150,6 +158,38 @@ def test_knn_graph():
         G2.build_kernel_to_data(
             Y=G2.data_nu, knn=data.shape[0] + 1,
         )
+
+
+def test_knn_graph_multiplication_symm():
+    k = 3
+    n_pca = 20
+    pca = PCA(n_pca, svd_solver="randomized", random_state=42).fit(data)
+    data_nu = pca.transform(data)
+    pdx = squareform(pdist(data_nu, metric="euclidean"))
+    knn_dist = np.partition(pdx, k, axis=1)[:, :k]
+    epsilon = np.max(knn_dist, axis=1)
+    K = np.empty_like(pdx)
+    for i in range(len(pdx)):
+        K[i, pdx[i, :] <= epsilon[i]] = 1
+        K[i, pdx[i, :] > epsilon[i]] = 0
+
+    W = K * K.T
+    np.fill_diagonal(W, 0)
+    G = pygsp.graphs.Graph(W)
+    G2 = build_graph(
+        data,
+        n_pca=n_pca,
+        decay=None,
+        knn=k - 1,
+        random_state=42,
+        use_pygsp=True,
+        kernel_symm="*",
+    )
+    assert G.N == G2.N
+    np.testing.assert_equal(G.dw, G2.dw)
+    assert (G.W - G2.W).nnz == 0
+    assert (G2.W - G.W).sum() == 0
+    assert isinstance(G2, graphtools.graphs.kNNGraph)
 
 
 def test_knn_graph_sparse():

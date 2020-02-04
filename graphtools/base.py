@@ -570,7 +570,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         kernel = self.apply_anisotropy(kernel)
         if (kernel - kernel.T).max() > 1e-5:
             warnings.warn("K should be symmetric", RuntimeWarning)
-        if np.any(kernel.diagonal == 0):
+        if np.any(kernel.diagonal() == 0):
             warnings.warn("K should have a non-zero diagonal", RuntimeWarning)
         return kernel
 

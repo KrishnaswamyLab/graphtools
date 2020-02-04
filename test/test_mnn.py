@@ -45,6 +45,10 @@ def test_sample_idx_unique():
         build_graph(
             data, graph_class=graphtools.graphs.MNNGraph, sample_idx=np.ones(len(data))
         )
+    with assert_warns_message(
+        UserWarning, "Only one unique sample. Not using MNNGraph"
+    ):
+        build_graph(data, sample_idx=np.ones(len(data)), graphtype="mnn")
 
 
 def test_sample_idx_none():

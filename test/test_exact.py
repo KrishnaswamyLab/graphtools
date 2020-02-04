@@ -93,6 +93,11 @@ def test_precomputed_invalid():
         )
 
 
+def test_precomputed_nonzero_diagonal():
+    with assert_warns_message(RuntimeWarning, "K should have a non-zero diagonal"):
+        build_graph(np.zeros((10, 10)), precomputed="affinity", n_pca=None)
+
+
 def test_duplicate_data():
     with assert_warns_regex(
         RuntimeWarning,
