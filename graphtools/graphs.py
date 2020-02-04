@@ -70,7 +70,7 @@ class kNNGraph(DataGraph):
         knn=5,
         decay=None,
         knn_max=None,
-        search_multiplier=20,
+        search_multiplier=6,
         bandwidth=None,
         bandwidth_scale=1.0,
         distance="euclidean",
@@ -103,7 +103,9 @@ class kNNGraph(DataGraph):
         if knn > data.shape[0] - 2:
             warnings.warn(
                 "Cannot set knn ({k}) to be greater than "
-                "n_samples ({n}). Setting knn={n}".format(k=knn, n=data.shape[0] - 2)
+                "n_samples - 2 ({n}). Setting knn={n}".format(
+                    k=knn, n=data.shape[0] - 2
+                )
             )
             knn = data.shape[0] - 2
         if knn_max is not None and knn_max < knn:
@@ -862,7 +864,7 @@ class TraditionalGraph(DataGraph):
                 raise ValueError(
                     "Precomputed value {} not recognized. "
                     "Choose from ['distance', 'affinity', "
-                    "'adjacency']"
+                    "'adjacency']".format(precomputed)
                 )
             elif data.shape[0] != data.shape[1]:
                 raise ValueError(
@@ -995,15 +997,23 @@ class TraditionalGraph(DataGraph):
                         duplicate_ids = np.array(
                             [i for i in np.argwhere(pdx == 0) if i[1] > i[0]]
                         )
-                        duplicate_names = ", ".join(
-                            ["{} and {}".format(i[0], i[1]) for i in duplicate_ids]
-                        )
-                        warnings.warn(
-                            "Detected zero distance between samples {}. "
-                            "Consider removing duplicates to avoid errors in "
-                            "downstream processing.".format(duplicate_names),
-                            RuntimeWarning,
-                        )
+                        if len(duplicate_ids) < 20:
+                            duplicate_names = ", ".join(
+                                ["{} and {}".format(i[0], i[1]) for i in duplicate_ids]
+                            )
+                            warnings.warn(
+                                "Detected zero distance between samples {}. "
+                                "Consider removing duplicates to avoid errors in "
+                                "downstream processing.".format(duplicate_names),
+                                RuntimeWarning,
+                            )
+                        else:
+                            warnings.warn(
+                                "Detected zero distance between {} pairs of samples. "
+                                "Consider removing duplicates to avoid errors in "
+                                "downstream processing.".format(len(duplicate_ids)),
+                                RuntimeWarning,
+                            )
                     else:
                         pdx = squareform(pdx)
                 else:

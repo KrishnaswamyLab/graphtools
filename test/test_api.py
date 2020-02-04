@@ -1,16 +1,13 @@
 from __future__ import print_function
-from load_tests import (
-    data,
-    build_graph,
-    raises,
-    warns,
-)
+from load_tests import data, build_graph, assert_raises_message, assert_warns_message
+
 
 import igraph
 import numpy as np
 import graphtools
 import tempfile
 import os
+import pickle
 
 
 def test_from_igraph():
@@ -39,28 +36,33 @@ def test_from_igraph_weighted():
     assert np.all(G.K == G2.K)
 
 
-@warns(UserWarning)
 def test_from_igraph_invalid_precomputed():
-    n = 100
-    m = 500
-    K = np.zeros((n, n))
-    for _ in range(m):
-        e = np.random.choice(n, 2, replace=False)
-        K[e[0], e[1]] = K[e[1], e[0]] = 1
-    g = igraph.Graph.Adjacency(K.tolist())
-    G = graphtools.from_igraph(g, attribute=None, precomputed="affinity")
+    with assert_warns_message(
+        UserWarning,
+        "Cannot build graph from igraph with precomputed=affinity. Use 'adjacency' instead.",
+    ):
+        n = 100
+        m = 500
+        K = np.zeros((n, n))
+        for _ in range(m):
+            e = np.random.choice(n, 2, replace=False)
+            K[e[0], e[1]] = K[e[1], e[0]] = 1
+        g = igraph.Graph.Adjacency(K.tolist())
+        G = graphtools.from_igraph(g, attribute=None, precomputed="affinity")
 
 
-@warns(UserWarning)
 def test_from_igraph_invalid_attribute():
-    n = 100
-    m = 500
-    K = np.zeros((n, n))
-    for _ in range(m):
-        e = np.random.choice(n, 2, replace=False)
-        K[e[0], e[1]] = K[e[1], e[0]] = 1
-    g = igraph.Graph.Adjacency(K.tolist())
-    G = graphtools.from_igraph(g, attribute="invalid")
+    with assert_warns_message(
+        UserWarning, "Edge attribute invalid not found. Returning unweighted graph"
+    ):
+        n = 100
+        m = 500
+        K = np.zeros((n, n))
+        for _ in range(m):
+            e = np.random.choice(n, 2, replace=False)
+            K[e[0], e[1]] = K[e[1], e[0]] = 1
+        g = igraph.Graph.Adjacency(K.tolist())
+        G = graphtools.from_igraph(g, attribute="invalid")
 
 
 def test_to_pygsp():
@@ -120,27 +122,32 @@ def test_pickle_io_pygspgraph():
     assert G_prime.logger.name == G.logger.name
 
 
-@warns(UserWarning)
 def test_pickle_bad_pickle():
-    import pickle
+    with assert_warns_message(
+        UserWarning, "Returning object that is not a graphtools.base.BaseGraph"
+    ):
+        with tempfile.TemporaryDirectory() as tempdir:
+            path = os.path.join(tempdir, "tmp.pkl")
+            with open(path, "wb") as f:
+                pickle.dump("hello world", f)
+            G = graphtools.read_pickle(path)
 
-    with tempfile.TemporaryDirectory() as tempdir:
-        path = os.path.join(tempdir, "tmp.pkl")
-        with open(path, "wb") as f:
-            pickle.dump("hello world", f)
-        G = graphtools.read_pickle(path)
 
-
-@warns(UserWarning)
 def test_to_pygsp_invalid_precomputed():
-    G = build_graph(data)
-    G2 = G.to_pygsp(precomputed="adjacency")
+    with assert_warns_message(
+        UserWarning,
+        "Cannot build PyGSPGraph with precomputed=adjacency. Using 'affinity' instead.",
+    ):
+        G = build_graph(data)
+        G2 = G.to_pygsp(precomputed="adjacency")
 
 
-@warns(UserWarning)
 def test_to_pygsp_invalid_use_pygsp():
-    G = build_graph(data)
-    G2 = G.to_pygsp(use_pygsp=False)
+    with assert_warns_message(
+        UserWarning, "Cannot build PyGSPGraph with use_pygsp=False. Use True instead."
+    ):
+        G = build_graph(data)
+        G2 = G.to_pygsp(use_pygsp=False)
 
 
 #####################################################
@@ -148,11 +155,16 @@ def test_to_pygsp_invalid_use_pygsp():
 #####################################################
 
 
-@raises(TypeError)
 def test_unknown_parameter():
-    build_graph(data, hello="world")
+    with assert_raises_message(
+        TypeError, "__init__() got an unexpected keyword argument 'hello'"
+    ):
+        build_graph(data, hello="world")
 
 
-@raises(ValueError)
 def test_invalid_graphtype():
-    build_graph(data, graphtype="hello world")
+    with assert_raises_message(
+        ValueError,
+        "graphtype 'hello world' not recognized. Choose from ['knn', 'mnn', 'exact', 'auto']",
+    ):
+        build_graph(data, graphtype="hello world")

@@ -127,23 +127,27 @@ class Data(Base):
         self._check_data(data)
         n_pca, rank_threshold = self._parse_n_pca_threshold(data, n_pca, rank_threshold)
         try:
-            if isinstance(data, pd.SparseDataFrame):
+            pd
+        except NameError:
+            # pandas not installed
+            pass
+        else:
+            if utils.is_SparseDataFrame(data):
                 data = data.to_coo()
             elif isinstance(data, pd.DataFrame):
                 try:
                     data = data.sparse.to_coo()
                 except AttributeError:
                     data = np.array(data)
-        except NameError:
-            # pandas not installed
-            pass
 
         try:
-            if isinstance(data, anndata.AnnData):
-                data = data.X
+            anndata
         except NameError:
             # anndata not installed
             pass
+        else:
+            if isinstance(data, anndata.AnnData):
+                data = data.X
         self.data = data
         self.n_pca = n_pca
         self.rank_threshold = rank_threshold
@@ -158,7 +162,7 @@ class Data(Base):
                 raise ValueError(
                     "n_pca must be an integer "
                     "0 <= n_pca < min(n_samples,n_features), "
-                    "or in [None,False,True,'auto']."
+                    "or in [None, False, True, 'auto']."
                 )
         if isinstance(n_pca, numbers.Number):
             if not float(n_pca).is_integer():  # cast it to integer
@@ -228,14 +232,15 @@ class Data(Base):
 
     def _check_data(self, data):
         if len(data.shape) != 2:
-            msg = (
-                "ValueError: Expected 2D array, got {}D array "
-                "instead (shape: {}.) ".format(len(data.shape), data.shape)
+            msg = "Expected 2D array, got {}D array " "instead (shape: {}.) ".format(
+                len(data.shape), data.shape
             )
             if len(data.shape) < 2:
-                msg += "\nReshape your data either using array.reshape(-1, 1) "
-                "if your data has a single feature or array.reshape(1, -1) if "
-                "it contains a single sample."
+                msg += (
+                    "\nReshape your data either using array.reshape(-1, 1) "
+                    "if your data has a single feature or array.reshape(1, -1) if "
+                    "it contains a single sample."
+                )
             raise ValueError(msg)
 
     def _reduce_data(self):
@@ -244,7 +249,7 @@ class Data(Base):
         If data is dense, uses randomized PCA. If data is sparse, uses
         randomized SVD.
         TODO: should we subtract and store the mean?
-        TODO: Fix the rank estimation so we do not compute the full SVD. 
+        TODO: Fix the rank estimation so we do not compute the full SVD.
 
         Returns
         -------
@@ -357,23 +362,28 @@ class Data(Base):
         """
         try:
             # try PCA first
-
             return self.data_pca.transform(Y)
-        except AttributeError:  # no pca, try to return data
-            try:
-                if Y.shape[1] != self.data.shape[1]:
-                    # shape is wrong
-                    raise ValueError
-                return Y
-            except IndexError:
-                # len(Y.shape) < 2
-                raise ValueError
         except ValueError:
-            # more informative error
+            # shape is wrong
             raise ValueError(
-                "data of shape {} cannot be transformed"
-                " to graph built on data of shape {}".format(Y.shape, self.data.shape)
+                "data of shape {0} cannot be transformed"
+                " to graph built on data of shape {1}. "
+                "Expected shape ({2}, {3})".format(
+                    Y.shape, self.data.shape, Y.shape[0], self.data.shape[1]
+                )
             )
+        except AttributeError:  # no pca, try to return data
+            if len(Y.shape) < 2 or Y.shape[1] != self.data.shape[1]:
+                # shape is wrong
+                raise ValueError(
+                    "data of shape {0} cannot be transformed"
+                    " to graph built on data of shape {1}. "
+                    "Expected shape ({2}, {3})".format(
+                        Y.shape, self.data.shape, Y.shape[0], self.data.shape[1]
+                    )
+                )
+            else:
+                return Y
 
     def inverse_transform(self, Y, columns=None):
         """Transform input data `Y` to ambient data space defined by `self.data`
@@ -427,9 +437,9 @@ class Data(Base):
         except ValueError:
             # more informative error
             raise ValueError(
-                "data of shape {} cannot be inverse transformed"
-                " from graph built on data of shape {}".format(
-                    Y.shape, self.data_nu.shape
+                "data of shape {0} cannot be inverse transformed"
+                " from graph built on reduced data of shape ({1}, {2}). Expected shape ({3}, {2})".format(
+                    Y.shape, self.data_nu.shape[0], self.data_nu.shape[1], Y.shape[0]
                 )
             )
 
@@ -560,7 +570,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         kernel = self.apply_anisotropy(kernel)
         if (kernel - kernel.T).max() > 1e-5:
             warnings.warn("K should be symmetric", RuntimeWarning)
-        if np.any(kernel.diagonal == 0):
+        if np.any(kernel.diagonal() == 0):
             warnings.warn("K should have a non-zero diagonal", RuntimeWarning)
         return kernel
 
@@ -659,6 +669,24 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
             return self._diff_op
 
     @property
+    def kernel_degree(self):
+        """Weighted degree vector (cached)
+
+        Return or calculate the degree vector from the affinity matrix
+
+        Returns
+        -------
+
+        degrees : array-like, shape=[n_samples]
+            Row sums of graph kernel
+        """
+        try:
+            return self._kernel_degree
+        except AttributeError:
+            self._kernel_degree = utils.to_array(self.kernel.sum(axis=1)).reshape(-1, 1)
+            return self._kernel_degree
+
+    @property
     def diff_aff(self):
         """Symmetric diffusion affinity matrix
 
@@ -675,7 +703,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
             symmetric diffusion affinity matrix defined as a
             doubly-stochastic form of the kernel matrix
         """
-        row_degrees = utils.to_array(self.kernel.sum(axis=1))
+        row_degrees = self.kernel_degree
         if sparse.issparse(self.kernel):
             # diagonal matrix
             degrees = sparse.csr_matrix(

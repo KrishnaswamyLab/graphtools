@@ -239,7 +239,7 @@ def Graph(
     else:
         raise ValueError(
             "graphtype '{}' not recognized. Choose from "
-            "['knn', 'mnn', 'exact', 'auto']"
+            "['knn', 'mnn', 'exact', 'auto']".format(graphtype)
         )
 
     # set add landmarks if necessary
