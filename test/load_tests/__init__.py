@@ -58,6 +58,12 @@ def ignore_igraph_warning():
         "ignore",
         category=DeprecationWarning,
         message="Using or importing the ABCs from 'collections' instead of from "
+        "'collections.abc' is deprecated since Python 3.3,and in 3.9 it will stop working",
+    )
+    warnings.filterwarnings(
+        "ignore",
+        category=DeprecationWarning,
+        message="Using or importing the ABCs from 'collections' instead of from "
         "'collections.abc' is deprecated, and in 3.8 it will stop working",
     )
 
