@@ -127,7 +127,7 @@ class Data(Base):
         self._check_data(data)
         n_pca, rank_threshold = self._parse_n_pca_threshold(data, n_pca, rank_threshold)
         try:
-            if isinstance(data, pd.SparseDataFrame):
+            if utils.is_SparseDataFrame(data):
                 data = data.to_coo()
             elif isinstance(data, pd.DataFrame):
                 try:

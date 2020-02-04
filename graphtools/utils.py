@@ -79,3 +79,15 @@ def to_array(X):
     elif isinstance(X, np.matrix):
         X = X.A
     return X
+
+
+def is_SparseDataFrame(X):
+    with warnings.catchwarnings():
+        warnings.filterwarnings(
+            FutureWarning,
+            "The SparseDataFrame class is removed from pandas. Accessing it from the top-level namespace will also be removed in the next version",
+        )
+        try:
+            return isinstance(X, pd.SparseDataFrame)
+        except AttributeError:
+            return False
