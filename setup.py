@@ -20,6 +20,7 @@ test_requires = [
     "coveralls",
     "python-igraph",
     "parameterized",
+    "anndata",
 ]
 
 if sys.version_info[0] == 3:

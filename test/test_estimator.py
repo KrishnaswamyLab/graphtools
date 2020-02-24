@@ -1,8 +1,10 @@
 import graphtools
 import graphtools.estimator
 import pygsp
+import anndata
+import warnings
 import numpy as np
-from load_tests import data
+from load_tests import data, assert_raises_message
 from scipy import sparse
 from parameterized import parameterized
 
@@ -40,16 +42,19 @@ def test_estimator():
 
 @parameterized(
     [
-        (1 - np.eye(10), "distance"),
-        (np.eye(10), "affinity"),
-        (sparse.coo_matrix(1 - np.eye(10)), "distance"),
-        (sparse.eye(10), "affinity"),
+        ("precomputed", 1 - np.eye(10), "distance"),
+        ("precomputed", np.eye(10), "affinity"),
+        ("precomputed", sparse.coo_matrix(1 - np.eye(10)), "distance"),
+        ("precomputed", sparse.eye(10), "affinity"),
+        ("precomputed_affinity", 1 - np.eye(10), "affinity"),
+        ("precomputed_distance", np.ones((10, 10)), "distance"),
     ]
 )
-def test_precomputed(X, precomputed):
-    E = Estimator(verbose=False, distance="precomputed")
-    assert E._detect_precomputed_matrix_type(X) == precomputed
-    E.fit(X)
+def test_precomputed(distance, X, precomputed):
+    E = Estimator(verbose=False, distance=distance)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message="K should have a non-zero diagonal")
+        E.fit(X)
     assert isinstance(E.graph, graphtools.graphs.TraditionalGraph)
     assert E.graph.precomputed == precomputed
 
@@ -71,3 +76,35 @@ def test_graph_input():
     G = pygsp.graphs.Graph(W)
     E.fit(G, use_pygsp=True)
     assert np.all(E.graph.W.toarray() == W)
+
+
+def test_anndata_input():
+    X = np.random.normal(0, 1, (10, 2))
+    E = Estimator(verbose=0)
+    E.fit(X)
+    E2 = Estimator(verbose=0)
+    E2.fit(anndata.AnnData(X))
+    np.testing.assert_allclose(
+        E.graph.K.toarray(), E2.graph.K.toarray(), rtol=1e-6, atol=2e-7
+    )
+
+
+def test_new_input():
+    X = np.random.normal(0, 1, (10, 2))
+    X2 = np.random.normal(0, 1, (10, 2))
+    E = Estimator(verbose=0)
+    E.fit(X)
+    G = E.graph
+    E.fit(X)
+    assert E.graph is G
+    E.fit(X.copy())
+    assert E.graph is G
+    E.n_landmark = 500
+    E.fit(X)
+    assert E.graph is G
+    E.n_landmark = 5
+    E.fit(X)
+    assert np.all(E.graph.K.toarray() == G.K.toarray())
+    G = E.graph
+    E.fit(X2)
+    assert E.graph is not G

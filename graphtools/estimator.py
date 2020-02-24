@@ -173,7 +173,11 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
         utils.check_if_not(
             None, utils.check_positive, utils.check_int, n_landmark=n_landmark
         )
+        self._update_n_landmark(n_landmark)
+
+    def _update_n_landmark(self, n_landmark):
         if self.graph is not None:
+            n_landmark = self._parse_n_landmark(self.graph.data_nu)
             if (
                 n_landmark is None and isinstance(self.graph, graphs.LandmarkGraph)
             ) or (
@@ -229,20 +233,11 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
 
     def _set_graph_params(self, **params):
         if self.graph is not None:
-            if "n_landmark" in params:
-                n_landmark = params["n_landmark"]
-                del params["n_landmark"]
             try:
                 self.graph.set_params(**params)
             except ValueError as e:
                 _logger.debug("Reset graph due to {}".format(str(e)))
                 self.graph = None
-            else:
-                try:
-                    # special way to reset the graph here
-                    self.n_landmark = n_landmark
-                except NameError:
-                    pass
 
     @abc.abstractmethod
     def _reset_graph(self):
@@ -265,6 +260,12 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
             return None
         else:
             return self.n_landmark
+
+    def _parse_n_svd(self, X):
+        if self.n_svd >= X.shape[0]:
+            return X.shape[0] - 1
+        else:
+            return self.n_svd
 
     def _parse_input(self, X):
         # passing graphs as input
@@ -302,14 +303,7 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
                 elif self.distance in ["precomputed_affinity", "precomputed_distance"]:
                     precomputed = self.distance.split("_")[1]
                 else:
-                    raise ValueError(
-                        "distance {} not recognized. Did you mean "
-                        "'precomputed_distance', "
-                        "'precomputed_affinity', or 'precomputed' "
-                        "(automatically detects distance or affinity)?".format(
-                            self.distance
-                        )
-                    )
+                    raise NotImplementedError
                 n_pca = None
             else:
                 precomputed = None
@@ -327,6 +321,7 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
             """
             self.graph = None
         else:
+            self._update_n_landmark(n_landmark)
             self._set_graph_params(
                 n_pca=n_pca,
                 precomputed=precomputed,
@@ -335,7 +330,7 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
                 knn=self.knn,
                 decay=self.decay,
                 distance=self.distance,
-                n_svd=self.n_svd,
+                n_svd=self._parse_n_svd(self.X),
                 n_jobs=self.n_jobs,
                 thresh=self.thresh,
                 verbose=self.verbose,
@@ -393,7 +388,7 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
                     knn=self.knn,
                     decay=self.decay,
                     distance=self.distance,
-                    n_svd=self.n_svd,
+                    n_svd=self._parse_n_svd(self.X),
                     n_jobs=self.n_jobs,
                     thresh=self.thresh,
                     verbose=self.verbose,
