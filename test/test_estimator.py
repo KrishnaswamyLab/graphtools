@@ -78,6 +78,20 @@ def test_graph_input():
     assert np.all(E.graph.W.toarray() == W)
 
 
+def test_pca():
+    X = np.random.normal(0, 1, (10, 6))
+    E = Estimator(verbose=0)
+    E.fit(X)
+    G = E.graph
+    E.set_params(n_pca=100)
+    E.fit(X)
+    assert E.graph is G
+    E.set_params(n_pca=3)
+    E.fit(X)
+    assert E.graph is not G
+    assert E.graph.n_pca == 3
+
+
 def test_anndata_input():
     X = np.random.normal(0, 1, (10, 2))
     E = Estimator(verbose=0)

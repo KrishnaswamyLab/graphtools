@@ -177,7 +177,7 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
 
     def _update_n_landmark(self, n_landmark):
         if self.graph is not None:
-            n_landmark = self._parse_n_landmark(self.graph.data_nu)
+            n_landmark = self._parse_n_landmark(self.graph.data_nu, n_landmark)
             if (
                 n_landmark is None and isinstance(self.graph, graphs.LandmarkGraph)
             ) or (
@@ -234,6 +234,18 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
     def _set_graph_params(self, **params):
         if self.graph is not None:
             try:
+                if "n_pca" in params:
+                    params["n_pca"] = self._parse_n_pca(
+                        self.graph.data_nu, params["n_pca"]
+                    )
+                if "n_svd" in params:
+                    params["n_svd"] = self._parse_n_svd(
+                        self.graph.data_nu, params["n_svd"]
+                    )
+                if "n_landmark" in params:
+                    params["n_landmark"] = self._parse_n_landmark(
+                        self.graph.data_nu, params["n_landmark"]
+                    )
                 self.graph.set_params(**params)
             except ValueError as e:
                 _logger.debug("Reset graph due to {}".format(str(e)))
@@ -255,17 +267,26 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
         else:
             return "affinity"
 
-    def _parse_n_landmark(self, X):
-        if self.n_landmark is not None and self.n_landmark >= X.shape[0]:
+    @staticmethod
+    def _parse_n_landmark(X, n_landmark):
+        if n_landmark is not None and n_landmark >= X.shape[0]:
             return None
         else:
-            return self.n_landmark
+            return n_landmark
 
-    def _parse_n_svd(self, X):
-        if self.n_svd >= X.shape[0]:
+    @staticmethod
+    def _parse_n_pca(X, n_pca):
+        if n_pca is not None and n_pca >= min(X.shape):
+            return None
+        else:
+            return n_pca
+
+    @staticmethod
+    def _parse_n_svd(X, n_svd):
+        if n_svd is not None and n_svd >= X.shape[0]:
             return X.shape[0] - 1
         else:
-            return self.n_svd
+            return n_svd
 
     def _parse_input(self, X):
         # passing graphs as input
@@ -307,11 +328,14 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
                 n_pca = None
             else:
                 precomputed = None
-                if self.n_pca is None or self.n_pca >= np.min(X.shape):
-                    n_pca = None
-                else:
-                    n_pca = self.n_pca
-        return X, n_pca, self._parse_n_landmark(X), precomputed, update_graph
+                n_pca = self._parse_n_pca(X, self.n_pca)
+        return (
+            X,
+            n_pca,
+            self._parse_n_landmark(X, self.n_landmark),
+            precomputed,
+            update_graph,
+        )
 
     def _update_graph(self, X, precomputed, n_pca, n_landmark, **kwargs):
         if self.X is not None and not matrix.matrix_is_equivalent(X, self.X):
@@ -330,7 +354,7 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
                 knn=self.knn,
                 decay=self.decay,
                 distance=self.distance,
-                n_svd=self._parse_n_svd(self.X),
+                n_svd=self._parse_n_svd(self.X, self.n_svd),
                 n_jobs=self.n_jobs,
                 thresh=self.thresh,
                 verbose=self.verbose,
@@ -388,7 +412,7 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
                     knn=self.knn,
                     decay=self.decay,
                     distance=self.distance,
-                    n_svd=self._parse_n_svd(self.X),
+                    n_svd=self._parse_n_svd(self.X, self.n_svd),
                     n_jobs=self.n_jobs,
                     thresh=self.thresh,
                     verbose=self.verbose,
