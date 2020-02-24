@@ -16,6 +16,14 @@ except ImportError:  # pragma: no cover
     pass
 
 
+def is_DataFrame(X):
+    try:
+        return isinstance(X, pd.DataFrame)
+    except NameError:  # pragma: no cover
+        # pandas not installed
+        return False
+
+
 def is_SparseDataFrame(X):
     try:
         pd

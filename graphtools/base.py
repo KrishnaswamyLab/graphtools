@@ -15,18 +15,6 @@ import pickle
 import sys
 import tasklogger
 
-try:
-    import pandas as pd
-except ImportError:
-    # pandas not installed
-    pass
-
-try:
-    import anndata
-except (ImportError, SyntaxError):
-    # anndata not installed
-    pass
-
 from . import matrix, utils
 
 _logger = tasklogger.get_tasklogger("graphtools")
@@ -126,28 +114,19 @@ class Data(Base):
 
         self._check_data(data)
         n_pca, rank_threshold = self._parse_n_pca_threshold(data, n_pca, rank_threshold)
-        try:
-            pd
-        except NameError:
-            # pandas not installed
-            pass
-        else:
-            if utils.is_SparseDataFrame(data):
-                data = data.to_coo()
-            elif isinstance(data, pd.DataFrame):
-                try:
-                    data = data.sparse.to_coo()
-                except AttributeError:
-                    data = np.array(data)
 
-        try:
-            anndata
-        except NameError:
-            # anndata not installed
-            pass
-        else:
-            if isinstance(data, anndata.AnnData):
-                data = data.X
+        if utils.is_SparseDataFrame(data):
+            data = data.to_coo()
+        elif utils.is_DataFrame(data):
+            try:
+                # sparse data
+                data = data.sparse.to_coo()
+            except AttributeError:
+                # dense data
+                data = np.array(data)
+        elif utils.is_Anndata(data):
+            data = data.X
+
         self.data = data
         self.n_pca = n_pca
         self.rank_threshold = rank_threshold
