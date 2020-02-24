@@ -1,27 +1,40 @@
 import numpy as np
 import tasklogger
-
-try:
-    import anndata
-except ImportError:
-    # anndata not installed
-    pass
-
-try:
-    import pygsp
-except ImportError:
-    # anndata not installed
-    pass
+import pygsp
+import abc
 
 from functools import partial
 from scipy import sparse
 
 from . import api, graphs, base, utils
 
+
+def attribute(attr, default=None, doc=None, on_set=None):
+    def getter(self, attr):
+        try:
+            return getattr(self, "_" + attr)
+        except AttributeError:
+            return default
+
+    def setter(self, value, attr, on_set=None):
+        if on_set is not None:
+            if callable(on_set):
+                on_set = [on_set]
+            for fn in on_set:
+                fn(**{attr: value})
+        setattr(self, "_" + attr, value)
+
+    return property(
+        fget=partial(getter, attr=attr),
+        fset=partial(setter, attr=attr, on_set=on_set),
+        doc=doc,
+    )
+
+
 _logger = tasklogger.get_tasklogger("graphtools")
 
 
-class GraphEstimator(object):
+class GraphEstimator(object, metaclass=abc.ABCMeta):
     """Estimator which builds a graphtools Graph
 
     Parameters
@@ -35,7 +48,7 @@ class GraphEstimator(object):
         If None, alpha decaying kernel is not used
 
     n_landmark : int, optional, default: 2000
-        number of landmarks to use in fast PHATE
+        number of landmarks to use in graph construction
 
     n_pca : int, optional, default: 100
         Number of principal components to use for calculating
@@ -69,15 +82,22 @@ class GraphEstimator(object):
     verbose : `int` or `boolean`, optional (default: 1)
         If `True` or `> 0`, print status messages
         
-    n_svd : (default: 100)
+    n_svd : int, optional (default: 100)
+        number of singular vectors to compute for landmarking
     
-    thresh : (default: 1e-4)
+    thresh : float, optional (default: 1e-4)
+        threshold below which to truncate kernel
     
     kwargs : additional arguments for graphtools.Graph
+    
+    Attributes
+    ----------
+    
+    graph : graphtools.Graph
     """
 
-    X = utils.attribute("X", doc="Stored input data")
-    graph = utils.attribute("graph", doc="graphtools Graph object")
+    X = attribute("X", doc="Stored input data")
+    graph = attribute("graph", doc="graphtools Graph object")
 
     @graph.setter
     def graph(self, G):
@@ -85,18 +105,16 @@ class GraphEstimator(object):
         if G is None:
             self._reset_graph()
 
-    n_pca = utils.attribute(
+    n_pca = attribute(
         "n_pca",
         default=100,
         on_set=partial(utils.check_if_not, None, utils.check_positive, utils.check_int),
     )
-    random_state = utils.attribute("random_state")
+    random_state = attribute("random_state")
 
-    knn = utils.attribute(
-        "knn", default=5, on_set=[utils.check_positive, utils.check_int]
-    )
-    decay = utils.attribute("decay", default=40, on_set=utils.check_positive)
-    distance = utils.attribute(
+    knn = attribute("knn", default=5, on_set=[utils.check_positive, utils.check_int])
+    decay = attribute("decay", default=40, on_set=utils.check_positive)
+    distance = attribute(
         "distance",
         default="euclidean",
         on_set=partial(
@@ -132,22 +150,22 @@ class GraphEstimator(object):
             ],
         ),
     )
-    n_svd = utils.attribute(
+    n_svd = attribute(
         "n_svd",
         default=100,
         on_set=partial(utils.check_if_not, None, utils.check_positive, utils.check_int),
     )
-    n_jobs = utils.attribute(
+    n_jobs = attribute(
         "n_jobs", on_set=partial(utils.check_if_not, None, utils.check_int)
     )
-    verbose = utils.attribute("verbose", default=0)
-    thresh = utils.attribute(
+    verbose = attribute("verbose", default=0)
+    thresh = attribute(
         "thresh",
         default=1e-4,
         on_set=partial(utils.check_if_not, 0, utils.check_positive),
     )
 
-    n_landmark = utils.attribute("n_landmark")
+    n_landmark = attribute("n_landmark")
 
     @n_landmark.setter
     def n_landmark(self, n_landmark):
@@ -156,12 +174,18 @@ class GraphEstimator(object):
             None, utils.check_positive, utils.check_int, n_landmark=n_landmark
         )
         if self.graph is not None:
-            if n_landmark is None and isinstance(self.graph, graphs.LandmarkGraph):
-                self.graph = None
-            elif n_landmark is not None and not isinstance(
-                self.graph, graphs.LandmarkGraph
+            if (
+                n_landmark is None and isinstance(self.graph, graphs.LandmarkGraph)
+            ) or (
+                n_landmark is not None
+                and not isinstance(self.graph, graphs.LandmarkGraph)
             ):
+                # new graph but the same kernel
+                # there may be a better way to do this
+                kernel = self.graph.kernel
                 self.graph = None
+                self.fit(self.X, initialize=False)
+                self.graph._kernel = kernel
 
     def __init__(
         self,
@@ -194,6 +218,7 @@ class GraphEstimator(object):
         self.verbose = verbose
         self.thresh = thresh
         self.kwargs = kwargs
+        self.logger = _logger
         _logger.set_level(self.verbose)
 
     def set_params(self, **params):
@@ -209,7 +234,12 @@ class GraphEstimator(object):
                 _logger.debug("Reset graph due to {}".format(str(e)))
                 self.graph = None
 
+    @abc.abstractmethod
     def _reset_graph(self):
+        """Trigger a reset of self.graph
+        
+        Any downstream effects of resetting the graph should override this function
+        """
         pass
 
     def _detect_precomputed_matrix_type(self, X):
@@ -271,12 +301,8 @@ class GraphEstimator(object):
 
         # checks on regular data
         update_graph = True
-        try:
-            if isinstance(X, anndata.AnnData):
-                X = X.X
-        except NameError:
-            # anndata not installed
-            pass
+        if utils.is_Anndata(X):
+            X = X.X
         if not callable(self.distance) and self.distance.startswith("precomputed"):
             if self.distance == "precomputed":
                 # automatic detection
@@ -330,7 +356,7 @@ class GraphEstimator(object):
                 _logger.debug("Reset graph due to {}".format(str(e)))
                 self.graph = None
 
-    def fit(self, X):
+    def fit(self, X, **kwargs):
         """Computes the graph
 
         Parameters
@@ -341,6 +367,8 @@ class GraphEstimator(object):
             `scipy.sparse.spmatrix`, `pd.DataFrame`, `anndata.AnnData`. If
             `knn_dist` is 'precomputed', `data` should be a n_samples x
             n_samples distance or affinity matrix
+
+        kwargs : additional arguments for graphtools.Graph
 
         Returns
         -------
@@ -356,7 +384,7 @@ class GraphEstimator(object):
             )
         else:
             _logger.info(
-                "Building graph on precomputed {} matrix with {} cells.".format(
+                "Building graph on precomputed {} matrix with {} samples.".format(
                     precomputed, X.shape[0]
                 )
             )
@@ -381,6 +409,7 @@ class GraphEstimator(object):
                     n_jobs=self.n_jobs,
                     thresh=self.thresh,
                     verbose=self.verbose,
-                    **(self.kwargs)
+                    **(self.kwargs),
+                    **kwargs
                 )
         return self

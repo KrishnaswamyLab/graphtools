@@ -27,7 +27,7 @@ except (ImportError, SyntaxError):
     # anndata not installed
     pass
 
-from . import utils
+from . import matrix, utils
 
 _logger = tasklogger.get_tasklogger("graphtools")
 
@@ -584,9 +584,9 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
             K = K.multiply(K.T)
         elif self.kernel_symm == "mnn":
             _logger.debug("Using mnn symmetrization (theta = {}).".format(self.theta))
-            K = self.theta * utils.elementwise_minimum(K, K.T) + (
+            K = self.theta * matrix.elementwise_minimum(K, K.T) + (
                 1 - self.theta
-            ) * utils.elementwise_maximum(K, K.T)
+            ) * matrix.elementwise_maximum(K, K.T)
         elif self.kernel_symm is None:
             _logger.debug("Using no symmetrization.")
             pass
@@ -683,7 +683,9 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         try:
             return self._kernel_degree
         except AttributeError:
-            self._kernel_degree = utils.to_array(self.kernel.sum(axis=1)).reshape(-1, 1)
+            self._kernel_degree = matrix.to_array(self.kernel.sum(axis=1)).reshape(
+                -1, 1
+            )
             return self._kernel_degree
 
     @property
@@ -823,12 +825,12 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         except AttributeError:
             # not a pygsp graph
             W = self.K.copy()
-            W = utils.set_diagonal(W, 0)
+            W = matrix.set_diagonal(W, 0)
         sources, targets = W.nonzero()
         edgelist = list(zip(sources, targets))
         g = ig.Graph(W.shape[0], edgelist, **kwargs)
         weights = W[W.nonzero()]
-        weights = utils.to_array(weights)
+        weights = matrix.to_array(weights)
         g.es[attribute] = weights.flatten().tolist()
         return g
 
@@ -987,7 +989,7 @@ class PyGSPGraph(with_metaclass(abc.ABCMeta, pygsp.graphs.Graph, Base)):
 
         weight = kernel.copy()
         self._diagonal = weight.diagonal().copy()
-        weight = utils.set_diagonal(weight, 0)
+        weight = matrix.set_diagonal(weight, 0)
         return weight
 
 
