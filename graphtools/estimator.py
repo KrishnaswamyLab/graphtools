@@ -6,7 +6,7 @@ import abc
 from functools import partial
 from scipy import sparse
 
-from . import api, graphs, base, utils
+from . import api, graphs, base, utils, matrix
 
 
 def attribute(attr, default=None, doc=None, on_set=None):
