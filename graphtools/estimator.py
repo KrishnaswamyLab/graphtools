@@ -47,7 +47,7 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
         sets decay rate of kernel tails.
         If None, alpha decaying kernel is not used
 
-    n_landmark : int, optional, default: 2000
+    n_landmark : int, optional, default: None
         number of landmarks to use in graph construction
 
     n_pca : int, optional, default: 100
@@ -253,7 +253,7 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     def _detect_precomputed_matrix_type(self, X):
-        if isinstance(X, sparse.coo_matrix):
+        if isinstance(X, (sparse.coo_matrix, sparse.dia_matrix)):
             X = X.tocsr()
         if X[0, 0] == 0:
             return "distance"
@@ -274,10 +274,10 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
             X = X.data
             # immutable graph properties override operator
             n_pca = self.graph.n_pca
-            self.knn = X.knn
-            self.decay = X.decay
-            self.distance = X.distance
-            self.thresh = X.thresh
+            self.knn = self.graph.knn
+            self.decay = self.graph.decay
+            self.distance = self.graph.distance
+            self.thresh = self.graph.thresh
             update_graph = False
             if isinstance(self.graph, graphs.TraditionalGraph):
                 precomputed = self.graph.precomputed
