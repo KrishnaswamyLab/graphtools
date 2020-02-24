@@ -570,11 +570,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
             _logger.debug("Using no symmetrization.")
             pass
         else:
-            # this should never happen
-            raise ValueError(
-                "Expected kernel_symm in ['+', '*', 'mnn' or None]. "
-                "Got {}".format(self.theta)
-            )
+            raise NotImplementedError
         return K
 
     def apply_anisotropy(self, K):
@@ -795,7 +791,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         """
         try:
             import igraph as ig
-        except ImportError:
+        except ImportError:  # pragma: no cover
             raise ImportError(
                 "Please install igraph with " "`pip install --user python-igraph`."
             )
