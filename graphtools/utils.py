@@ -5,13 +5,13 @@ from . import matrix
 
 try:
     import pandas as pd
-except ImportError:
+except ImportError:  # pragma: no cover
     # pandas not installed
     pass
 
 try:
     import anndata
-except ImportError:
+except ImportError:  # pragma: no cover
     # anndata not installed
     pass
 
@@ -19,7 +19,7 @@ except ImportError:
 def is_SparseDataFrame(X):
     try:
         pd
-    except NameError:
+    except NameError:  # pragma: no cover
         # pandas not installed
         return False
     with warnings.catch_warnings():
@@ -37,9 +37,27 @@ def is_SparseDataFrame(X):
 def is_Anndata(X):
     try:
         return isinstance(X, anndata.AnnData)
-    except NameError:
+    except NameError:  # pragma: no cover
         # anndata not installed
         return False
+
+
+def check_greater(x, **params):
+    """Check that parameters are greater than x as expected
+
+    Parameters
+    ----------
+
+    x : excepted boundary
+        Checks not run if parameters are greater than x
+
+    Raises
+    ------
+    ValueError : unacceptable choice of parameters
+    """
+    for p in params:
+        if not isinstance(params[p], numbers.Number) or params[p] <= x:
+            raise ValueError("Expected {} > {}, got {}".format(p, x, params[p]))
 
 
 def check_positive(**params):
@@ -49,9 +67,7 @@ def check_positive(**params):
     ------
     ValueError : unacceptable choice of parameters
     """
-    for p in params:
-        if not isinstance(params[p], numbers.Number) or params[p] <= 0:
-            raise ValueError("Expected {} > 0, got {}".format(p, params[p]))
+    return check_greater(0, **params)
 
 
 def check_int(**params):
@@ -131,6 +147,7 @@ def check_between(v_min, v_max, **params):
     ------
     ValueError : unacceptable choice of parameters
     """
+    check_greater(v_min, v_max=v_max)
     for p in params:
         if params[p] < v_min or params[p] > v_max:
             raise ValueError(
