@@ -328,7 +328,7 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
         return X, n_pca, self._parse_n_landmark(X), precomputed, update_graph
 
     def _update_graph(self, X, precomputed, n_pca, n_landmark, **kwargs):
-        if self.X is not None and not utils.matrix_is_equivalent(X, self.X):
+        if self.X is not None and not matrix.matrix_is_equivalent(X, self.X):
             """
             If the same data is used, we can reuse existing kernel and
             diffusion matrices. Otherwise we have to recompute.
