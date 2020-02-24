@@ -6,10 +6,9 @@ from load_tests import (
     data,
     digits,
     build_graph,
-    assert_raises,
-    raises,
-    warns,
     generate_swiss_roll,
+    assert_raises_message,
+    assert_warns_message,
 )
 import pygsp
 
@@ -19,14 +18,22 @@ import pygsp
 #####################################################
 
 
-@raises(ValueError)
 def test_build_landmark_with_too_many_landmarks():
-    build_graph(data, n_landmark=len(data))
+    with assert_raises_message(
+        ValueError,
+        "n_landmark ({0}) >= n_samples ({0}). Use kNNGraph instead".format(
+            data.shape[0]
+        ),
+    ):
+        build_graph(data, n_landmark=len(data))
 
 
-@warns(RuntimeWarning)
 def test_build_landmark_with_too_few_points():
-    build_graph(data[:50], n_landmark=25, n_svd=100)
+    with assert_warns_message(
+        RuntimeWarning,
+        "n_svd (100) >= n_samples (50) Consider using kNNGraph or lower n_svd",
+    ):
+        build_graph(data[:50], n_landmark=25, n_svd=100)
 
 
 #####################################################

@@ -7,12 +7,12 @@ from load_tests import (
     nose2,
     data,
     build_graph,
-    assert_raises,
-    raises,
-    warns,
     squareform,
     pdist,
 )
+from load_tests import assert_raises_message, assert_warns_message
+from nose.tools import assert_raises_regex
+
 import numbers
 import warnings
 
@@ -30,14 +30,29 @@ except (ImportError, SyntaxError):
 #####################################################
 
 
-@raises(ValueError)
 def test_1d_data():
-    build_graph(data[:, 0])
+    with assert_raises_message(
+        ValueError,
+        "Expected 2D array, got 1D array instead (shape: ({},).)".format(data.shape[0]),
+    ):
+        build_graph(data[:, 0])
+    with assert_raises_message(
+        ValueError,
+        "Reshape your data either using array.reshape(-1, 1) "
+        "if your data has a single feature or array.reshape(1, -1) if "
+        "it contains a single sample.".format(data.shape[0]),
+    ):
+        build_graph(data[:, 0])
 
 
-@raises(ValueError)
 def test_3d_data():
-    build_graph(data[:, :, None])
+    with assert_raises_message(
+        ValueError,
+        "Expected 2D array, got 3D array instead (shape: ({0}, 64, 1).)".format(
+            data.shape[0]
+        ),
+    ):
+        build_graph(data[:, :, None])
 
 
 def test_0_n_pca():
@@ -45,50 +60,72 @@ def test_0_n_pca():
     assert build_graph(data, n_pca=False).n_pca is None
 
 
-@raises(ValueError)
 def test_badstring_n_pca():
-    build_graph(data, n_pca="foobar")
+    with assert_raises_message(
+        ValueError,
+        "n_pca must be an integer 0 <= n_pca < min(n_samples,n_features), or in [None, False, True, 'auto'].",
+    ):
+        build_graph(data, n_pca="foobar")
 
 
-@raises(ValueError)
 def test_uncastable_n_pca():
-    build_graph(data, n_pca=[])
+    with assert_raises_message(
+        ValueError,
+        "n_pca was not an instance of numbers.Number, could not be cast to False, and not None. Please supply an integer 0 <= n_pca < min(n_samples,n_features) or None",
+    ):
+        build_graph(data, n_pca=[])
 
 
-@raises(ValueError)
 def test_negative_n_pca():
-    build_graph(data, n_pca=-1)
+    with assert_raises_message(
+        ValueError,
+        "n_pca cannot be negative. Please supply an integer 0 <= n_pca < min(n_samples,n_features) or None",
+    ):
+        build_graph(data, n_pca=-1)
 
 
-@raises(ValueError)
 def test_badstring_rank_threshold():
-    build_graph(data, n_pca=True, rank_threshold="foobar")
+    with assert_raises_message(
+        ValueError, "rank_threshold must be positive float or 'auto'."
+    ):
+        build_graph(data, n_pca=True, rank_threshold="foobar")
 
 
-@raises(ValueError)
 def test_negative_rank_threshold():
-    build_graph(data, n_pca=True, rank_threshold=-1)
+    with assert_raises_message(
+        ValueError, "rank_threshold must be positive float or 'auto'."
+    ):
+        build_graph(data, n_pca=True, rank_threshold=-1)
 
 
-@raises(ValueError)
-@warns(RuntimeWarning)
 def test_True_n_pca_large_threshold():
-    build_graph(data, n_pca=True, rank_threshold=np.linalg.norm(data) ** 2)
+    with assert_raises_regex(
+        ValueError,
+        r"Supplied threshold ([0-9\.]*) was greater than maximum singular value ([0-9\.]*) for the data matrix",
+    ):
+        build_graph(data, n_pca=True, rank_threshold=np.linalg.norm(data) ** 2)
 
 
-@warns(RuntimeWarning)
-def test_invalid_threshold1():
-    assert build_graph(data, n_pca=10, rank_threshold=-1).n_pca == 10
+def test_threshold_ignored():
+    with assert_warns_message(
+        RuntimeWarning,
+        "n_pca = 10, therefore rank_threshold of -1 will not be used. To use rank thresholding, set n_pca = True",
+    ):
+        assert build_graph(data, n_pca=10, rank_threshold=-1).n_pca == 10
 
 
-@raises(ValueError)
-def test_invalid_threshold2():
-    build_graph(data, n_pca=True, rank_threshold=-1)
+def test_invalid_threshold_negative():
+    with assert_raises_message(
+        ValueError, "rank_threshold must be positive float or 'auto'."
+    ):
+        build_graph(data, n_pca=True, rank_threshold=-1)
 
 
-@raises(ValueError)
-def test_invalid_threshold2():
-    build_graph(data, n_pca=True, rank_threshold=[])
+def test_invalid_threshold_list():
+    with assert_raises_message(
+        ValueError, "rank_threshold must be positive float or 'auto'."
+    ):
+        build_graph(data, n_pca=True, rank_threshold=[])
 
 
 def test_True_n_pca():
@@ -120,24 +157,39 @@ def test_string_n_pca():
     build_graph(data, n_pca="AUTO")
 
 
-@warns(RuntimeWarning)
 def test_fractional_n_pca():
-    build_graph(data, n_pca=1.5)
+    with assert_warns_message(
+        RuntimeWarning, "Cannot perform PCA to fractional 1.5 dimensions. Rounding to 2"
+    ):
+        build_graph(data, n_pca=1.5)
 
 
-@warns(RuntimeWarning)
 def test_too_many_n_pca():
-    build_graph(data, n_pca=data.shape[1])
+    with assert_warns_message(
+        RuntimeWarning,
+        "Cannot perform PCA to {0} dimensions on data with min(n_samples, n_features) = {0}".format(
+            data.shape[1]
+        ),
+    ):
+        build_graph(data, n_pca=data.shape[1])
 
 
-@warns(RuntimeWarning)
 def test_too_many_n_pca2():
-    build_graph(data[: data.shape[1] - 1], n_pca=data.shape[1] - 1)
+    with assert_warns_message(
+        RuntimeWarning,
+        "Cannot perform PCA to {0} dimensions on data with min(n_samples, n_features) = {0}".format(
+            data.shape[1] - 1
+        ),
+    ):
+        build_graph(data[: data.shape[1] - 1], n_pca=data.shape[1] - 1)
 
 
-@warns(RuntimeWarning)
 def test_precomputed_with_pca():
-    build_graph(squareform(pdist(data)), precomputed="distance", n_pca=20)
+    with assert_warns_message(
+        RuntimeWarning,
+        "n_pca cannot be given on a precomputed graph. Setting n_pca=None",
+    ):
+        build_graph(squareform(pdist(data)), precomputed="distance", n_pca=20)
 
 
 #####################################################
@@ -191,31 +243,91 @@ def test_anndata_sparse():
 def test_transform_dense_pca():
     G = build_graph(data, n_pca=20)
     assert np.all(G.data_nu == G.transform(G.data))
-    assert_raises(ValueError, G.transform, G.data[:, 0])
-    assert_raises(ValueError, G.transform, G.data[:, None, :15])
-    assert_raises(ValueError, G.transform, G.data[:, :15])
+    with assert_raises_message(
+        ValueError,
+        "data of shape ({0},) cannot be transformed to graph built on data of shape ({0}, {1}). Expected shape ({0}, {1})".format(
+            G.data.shape[0], G.data.shape[1]
+        ),
+    ):
+        G.transform(G.data[:, 0])
+    with assert_raises_message(
+        ValueError,
+        "data of shape ({0}, 1, 15) cannot be transformed to graph built on data of shape ({0}, {1}). Expected shape ({0}, {1})".format(
+            G.data.shape[0], G.data.shape[1]
+        ),
+    ):
+        G.transform(G.data[:, None, :15])
+    with assert_raises_message(
+        ValueError,
+        "data of shape ({0}, 15) cannot be transformed to graph built on data of shape ({0}, {1}). Expected shape ({0}, {1})".format(
+            G.data.shape[0], G.data.shape[1]
+        ),
+    ):
+        G.transform(G.data[:, :15])
 
 
 def test_transform_dense_no_pca():
     G = build_graph(data, n_pca=None)
     assert np.all(G.data_nu == G.transform(G.data))
-    assert_raises(ValueError, G.transform, G.data[:, 0])
-    assert_raises(ValueError, G.transform, G.data[:, None, :15])
-    assert_raises(ValueError, G.transform, G.data[:, :15])
+    with assert_raises_message(
+        ValueError,
+        "data of shape ({0},) cannot be transformed to graph built on data of shape ({0}, {1})".format(
+            data.shape[0], data.shape[1]
+        ),
+    ):
+        G.transform(G.data[:, 0])
+    with assert_raises_message(
+        ValueError,
+        "data of shape ({0}, 1, 15) cannot be transformed to graph built on data of shape ({0}, {1})".format(
+            data.shape[0], data.shape[1]
+        ),
+    ):
+        G.transform(G.data[:, None, :15])
+    with assert_raises_message(
+        ValueError,
+        "data of shape ({0}, 15) cannot be transformed to graph built on data of shape ({0}, {1})".format(
+            data.shape[0], data.shape[1]
+        ),
+    ):
+        G.transform(G.data[:, :15])
 
 
 def test_transform_sparse_pca():
     G = build_graph(data, sparse=True, n_pca=20)
     assert np.all(G.data_nu == G.transform(G.data))
-    assert_raises(ValueError, G.transform, sp.csr_matrix(G.data)[:, 0])
-    assert_raises(ValueError, G.transform, sp.csr_matrix(G.data)[:, :15])
+    with assert_raises_message(
+        ValueError,
+        "data of shape ({0}, 1) cannot be transformed to graph built on data of shape ({0}, {1}). Expected shape ({0}, {1})".format(
+            G.data.shape[0], G.data.shape[1]
+        ),
+    ):
+        G.transform(sp.csr_matrix(G.data)[:, 0])
+    with assert_raises_message(
+        ValueError,
+        "data of shape ({0}, 15) cannot be transformed to graph built on data of shape ({0}, {1}). Expected shape ({0}, {1})".format(
+            G.data.shape[0], G.data.shape[1]
+        ),
+    ):
+        G.transform(sp.csr_matrix(G.data)[:, :15])
 
 
 def test_transform_sparse_no_pca():
     G = build_graph(data, sparse=True, n_pca=None)
     assert np.sum(G.data_nu != G.transform(G.data)) == 0
-    assert_raises(ValueError, G.transform, sp.csr_matrix(G.data)[:, 0])
-    assert_raises(ValueError, G.transform, sp.csr_matrix(G.data)[:, :15])
+    with assert_raises_message(
+        ValueError,
+        "data of shape {} cannot be transformed to graph built on data of shape {}".format(
+            G.data.tocsr()[:, 0].shape, G.data.shape
+        ),
+    ):
+        G.transform(sp.csr_matrix(G.data)[:, 0])
+    with assert_raises_message(
+        ValueError,
+        "data of shape {} cannot be transformed to graph built on data of shape {}".format(
+            G.data.tocsr()[:, :15].shape, G.data.shape
+        ),
+    ):
+        G.transform(sp.csr_matrix(G.data)[:, :15])
 
 
 #####################################################
@@ -232,10 +344,32 @@ def test_inverse_transform_dense_pca():
     np.testing.assert_allclose(
         G.data[:, 5:7], G.inverse_transform(G.data_nu, columns=[5, 6]), atol=1e-12
     )
-    assert_raises(IndexError, G.inverse_transform, G.data_nu, columns=data.shape[1])
-    assert_raises(ValueError, G.inverse_transform, G.data[:, 0])
-    assert_raises(ValueError, G.inverse_transform, G.data[:, None, :15])
-    assert_raises(ValueError, G.inverse_transform, G.data[:, :15])
+    with assert_raises_message(
+        IndexError,
+        "index {0} is out of bounds for axis 1 with size {0}".format(G.data.shape[1]),
+    ):
+        G.inverse_transform(G.data_nu, columns=data.shape[1])
+    with assert_raises_message(
+        ValueError,
+        "data of shape ({0},) cannot be inverse transformed from graph built on reduced data of shape ({0}, {1})".format(
+            G.data.shape[0], G.n_pca
+        ),
+    ):
+        G.inverse_transform(G.data[:, 0])
+    with assert_raises_message(
+        ValueError,
+        "data of shape ({0}, 1, 15) cannot be inverse transformed from graph built on reduced data of shape ({0}, {1})".format(
+            G.data.shape[0], G.n_pca
+        ),
+    ):
+        G.inverse_transform(G.data[:, None, :15])
+    with assert_raises_message(
+        ValueError,
+        "data of shape ({0}, 15) cannot be inverse transformed from graph built on reduced data of shape ({0}, {1})".format(
+            G.data.shape[0], G.n_pca
+        ),
+    ):
+        G.inverse_transform(G.data[:, :15])
 
 
 def test_inverse_transform_sparse_svd():
@@ -247,11 +381,34 @@ def test_inverse_transform_sparse_svd():
     np.testing.assert_allclose(
         data[:, 5:7], G.inverse_transform(G.data_nu, columns=[5, 6]), atol=1e-12
     )
-    assert_raises(IndexError, G.inverse_transform, G.data_nu, columns=data.shape[1])
-    assert_raises(TypeError, G.inverse_transform, sp.csr_matrix(G.data)[:, 0])
-    assert_raises(TypeError, G.inverse_transform, sp.csr_matrix(G.data)[:, :15])
-    assert_raises(ValueError, G.inverse_transform, data[:, 0])
-    assert_raises(ValueError, G.inverse_transform, data[:, :15])
+    with assert_raises_message(
+        IndexError, "index 64 is out of bounds for axis 1 with size 64"
+    ):
+        G.inverse_transform(G.data_nu, columns=data.shape[1])
+    with assert_raises_message(
+        TypeError,
+        "A sparse matrix was passed, but dense data is required. Use X.toarray() to convert to a dense numpy array.",
+    ):
+        G.inverse_transform(sp.csr_matrix(G.data)[:, 0])
+    with assert_raises_message(
+        TypeError,
+        "A sparse matrix was passed, but dense data is required. Use X.toarray() to convert to a dense numpy array.",
+    ):
+        G.inverse_transform(sp.csr_matrix(G.data)[:, :15])
+    with assert_raises_message(
+        ValueError,
+        "data of shape ({0},) cannot be inverse transformed from graph built on reduced data of shape ({0}, {1}). Expected shape ({0}, {1})".format(
+            data.shape[0], G.n_pca
+        ),
+    ):
+        G.inverse_transform(data[:, 0])
+    with assert_raises_message(
+        ValueError,
+        "data of shape ({0}, 15) cannot be inverse transformed from graph built on reduced data of shape ({0}, {1}). Expected shape ({0}, {1})".format(
+            data.shape[0], G.n_pca
+        ),
+    ):
+        G.inverse_transform(data[:, :15])
 
 
 def test_inverse_transform_dense_no_pca():
@@ -260,16 +417,46 @@ def test_inverse_transform_dense_no_pca():
         data[:, 5:7], G.inverse_transform(G.data_nu, columns=[5, 6]), atol=1e-12
     )
     assert np.all(G.data == G.inverse_transform(G.data_nu))
-    assert_raises(ValueError, G.inverse_transform, G.data[:, 0])
-    assert_raises(ValueError, G.inverse_transform, G.data[:, None, :15])
-    assert_raises(ValueError, G.inverse_transform, G.data[:, :15])
+    with assert_raises_message(
+        ValueError,
+        "data of shape ({0},) cannot be inverse transformed from graph built on reduced data of shape ({0}, {1})".format(
+            data.shape[0], G.data.shape[1]
+        ),
+    ):
+        G.inverse_transform(G.data[:, 0])
+    with assert_raises_message(
+        ValueError,
+        "data of shape ({0}, 1, 15) cannot be inverse transformed from graph built on reduced data of shape ({0}, {1})".format(
+            data.shape[0], data.shape[1]
+        ),
+    ):
+        G.inverse_transform(G.data[:, None, :15])
+    with assert_raises_message(
+        ValueError,
+        "data of shape ({0}, 15) cannot be inverse transformed from graph built on reduced data of shape ({0}, {1})".format(
+            data.shape[0], data.shape[1]
+        ),
+    ):
+        G.inverse_transform(G.data[:, :15])
 
 
 def test_inverse_transform_sparse_no_pca():
     G = build_graph(data, sparse=True, n_pca=None)
     assert np.sum(G.data != G.inverse_transform(G.data_nu)) == 0
-    assert_raises(ValueError, G.inverse_transform, sp.csr_matrix(G.data)[:, 0])
-    assert_raises(ValueError, G.inverse_transform, sp.csr_matrix(G.data)[:, :15])
+    with assert_raises_message(
+        ValueError,
+        "data of shape ({0}, 1) cannot be inverse transformed from graph built on reduced data of shape ({0}, {1})".format(
+            G.data.shape[0], G.data.shape[1]
+        ),
+    ):
+        G.inverse_transform(sp.csr_matrix(G.data)[:, 0])
+    with assert_raises_message(
+        ValueError,
+        "data of shape ({0}, 15) cannot be inverse transformed from graph built on reduced data of shape ({0}, {1})".format(
+            G.data.shape[0], G.data.shape[1]
+        ),
+    ):
+        G.inverse_transform(sp.csr_matrix(G.data)[:, :15])
 
 
 #####################################################
@@ -280,9 +467,27 @@ def test_inverse_transform_sparse_no_pca():
 def test_transform_adaptive_pca():
     G = build_graph(data, n_pca=True, random_state=42)
     assert np.all(G.data_nu == G.transform(G.data))
-    assert_raises(ValueError, G.transform, G.data[:, 0])
-    assert_raises(ValueError, G.transform, G.data[:, None, :15])
-    assert_raises(ValueError, G.transform, G.data[:, :15])
+    with assert_raises_message(
+        ValueError,
+        "data of shape ({0},) cannot be transformed to graph built on data of shape ({0}, {1}). Expected shape ({0}, {1})".format(
+            G.data.shape[0], G.data.shape[1]
+        ),
+    ):
+        G.transform(G.data[:, 0])
+    with assert_raises_message(
+        ValueError,
+        "data of shape ({0}, 1, 15) cannot be transformed to graph built on data of shape ({0}, {1}). Expected shape ({0}, {1})".format(
+            G.data.shape[0], G.data.shape[1]
+        ),
+    ):
+        G.transform(G.data[:, None, :15])
+    with assert_raises_message(
+        ValueError,
+        "data of shape ({0}, 15) cannot be transformed to graph built on data of shape ({0}, {1}). Expected shape ({0}, {1})".format(
+            G.data.shape[0], G.data.shape[1]
+        ),
+    ):
+        G.transform(G.data[:, :15])
 
     G2 = build_graph(data, n_pca=True, rank_threshold=G.rank_threshold, random_state=42)
     assert np.allclose(G2.data_nu, G2.transform(G2.data))
@@ -297,8 +502,20 @@ def test_transform_adaptive_pca():
 def test_transform_sparse_adaptive_pca():
     G = build_graph(data, sparse=True, n_pca=True, random_state=42)
     assert np.all(G.data_nu == G.transform(G.data))
-    assert_raises(ValueError, G.transform, sp.csr_matrix(G.data)[:, 0])
-    assert_raises(ValueError, G.transform, sp.csr_matrix(G.data)[:, :15])
+    with assert_raises_message(
+        ValueError,
+        "data of shape ({0}, 1) cannot be transformed to graph built on data of shape ({0}, {1}). Expected shape ({0}, {1})".format(
+            G.data.shape[0], G.data.shape[1]
+        ),
+    ):
+        G.transform(sp.csr_matrix(G.data)[:, 0])
+    with assert_raises_message(
+        ValueError,
+        "data of shape ({0}, 15) cannot be transformed to graph built on data of shape ({0}, {1}). Expected shape ({0}, {1})".format(
+            G.data.shape[0], G.data.shape[1]
+        ),
+    ):
+        G.transform(sp.csr_matrix(G.data)[:, :15])
 
     G2 = build_graph(
         data, sparse=True, n_pca=True, rank_threshold=G.rank_threshold, random_state=42
@@ -321,5 +538,8 @@ def test_set_params():
     assert G.get_params() == {"n_pca": 20, "random_state": None}
     G.set_params(random_state=13)
     assert G.random_state == 13
-    assert_raises(ValueError, G.set_params, n_pca=10)
+    with assert_raises_message(
+        ValueError, "Cannot update n_pca. Please create a new graph"
+    ):
+        G.set_params(n_pca=10)
     G.set_params(n_pca=G.n_pca)

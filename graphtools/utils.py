@@ -1,7 +1,15 @@
 import numpy as np
-from scipy import sparse
 import numbers
+import warnings
+
+from scipy import sparse
 from functools import partial
+
+try:
+    import pandas as pd
+except ImportError:
+    # pandas not installed
+    pass
 
 
 def if_sparse(sparse_func, dense_func, *args, **kwargs):
@@ -210,3 +218,21 @@ def attribute(attr, default=None, doc=None, on_set=None):
         fset=partial(setter, attr=attr, on_set=on_set),
         doc=doc,
     )
+
+
+def is_SparseDataFrame(X):
+    try:
+        pd
+    except NameError:
+        # pandas not installed
+        return False
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            "The SparseDataFrame class is removed from pandas. Accessing it from the top-level namespace will also be removed in the next version",
+            FutureWarning,
+        )
+        try:
+            return isinstance(X, pd.SparseDataFrame)
+        except AttributeError:
+            return False

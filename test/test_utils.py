@@ -33,3 +33,8 @@ def test_nonzero_discrete_knngraph(thresh):
 def test_nonzero_discrete_decay_graph(thresh):
     G = graphtools.Graph(data, n_pca=10, knn=5, decay=15, thresh=thresh)
     assert not graphtools.utils.nonzero_discrete(G.K, [0.5, 1])
+
+
+def test_nonzero_discrete_constant():
+    assert graphtools.utils.nonzero_discrete(2, [1, 2])
+    assert not graphtools.utils.nonzero_discrete(2, [1, 3])
