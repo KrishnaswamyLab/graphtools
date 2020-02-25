@@ -9,6 +9,7 @@ install_requires = [
     "scikit-learn>=0.20.0",
     "future",
     "tasklogger>=1.0",
+    "Deprecated",
 ]
 
 test_requires = [
@@ -19,6 +20,7 @@ test_requires = [
     "coveralls",
     "python-igraph",
     "parameterized",
+    "anndata",
 ]
 
 if sys.version_info[0] == 3:
