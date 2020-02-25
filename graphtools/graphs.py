@@ -12,7 +12,7 @@ import numbers
 import warnings
 import tasklogger
 
-from . import utils
+from . import matrix, utils
 from .base import DataGraph, PyGSPGraph
 
 _logger = tasklogger.get_tasklogger("graphtools")
@@ -983,7 +983,7 @@ class TraditionalGraph(DataGraph):
                 isinstance(K, sparse.dok_matrix) or isinstance(K, sparse.lil_matrix)
             ):
                 K = K.tolil()
-            K = utils.set_diagonal(K, 1)
+            K = matrix.set_diagonal(K, 1)
         else:
             with _logger.task("affinities"):
                 if sparse.issparse(self.data_nu):
@@ -1110,7 +1110,7 @@ class TraditionalGraph(DataGraph):
     @property
     def weighted(self):
         if self.precomputed is not None:
-            return not utils.nonzero_discrete(self.K, [0.5, 1])
+            return not matrix.nonzero_discrete(self.K, [0.5, 1])
         else:
             return super().weighted
 
@@ -1333,7 +1333,7 @@ class MNNGraph(DataGraph):
             else:
                 K = np.zeros([self.data_nu.shape[0], self.data_nu.shape[0]])
             for i, X in enumerate(self.subgraphs):
-                K = utils.set_submatrix(
+                K = matrix.set_submatrix(
                     K,
                     self.sample_idx == self.samples[i],
                     self.sample_idx == self.samples[i],
@@ -1358,7 +1358,7 @@ class MNNGraph(DataGraph):
                             Kij = Kij.multiply(scale[:, None])
                         else:
                             Kij = Kij * scale[:, None]
-                        K = utils.set_submatrix(
+                        K = matrix.set_submatrix(
                             K,
                             self.sample_idx == self.samples[i],
                             self.sample_idx == self.samples[j],

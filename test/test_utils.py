@@ -1,40 +1,39 @@
-import graphtools.utils
-from parameterized import parameterized
-from scipy import sparse
-import numpy as np
 import graphtools
-from load_tests import data
+from load_tests import assert_raises_message
 
 
-@parameterized(
-    [
-        (np.array,),
-        (sparse.csr_matrix,),
-        (sparse.csc_matrix,),
-        (sparse.bsr_matrix,),
-        (sparse.lil_matrix,),
-        (sparse.coo_matrix,),
-    ]
-)
-def test_nonzero_discrete(matrix_class):
-    X = np.random.choice([0, 1, 2], p=[0.95, 0.025, 0.025], size=(100, 100))
-    X = matrix_class(X)
-    assert graphtools.utils.nonzero_discrete(X, [1, 2])
-    assert not graphtools.utils.nonzero_discrete(X, [1, 3])
+def test_check_in():
+    graphtools.utils.check_in(["hello", "world"], foo="hello")
+    with assert_raises_message(
+        ValueError, "foo value bar not recognized. Choose from ['hello', 'world']"
+    ):
+        graphtools.utils.check_in(["hello", "world"], foo="bar")
 
 
-@parameterized([(0,), (1e-4,)])
-def test_nonzero_discrete_knngraph(thresh):
-    G = graphtools.Graph(data, n_pca=10, knn=5, decay=None, thresh=thresh)
-    assert graphtools.utils.nonzero_discrete(G.K, [0.5, 1])
+def test_check_int():
+    graphtools.utils.check_int(foo=5)
+    graphtools.utils.check_int(foo=-5)
+    with assert_raises_message(ValueError, "Expected foo integer, got 5.3"):
+        graphtools.utils.check_int(foo=5.3)
 
 
-@parameterized([(0,), (1e-4,)])
-def test_nonzero_discrete_decay_graph(thresh):
-    G = graphtools.Graph(data, n_pca=10, knn=5, decay=15, thresh=thresh)
-    assert not graphtools.utils.nonzero_discrete(G.K, [0.5, 1])
+def test_check_positive():
+    graphtools.utils.check_positive(foo=5)
+    with assert_raises_message(ValueError, "Expected foo > 0, got -5"):
+        graphtools.utils.check_positive(foo=-5)
+    with assert_raises_message(ValueError, "Expected foo > 0, got 0"):
+        graphtools.utils.check_positive(foo=0)
 
 
-def test_nonzero_discrete_constant():
-    assert graphtools.utils.nonzero_discrete(2, [1, 2])
-    assert not graphtools.utils.nonzero_discrete(2, [1, 3])
+def test_check_if_not():
+    graphtools.utils.check_if_not(-5, graphtools.utils.check_positive, foo=-5)
+    with assert_raises_message(ValueError, "Expected foo > 0, got -5"):
+        graphtools.utils.check_if_not(-4, graphtools.utils.check_positive, foo=-5)
+
+
+def test_check_between():
+    graphtools.utils.check_between(-5, -3, foo=-4)
+    with assert_raises_message(ValueError, "Expected foo between -5 and -3, got -6"):
+        graphtools.utils.check_between(-5, -3, foo=-6)
+    with assert_raises_message(ValueError, "Expected v_max > -3, got -5"):
+        graphtools.utils.check_between(-3, -5, foo=-6)
