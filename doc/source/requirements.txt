@@ -7,3 +7,4 @@ sphinx
 sphinxcontrib-napoleon
 sphinxcontrib-bibtex
 tasklogger
+deprecated
