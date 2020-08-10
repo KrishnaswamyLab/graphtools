@@ -95,7 +95,7 @@ def test_pca():
 def test_anndata_input():
     X = np.random.normal(0, 1, (10, 2))
     E = Estimator(verbose=0)
-    E.fit(X)
+    E.fit(X.astype(np.float32))
     E2 = Estimator(verbose=0)
     E2.fit(anndata.AnnData(X))
     np.testing.assert_allclose(

@@ -288,7 +288,7 @@ class kNNGraph(DataGraph):
                     "Detected zero distance between {} pairs of samples. "
                     "Consider removing duplicates to avoid errors in "
                     "downstream processing.".format(
-                        np.sum(np.sum(distances[:, 1:] == 0))
+                        np.sum(np.sum(distances[:, 1:] == 0)) // 2
                     ),
                     RuntimeWarning,
                 )
@@ -408,7 +408,7 @@ class kNNGraph(DataGraph):
                     search_knn = min(search_knn * self.search_multiplier, knn_max)
                 if search_knn > self.data_nu.shape[0] / 2:
                     knn_tree = NearestNeighbors(
-                        search_knn, algorithm="brute", n_jobs=self.n_jobs
+                        n_neighbors=search_knn, algorithm="brute", n_jobs=self.n_jobs
                     ).fit(self.data_nu)
                 if len(update_idx) > 0:
                     if search_knn == knn_max:
