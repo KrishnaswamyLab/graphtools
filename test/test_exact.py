@@ -101,7 +101,7 @@ def test_precomputed_nonzero_diagonal():
 def test_duplicate_data():
     with assert_warns_regex(
         RuntimeWarning,
-        "Detected zero distance between 20 pairs of samples. Consider removing duplicates to avoid errors in downstream processing.",
+        r"Detected zero distance between samples ([0-9and,\s]*). Consider removing duplicates to avoid errors in downstream processing.",
     ):
         build_graph(np.vstack([data, data[:10]]), n_pca=20, decay=10, thresh=0)
 
