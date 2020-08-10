@@ -288,7 +288,7 @@ class kNNGraph(DataGraph):
                     "Detected zero distance between {} pairs of samples. "
                     "Consider removing duplicates to avoid errors in "
                     "downstream processing.".format(
-                        np.sum(np.sum(distances[:, 1:] == 0))
+                        np.sum(np.sum(distances[:, 1:] == 0)) // 2
                     ),
                     RuntimeWarning,
                 )
