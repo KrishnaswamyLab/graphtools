@@ -24,11 +24,14 @@ def attribute(attr, default=None, doc=None, on_set=None):
                 fn(**{attr: value})
         setattr(self, "_" + attr, value)
 
-    return property(
+    property_args = dict(
         fget=partial(getter, attr=attr),
-        fset=partial(setter, attr=attr, on_set=on_set),
-        doc=doc,
+        fset=partial(setter, attr=attr, on_set=on_set)
     )
+    if doc:
+        property_args["doc"] = doc
+
+    return property(**property_args)
 
 
 _logger = tasklogger.get_tasklogger("graphtools")
