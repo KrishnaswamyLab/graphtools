@@ -40,55 +40,55 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
     Parameters
     ----------
 
-    knn : int, optional, default: 5
+    knn : ``int``, optional, default: ``5``
         number of nearest neighbors on which to build kernel
 
-    decay : int, optional, default: 40
-        sets decay rate of kernel tails.
+    decay : ``int``, optional, default: ``40``
+        Sets decay rate of kernel tails.
         If None, alpha decaying kernel is not used
 
-    n_landmark : int, optional, default: None
+    n_landmark : ``int``, optional, default: ``None``
         number of landmarks to use in graph construction
 
-    n_pca : int, optional, default: 100
+    n_pca : ``int``, optional, default: ``100``
         Number of principal components to use for calculating
         neighborhoods. For extremely large datasets, using
-        n_pca < 20 allows neighborhoods to be calculated in
-        roughly log(n_samples) time.
+        ``n_pca < 20`` allows neighborhoods to be calculated in
+        roughly ``log(n_samples)`` time.
 
-    distance : string, optional, default: 'euclidean'
+    distance : ``str``, optional, default: 'euclidean'
         recommended values: 'euclidean', 'cosine', 'precomputed'
-        Any metric from `scipy.spatial.distance` can be used
+        Any metric from ``scipy.spatial.distance`` can be used
         distance metric for building kNN graph. Custom distance
-        functions of form `f(x, y) = d` are also accepted. If 'precomputed',
-        `data` should be an n_samples x n_samples distance or
+        functions of form ``f(x, y) = d`` are also accepted. If 'precomputed',
+        ``data`` should be an ``n_samples`` x ``n_samples`` distance or
         affinity matrix. Distance matrices are assumed to have zeros
         down the diagonal, while affinity matrices are assumed to have
         non-zero values down the diagonal. This is detected automatically using
-        `data[0,0]`. You can override this detection with
-        `distance='precomputed_distance'` or `distance='precomputed_affinity'`.
+        ``data[0,0]``. You can override this detection with
+        ``distance='precomputed_distance'`` or ``distance='precomputed_affinity'``.
 
-    n_jobs : integer, optional, default: 1
+    n_jobs : ``int``, optional, default: ``1``
         The number of jobs to use for the computation.
         If -1 all CPUs are used. If 1 is given, no parallel computing code is
         used at all, which is useful for debugging.
-        For n_jobs below -1, (n_cpus + 1 + n_jobs) are used. Thus for
-        n_jobs = -2, all CPUs but one are used
+        For ``n_jobs`` below -1, (``n_cpus + 1 + n_jobs``) are used. Thus for
+        ``n_jobs = -2``, all CPUs but one are used
 
-    random_state : integer or numpy.RandomState, optional, default: None
+    random_state : integer or numpy.RandomState, optional, default: ``None``
         If an integer is given, it fixes the seed
-        Defaults to the global `numpy` random number generator
+        Defaults to the global ``numpy`` random number generator
 
-    verbose : `int` or `boolean`, optional (default: 1)
-        If `True` or `> 0`, print status messages
+    verbose : ``int`` or ``boolean``, optional, default: ``1``
+        If ``True`` or ``> 0``, print status messages
         
-    n_svd : int, optional (default: 100)
+    n_svd : ``int``, optional, default: ``100``
         number of singular vectors to compute for landmarking
     
-    thresh : float, optional (default: 1e-4)
+    thresh : ``float``, optional, default: ``1e-4``
         threshold below which to truncate kernel
     
-    kwargs : additional arguments for graphtools.Graph
+    kwargs : additional arguments for ``graphtools.Graph``
     """
 
     X = attribute("X", doc="Stored input data")
