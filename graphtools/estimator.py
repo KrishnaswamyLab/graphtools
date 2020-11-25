@@ -30,6 +30,8 @@ def attribute(attr, default=None, doc=None, on_set=None):
     )
     if doc:
         property_args["doc"] = doc
+    else:
+        fget.__doc__ = None
 
     return property(**property_args)
 
