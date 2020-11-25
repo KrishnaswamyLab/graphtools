@@ -89,11 +89,6 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
         threshold below which to truncate kernel
     
     kwargs : additional arguments for graphtools.Graph
-    
-    Attributes
-    ----------
-    
-    graph : graphtools.Graph
     """
 
     X = attribute("X", doc="Stored input data")
