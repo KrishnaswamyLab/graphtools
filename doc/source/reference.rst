@@ -28,6 +28,15 @@ Base Classes
     :inherited-members:
     :show-inheritance:
 
+Estimator API
+-------------
+
+.. automodule:: graphtools.estimator
+    :members:
+    :undoc-members:
+    :inherited-members:
+    :show-inheritance:
+
 Utilities
 ---------
 
