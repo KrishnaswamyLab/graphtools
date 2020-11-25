@@ -59,8 +59,8 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
         ``n_pca < 20`` allows neighborhoods to be calculated in
         roughly ``log(n_samples)`` time.
 
-    distance : ``str``, optional, default: 'euclidean'
-        recommended values: 'euclidean', 'cosine', 'precomputed'
+    distance : ``str``, optional, default: ``'euclidean'``
+        recommended values: ``'euclidean'``, ``'cosine'``, ``'precomputed'``
         Any metric from ``scipy.spatial.distance`` can be used
         distance metric for building kNN graph. Custom distance
         functions of form ``f(x, y) = d`` are also accepted. If 'precomputed',
