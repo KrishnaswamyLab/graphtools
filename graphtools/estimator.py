@@ -248,7 +248,7 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
                     )
                 self.graph.set_params(**params)
             except ValueError as e:
-                _logger.debug("Reset graph due to {}".format(str(e)))
+                _logger.log_debug("Reset graph due to {}".format(str(e)))
                 self.graph = None
 
     @abc.abstractmethod

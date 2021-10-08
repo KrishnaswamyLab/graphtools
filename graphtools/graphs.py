@@ -370,7 +370,7 @@ class kNNGraph(DataGraph):
 
                 radius = bandwidth * np.power(-1 * np.log(self.thresh), 1 / self.decay)
                 update_idx = np.argwhere(np.max(distances, axis=1) < radius).reshape(-1)
-                _logger.debug(
+                _logger.log_debug(
                     "search_knn = {}; {} remaining".format(search_knn, len(update_idx))
                 )
                 if len(update_idx) > 0:
@@ -399,7 +399,7 @@ class kNNGraph(DataGraph):
                             else radius[i]
                         )
                     ]
-                    _logger.debug(
+                    _logger.log_debug(
                         "search_knn = {}; {} remaining".format(
                             search_knn, len(update_idx)
                         )
@@ -412,7 +412,7 @@ class kNNGraph(DataGraph):
                     ).fit(self.data_nu)
                 if len(update_idx) > 0:
                     if search_knn == knn_max:
-                        _logger.debug(
+                        _logger.log_debug(
                             "knn search to knn_max ({}) on {}".format(
                                 knn_max, len(update_idx)
                             )
@@ -425,7 +425,7 @@ class kNNGraph(DataGraph):
                             distances[idx] = dist_new[i]
                             indices[idx] = ind_new[i]
                     else:
-                        _logger.debug("radius search on {}".format(len(update_idx)))
+                        _logger.log_debug("radius search on {}".format(len(update_idx)))
                         # give up - radius search
                         dist_new, ind_new = knn_tree.radius_neighbors(
                             Y[update_idx, :],
@@ -1302,7 +1302,7 @@ class MNNGraph(DataGraph):
 
             # iterate through sample ids
             for i, idx in enumerate(self.samples):
-                _logger.debug(
+                _logger.log_debug(
                     "subgraph {}: sample {}, "
                     "n = {}, knn = {}".format(
                         i, idx, np.sum(self.sample_idx == idx), self.knn

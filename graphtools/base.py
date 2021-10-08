@@ -498,10 +498,10 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         self.anisotropy = anisotropy
 
         if initialize:
-            _logger.debug("Initializing kernel...")
+            _logger.log_debug("Initializing kernel...")
             self.K
         else:
-            _logger.debug("Not initializing kernel.")
+            _logger.log_debug("Not initializing kernel.")
         super().__init__(**kwargs)
 
     def _check_symmetrization(self, kernel_symm, theta):
@@ -556,18 +556,18 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
     def symmetrize_kernel(self, K):
         # symmetrize
         if self.kernel_symm == "+":
-            _logger.debug("Using addition symmetrization.")
+            _logger.log_debug("Using addition symmetrization.")
             K = (K + K.T) / 2
         elif self.kernel_symm == "*":
-            _logger.debug("Using multiplication symmetrization.")
+            _logger.log_debug("Using multiplication symmetrization.")
             K = K.multiply(K.T)
         elif self.kernel_symm == "mnn":
-            _logger.debug("Using mnn symmetrization (theta = {}).".format(self.theta))
+            _logger.log_debug("Using mnn symmetrization (theta = {}).".format(self.theta))
             K = self.theta * matrix.elementwise_minimum(K, K.T) + (
                 1 - self.theta
             ) * matrix.elementwise_maximum(K, K.T)
         elif self.kernel_symm is None:
-            _logger.debug("Using no symmetrization.")
+            _logger.log_debug("Using no symmetrization.")
             pass
         else:
             raise NotImplementedError
