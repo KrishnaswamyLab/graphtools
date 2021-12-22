@@ -3,6 +3,8 @@ from sklearn import datasets
 from scipy.spatial.distance import pdist, cdist, squareform
 import pygsp
 import graphtools
+from graphtools.base import PCAParameters, Data
+import sklearn
 import numpy as np
 import scipy.sparse as sp
 import warnings

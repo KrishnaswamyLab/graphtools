@@ -4,7 +4,6 @@ from scipy import sparse
 import pickle
 import pygsp
 import tasklogger
-from dataclasses import dataclass
 from . import base, graphs
 
 _logger = tasklogger.get_tasklogger("graphtools")
@@ -255,7 +254,7 @@ def Graph(
         else:
             msg = msg + " and PyGSP inheritance"
 
-    _logger.debug(msg)
+    _logger.log_debug(msg)
 
     class_names = [p.__name__.replace("Graph", "") for p in parent_classes]
     try:
@@ -273,7 +272,7 @@ def Graph(
                 pass
 
     # build graph and return
-    _logger.debug(
+    _logger.log_debug(
         "Initializing {} with arguments {}".format(
             parent_classes,
             ", ".join(

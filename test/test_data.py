@@ -3,7 +3,10 @@ from load_tests import (
     np,
     sp,
     pd,
+    sklearn,
     graphtools,
+    PCAParameters,
+    Data,
     nose2,
     data,
     build_graph,
@@ -24,7 +27,6 @@ except (ImportError, SyntaxError):
         warnings.filterwarnings("always")
         warnings.warn("Warning: failed to import anndata", ImportWarning)
     pass
-from graphtools.Data import PCAParameters
 
 #####################################################
 # Check parameters
@@ -532,6 +534,42 @@ def test_transform_sparse_adaptive_pca():
 #####################################################
 # Check PCAParameters
 #####################################################
+
+
+def test_pca_parameters():
+    params = PCAParameters()
+    assert params.n_oversamples == 10
+    assert params.n_iter == "auto"
+    assert params.power_iteration_normalizer == "auto"
+
+    with assert_raises_message(
+        ValueError,
+        "['n_oversamples'] were invalid type or value. Valid values are ['int > 0'], respectively.",
+    ):
+        params = PCAParameters(n_oversamples=0)
+    try:
+        params = PCAParameters(
+            n_oversamples=0, n_iter="foo", power_iteration_normalizer="bar"
+        )
+    except ValueError as e:
+        assert (
+            str(e)
+            == "['n_iter', 'n_oversamples', 'power_iteration_normalizer'] were invalid type or value. Valid values are ['auto', 'int >= 0'], ['int > 0'], ['auto', 'QR', 'LU', 'none'], respectively."
+        )
+    params = PCAParameters(11, 2, "QR")
+
+
+#####################################################
+# Check randomized_svd monkey patch
+#####################################################
+
+
+def test_warns_sklearn_version():
+    import sklearn
+
+    sklearn.__version__ = "1.0.2"
+    x = np.random.randn(100, 100)
+    Data(x, n_pca=2)
 
 
 #############
