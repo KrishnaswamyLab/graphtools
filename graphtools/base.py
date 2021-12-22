@@ -448,8 +448,7 @@ class Data(Base):
             return data_nu
 
     def get_params(self):
-        """Get parameters from this object
-        """
+        """Get parameters from this object"""
         return {"n_pca": self.n_pca, "random_state": self.random_state}
 
     def set_params(self, **params):
@@ -600,6 +599,9 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         Level of anisotropy between 0 and 1
         (alpha in Coifman & Lafon, 2006)
 
+    low_memory : `bool`, optional (default : `True`)
+        Generate conjugate matrices at call time, rather than storing
+
     initialize : `bool`, optional (default : `True`)
         if false, don't create the kernel matrix.
 
@@ -624,6 +626,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         theta=None,
         anisotropy=0,
         gamma=None,
+        low_memory=True,
         initialize=True,
         **kwargs,
     ):
@@ -644,8 +647,11 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
                 FutureWarning,
             )
             kernel_symm = "mnn"
+        if not isinstance(low_memory, bool):
+            raise ValueError("low_memory parameter must be either True or False.")
         self.kernel_symm = kernel_symm
         self.theta = theta
+        self.low_memory = low_memory
         self._check_symmetrization(kernel_symm, theta)
         if not (isinstance(anisotropy, numbers.Real) and 0 <= anisotropy <= 1):
             raise ValueError(
@@ -751,8 +757,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         return K
 
     def get_params(self):
-        """Get parameters from this object
-        """
+        """Get parameters from this object"""
         return {
             "kernel_symm": self.kernel_symm,
             "theta": self.theta,
@@ -820,8 +825,14 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         try:
             return self._kernel_degree
         except AttributeError:
-            self._kernel_degree = utils.to_array(self.kernel.sum(axis=1)).reshape(-1, 1)
+            self._kernel_degree = (
+                utils.to_array(self.kernel.sum(axis=1)).reshape(-1, 1).squeeze()
+            )
             return self._kernel_degree
+
+    @property
+    def D(self):
+        return self.kernel_degree.squeeze()
 
     @property
     def diff_aff(self):
@@ -852,14 +863,73 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
             )
             return degrees @ self.kernel @ degrees
         else:
-            col_degrees = row_degrees.T
-            return (self.kernel / np.sqrt(row_degrees)) / np.sqrt(col_degrees)
+            return (self.kernel / np.sqrt(self.kernel_degree[:, None])) / np.sqrt(
+                self.kernel_degree
+            )
 
     @property
     def diff_op(self):
-        """Synonym for P
-        """
+        """Synonym for P"""
         return self.P
+
+    @property
+    def Psi(self):
+        """Normalized Laplacian eigenvectors"""
+        try:
+            return self._Psi
+        except AttributeError:
+            if self.N > 1000:
+                warnings.warn(
+                    "Computing the eigenvectors of a large graph is expensive. "
+                    + "Consider using a LandmarkGraph."
+                )
+            self._Psi, self._Mu, _ = randomized_svd(
+                self.diff_aff, self.N, random_state=self.random_state
+            )
+            return self._Psi
+
+    @property
+    def Mu(self):
+        """Diffusion eigenvalues"""
+        try:
+            return self._Mu
+        except AttributeError:
+            if self.N > 1000:
+                warnings.warn(
+                    "Computing the eigenvectors of a large graph is expensive. "
+                    + "Consider using a LandmarkGraph."
+                )
+            self._Psi, self._Mu, _ = randomized_svd(
+                self.diff_aff, self.N, random_state=self.random_state
+            )
+            return self._Mu
+
+    @property
+    def Phi(self):
+        """Diffusion eigenvectors"""
+        try:
+            return self._Phi
+        except AttributeError:
+            if self.low_memory:
+                return self.Psi / np.sqrt(self.D[:, None])
+            else:
+                self._Phi = self.Psi / np.sqrt(self.D[:, None])
+                return self._Phi
+
+    @property
+    def diffusion_map(self):
+        try:
+            return self._DM[:, 1:]
+        except AttributeError:
+            if self.low_memory:
+                return (self.Phi * self.Mu)[:, 1:]
+            else:
+                self._DM = self.Phi * self.Mu
+                return self._DM[:, 1:]
+
+    @property
+    def DM(self):
+        return self.diffusion_map
 
     @property
     def K(self):
@@ -879,8 +949,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
 
     @property
     def kernel(self):
-        """Synonym for K
-        """
+        """Synonym for K"""
         return self.K
 
     @property
@@ -901,6 +970,14 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
             with no non-negative entries.
         """
         raise NotImplementedError
+
+    @property
+    def N(self):
+        try:
+            return self._N
+        except AttributeError:
+            self._N = self.K.shape[0]
+            return self._N
 
     def to_pygsp(self, **kwargs):
         """Convert to a PyGSP graph
@@ -1105,6 +1182,42 @@ class PyGSPGraph(with_metaclass(abc.ABCMeta, pygsp.graphs.Graph, Base)):
         """
         raise NotImplementedError
 
+    @property
+    def Psi(self):
+        """Normalized Laplacian eigenvectors"""
+        try:
+            return self._Psi
+        except AttributeError:
+            if self.lap_type == "normalized":
+                if not (hasattr(self, "_U")):
+                    self.compute_fourier_basis()
+                if self.low_memory:
+                    return self._U
+                else:
+                    self._Psi = self._U[:, ::-1]
+                    self._Mu = 1 - self._e[::-1]
+                    return self._Mu
+            else:
+                return super().Psi
+
+    @property
+    def Mu(self):
+        """Diffusion eigenvalues"""
+        try:
+            return self._Mu
+        except AttributeError:
+            if self.lap_type == "normalized":
+                if not (hasattr(self, "_e")):
+                    self.compute_fourier_basis()
+                if self.low_memory:
+                    return 1 - self._e
+                else:
+                    self._Psi = self._U
+                    self._Mu = 1 - self._e
+                    return self._Mu
+            else:
+                return super().Mu
+
     def _build_weight_from_kernel(self, kernel):
         """Private method to build an adjacency matrix from
         a kernel matrix
@@ -1179,8 +1292,7 @@ class DataGraph(with_metaclass(abc.ABCMeta, Data, BaseGraph)):
         super().__init__(data, **kwargs)
 
     def get_params(self):
-        """Get parameters from this object
-        """
+        """Get parameters from this object"""
         params = Data.get_params(self)
         params.update(BaseGraph.get_params(self))
         return params
