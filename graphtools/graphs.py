@@ -132,8 +132,7 @@ class kNNGraph(DataGraph):
         super().__init__(data, n_pca=n_pca, **kwargs)
 
     def get_params(self):
-        """Get parameters from this object
-        """
+        """Get parameters from this object"""
         params = super().get_params()
         params.update(
             {
@@ -500,7 +499,7 @@ class LandmarkGraph(DataGraph):
     >>> X_full = G.interpolate(X_landmark)
     """
 
-    def __init__(self, data, n_landmark=2000, n_svd=100, **kwargs):
+    def __init__(self, data, n_landmark=2000, n_svd=100, low_memory=False, **kwargs):
         """Initialize a landmark graph.
 
         Raises
@@ -521,11 +520,10 @@ class LandmarkGraph(DataGraph):
             )
         self.n_landmark = n_landmark
         self.n_svd = n_svd
-        super().__init__(data, **kwargs)
+        super().__init__(data, low_memory=low_memory, **kwargs)
 
     def get_params(self):
-        """Get parameters from this object
-        """
+        """Get parameters from this object"""
         params = super().get_params()
         params.update({"n_landmark": self.n_landmark, "n_pca": self.n_pca})
         return params
@@ -567,36 +565,79 @@ class LandmarkGraph(DataGraph):
 
         Landmarks can be recomputed without recomputing the kernel
         """
+
+        landmark_attributes = [
+            "_landmark_op",
+            "_transitions",
+            "_clusters",
+            "_downsampler",
+            "_landmark_K",
+            "_landmark_D",
+            "_landmark_aff",
+        ]
+
+        for name in landmark_attributes:
+            try:
+                delattr(self, name)
+
+            except AttributeError:
+                # landmarks aren't currently defined
+                pass
+
+    @property
+    def upsampler(self):
         try:
-            del self._landmark_op
-            del self._transitions
-            del self._clusters
+            return self._upsampler
+        except:
+            us = self.transitions.multiply(1 / self.D)
+            if self.low_memory:
+                pass
+            else:
+                self._upsampler = us
+            return us
+
+    @property
+    def downsampler(self):
+        try:
+            return self._downsampler
         except AttributeError:
-            # landmarks aren't currently defined
-            pass
+            ds = (self.transitions.T).multiply(1 / np.sqrt(self.D))  # D^-(1/2) Knm
+            ds = ds / ds.sum(0)[:, None]
+            if self.low_memory:
+                pass
+            else:
+                self._downsampler = ds
+            return ds
+
     @property
     def landmark_K(self):
         try:
             return self._landmark_K
         except AttributeError:
-            if self.low_memory:
+            if (
+                self.low_memory > 3
+            ):  # we never hit this condition, we always store the landmark kernel!
                 pass
+            else:
+                self._landmark_K = self._compute_landmark_kernel
+            return l_K
 
-
-    @property 
+    @property
     def landmark_D(self):
         try:
             return self._landmark_D
         except AttributeError:
-            if self.low_memory:
-                return self.kernel[self.clusters == i, :].sum(axis=0)
+            l_D = self.landmark_K.sum(1)
+            if self.low_memory > 0:
+                pass
             else:
-                self._landmark_D = self.kernel[self.clusters == i, :].sum(axis=0)
-                return self._landmark_D
+                self._landmark_D = l_D
+            return l_D
+
     @property
     def landmark_degrees(self):
         return self.landmark_D
-    
+
     @property
     def landmark_op(self):
         """Landmark operator
@@ -612,18 +653,28 @@ class LandmarkGraph(DataGraph):
         try:
             return self._landmark_op
         except AttributeError:
-            self.build_landmark_op()
-            return self._landmark_op
+            landmark_op = self._compute_landmark_op()
+            if (
+                self.low_memory == 2
+            ):  ## we reserve landmark op to level 2 memory constraints
+                # it is often computed and reapplied frequently.
+                pass
+            else:
+                self._landmark_op = landmark_op
+            return landmark_op
+
     @property
     def landmark_aff(self):
-        try: 
+        try:
             return self._landmark_aff
         except AttributeError:
+            la = self._compute_landmark_affinity()
+            if self.low_memory >= 1:  # affinity usually applied once or twice.
+                pass
+            else:
+                self._landmark_aff = la
+            return la
 
-            if self.low_memory:
-
-        return self._landmark_aff
-    
     @property
     def clusters(self):
         """Cluster assignments for each sample.
@@ -656,12 +707,12 @@ class LandmarkGraph(DataGraph):
         try:
             return self._transitions
         except AttributeError:
-            if low_memory:
-                _,transitions = self.build_landmark_op()
-                return transitions
+            transitions = self._landmarks_to_data()
+            if self.low_memory == 2:
+                pass
             else:
-                self._build_landmark_op()
-                return self._transitions
+                self._transitions = transitions
+            return self._transitions
 
     def _landmarks_to_data(self):
         landmarks = np.unique(self.clusters)
@@ -680,13 +731,15 @@ class LandmarkGraph(DataGraph):
 
     def _data_transitions(self):
         try:
-            return self.downsample.multiply(1/np.sqrt(self.D))
+            return self.downsampler.multiply(1 / np.sqrt(self.D))
         except AttributeError:
             return normalize(self._landmarks_to_data(), "l1", axis=1)
 
     def _compute_clusters(self):
-        with _logger.task("SVD"):
-            uA, sA, _ = randomized_svd(
+        with _logger.task("landmark assignment"):
+
+            with _logger.task("SVD"):
+                uA, sA, _ = randomized_svd(
                     self.diff_aff,
                     n_components=self.n_svd,
                     random_state=self.random_state,
@@ -698,18 +751,21 @@ class LandmarkGraph(DataGraph):
                     batch_size=10000,
                     random_state=self.random_state,
                 )
-                clusters = kmeans.fit_predict(uA*sA) #same as multiplying self.diff_op@VT.T
+                clusters = kmeans.fit_predict(
+                    uA * sA
+                )  # same as multiplying self.diff_op@VT.T
         return clusters
-    def _compute_landmark_affinity(self):
-        pnm = self.transitions()
-        pmn = pnm.T
-        normalizer = 1/np.sqrt(self.D)
-        upsample = pmn.multiply(normalizer)
-        downsample = pnm.multiply(normalizer)
-        landmark_affinity = upsample.dot(downsample)
-        landmark_op = pmn.dot(pnm)  # sparsity agnostic matrix multiplication
-        
-    def build_landmark_op(self):
+
+    def _compute_landmark_kernel(self):
+        with _logger.task("landmark kernel"):
+            is_sparse = sparse.issparse(self.kernel)
+            pmn = self.transitions
+            landmark_K = (pmn.divide(self.D)).dot(pmn.T)
+            if is_sparse(landmark_K):
+                landmark_K = landmark_K.toarray()
+            return landmark_K
+
+    def _compute_landmark_op(self):
         """Build the landmark operator
 
         Calculates spectral clusters on the kernel, and calculates transition
@@ -718,23 +774,16 @@ class LandmarkGraph(DataGraph):
         """
         with _logger.task("landmark operator"):
             is_sparse = sparse.issparse(self.kernel)
-            pmn = self._landmarks_to_data()
+            landmark_K = self.landmark_K
+            landmark_P = landmark_K / (self.landmark_D[:, None])
+            return landmark_P
 
-            # row normalize
-            pnm = pmn.transpose()
-            normalizer = 1/(self.D) #this is the MGC norm from compressed diffusion
-            pmn = normalize(pmn, norm="l1", axis=1)
-            pnm = normalize(pnm, norm="l1", axis=1)
-            landmark_op = pmn.dot(pnm)
-            if is_sparse:
-                # no need to have a sparse landmark operator
-                landmark_op = landmark_op.toarray()
-            if self.low_memory:
-                return landmark_op, pnm
-            else:
-                self._landmark_op = landmark_op
-                self._transitions = pnm
-                return landmark_op, pnm
+    def _compute_landmark_affinity(self):
+
+        landmark_affinity = (
+            self.landmark_K / (np.sqrt(self.landmark_D[:, None]))
+        ) / np.sqrt(self.landmark_D)
+        return landmark_affinity
 
     def extend_to_data(self, data, **kwargs):
         """Build transition matrix from new data to the graph
@@ -807,25 +856,50 @@ class LandmarkGraph(DataGraph):
             transitions = self.transitions
         return super().interpolate(transform, transitions=transitions, Y=Y)
 
-    @property 
+    @property
+    def landmark_Psi(self):
+        try:
+            return self._landmark_Psi
+        except AttributeError:
+            self._landmark_Psi, self._landmark_Mu, _ = randomized_svd(
+                self.landmark_affinity, self.n_landmark, random_state=self.random_state
+            )
+            return self._landmark_Psi
+
+    @property
+    def landmark_Mu(self):
+        try:
+            return self._landmark_Mu
+        except AttributeError:
+            self._landmark_Psi, self._landmark_Mu, _ = randomized_svd(
+                self.landmark_affinity, self.n_landmark, random_state=self.random_state
+            )
+            return self._landmark_Mu
+
+    @property
     def Psi(self):
         """Normalized Laplacian eigenvectors"""
         try:
             return self._Psi
         except AttributeError:
+            Psi = self.upsample @ self.landmark_Psi
+            if self.low_memory:
+                pass
+            else:
+                self._Psi = Psi
+            return Psi
 
-            self._Psi, self._Mu, _ = randomized_svd(self.diff_aff, self.N,
-                                       random_state = self.random_state)
-            return self._Psi
     @property
     def Mu(self):
         """Diffusion eigenvalues"""
         try:
             return self._Mu
         except AttributeError:
-            self._Psi, self._Mu, _ = randomized_svd(self.diff_aff, self.N,
-                                       random_state = self.random_state)
+            self._Psi, self._Mu, _ = randomized_svd(
+                self.diff_aff, self.N, random_state=self.random_state
+            )
             return self._Mu
+
     @property
     def Phi(self):
         """Diffusion eigenvectors"""
@@ -833,11 +907,11 @@ class LandmarkGraph(DataGraph):
             return self._Phi
         except AttributeError:
             if self.low_memory:
-                return self.Psi/np.sqrt(self.D[:,None])
+                return self.Psi / np.sqrt(self.D[:, None])
             else:
-                self._Phi = self.Psi/np.sqrt(self.D[:,None])      
+                self._Phi = self.Psi / np.sqrt(self.D[:, None])
                 return self._Phi
-    
+
 
 class TraditionalGraph(DataGraph):
     """Traditional weighted adjacency graph
@@ -967,8 +1041,7 @@ class TraditionalGraph(DataGraph):
         super().__init__(data, n_pca=n_pca, **kwargs)
 
     def get_params(self):
-        """Get parameters from this object
-        """
+        """Get parameters from this object"""
         params = super().get_params()
         params.update(
             {
@@ -1303,8 +1376,7 @@ class MNNGraph(DataGraph):
             super()._check_symmetrization(kernel_symm, theta)
 
     def get_params(self):
-        """Get parameters from this object
-        """
+        """Get parameters from this object"""
         params = super().get_params()
         params.update(
             {
@@ -1477,6 +1549,7 @@ class MNNGraph(DataGraph):
         """
         raise NotImplementedError
 
+
 class kNNLandmarkGraph(kNNGraph, LandmarkGraph):
     pass
 
@@ -1500,8 +1573,10 @@ class MNNPyGSPGraph(MNNGraph, PyGSPGraph):
 class TraditionalPyGSPGraph(TraditionalGraph, PyGSPGraph):
     pass
 
-class LandmarkPyGSPGraph(PyGSPGraph,LandmarkGraph):
+
+class LandmarkPyGSPGraph(PyGSPGraph, LandmarkGraph):
     pass
+
 
 class kNNLandmarkPyGSPGraph(kNNGraph, LandmarkPyGSPGraph):
     pass

@@ -314,8 +314,7 @@ class Data(Base):
             return data_nu
 
     def get_params(self):
-        """Get parameters from this object
-        """
+        """Get parameters from this object"""
         return {"n_pca": self.n_pca, "random_state": self.random_state}
 
     def set_params(self, **params):
@@ -471,7 +470,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
 
     initialize : `bool`, optional (default : `True`)
         if false, don't create the kernel matrix.
-    
+
     Attributes
     ----------
     K : array-like, shape=[n_samples, n_samples]
@@ -622,8 +621,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         return K
 
     def get_params(self):
-        """Get parameters from this object
-        """
+        """Get parameters from this object"""
         return {
             "kernel_symm": self.kernel_symm,
             "theta": self.theta,
@@ -729,13 +727,13 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
             )
             return degrees @ self.kernel @ degrees
         else:
-            col_degrees = row_degrees.T
-            return (self.kernel / np.sqrt(row_degrees[:, None])) / np.sqrt(col_degrees)
+            return (self.kernel / np.sqrt(self.kernel_degree[:, None])) / np.sqrt(
+                self.kernel_degree
+            )
 
     @property
     def diff_op(self):
-        """Synonym for P
-        """
+        """Synonym for P"""
         return self.P
 
     @property
@@ -815,8 +813,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
 
     @property
     def kernel(self):
-        """Synonym for K
-        """
+        """Synonym for K"""
         return self.K
 
     @property
@@ -1159,8 +1156,7 @@ class DataGraph(with_metaclass(abc.ABCMeta, Data, BaseGraph)):
         super().__init__(data, **kwargs)
 
     def get_params(self):
-        """Get parameters from this object
-        """
+        """Get parameters from this object"""
         params = Data.get_params(self)
         params.update(BaseGraph.get_params(self))
         return params
