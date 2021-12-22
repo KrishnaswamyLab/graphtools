@@ -21,19 +21,7 @@ import pickle
 import sys
 import tasklogger
 
-try:
-    import pandas as pd
-except ImportError:
-    # pandas not installed
-    pass
-
-try:
-    import anndata
-except (ImportError, SyntaxError):
-    # anndata not installed
-    pass
-
-from . import utils
+from . import matrix, utils
 
 _logger = tasklogger.get_tasklogger("graphtools")
 
@@ -250,28 +238,19 @@ class Data(Base):
 
         self._check_data(data)
         n_pca, rank_threshold = self._parse_n_pca_threshold(data, n_pca, rank_threshold)
-        try:
-            pd
-        except NameError:
-            # pandas not installed
-            pass
-        else:
-            if utils.is_SparseDataFrame(data):
-                data = data.to_coo()
-            elif isinstance(data, pd.DataFrame):
-                try:
-                    data = data.sparse.to_coo()
-                except AttributeError:
-                    data = np.array(data)
 
-        try:
-            anndata
-        except NameError:
-            # anndata not installed
-            pass
-        else:
-            if isinstance(data, anndata.AnnData):
-                data = data.X
+        if utils.is_SparseDataFrame(data):
+            data = data.to_coo()
+        elif utils.is_DataFrame(data):
+            try:
+                # sparse data
+                data = data.sparse.to_coo()
+            except AttributeError:
+                # dense data
+                data = np.array(data)
+        elif utils.is_Anndata(data):
+            data = data.X
+
         self.data = data
         self.n_pca = n_pca
         self.rank_threshold = rank_threshold
@@ -728,17 +707,14 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
                 "Using mnn symmetrization (theta = {}).".format(self.theta)
             )
             K = self.theta * utils.elementwise_minimum(K, K.T) + (
+
                 1 - self.theta
-            ) * utils.elementwise_maximum(K, K.T)
+            ) * matrix.elementwise_maximum(K, K.T)
         elif self.kernel_symm is None:
             _logger.log_debug("Using no symmetrization.")
             pass
         else:
-            # this should never happen
-            raise ValueError(
-                "Expected kernel_symm in ['+', '*', 'mnn' or None]. "
-                "Got {}".format(self.theta)
-            )
+            raise NotImplementedError
         return K
 
     def apply_anisotropy(self, K):
@@ -825,8 +801,9 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         try:
             return self._kernel_degree
         except AttributeError:
-            self._kernel_degree = (
-                utils.to_array(self.kernel.sum(axis=1)).reshape(-1, 1).squeeze()
+
+            self._kernel_degree = matrix.to_array(self.kernel.sum(axis=1)).reshape(
+                -1, 1
             )
             return self._kernel_degree
 
@@ -1028,7 +1005,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         """
         try:
             import igraph as ig
-        except ImportError:
+        except ImportError:  # pragma: no cover
             raise ImportError(
                 "Please install igraph with " "`pip install --user python-igraph`."
             )
@@ -1037,12 +1014,12 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         except AttributeError:
             # not a pygsp graph
             W = self.K.copy()
-            W = utils.set_diagonal(W, 0)
+            W = matrix.set_diagonal(W, 0)
         sources, targets = W.nonzero()
         edgelist = list(zip(sources, targets))
         g = ig.Graph(W.shape[0], edgelist, **kwargs)
         weights = W[W.nonzero()]
-        weights = utils.to_array(weights)
+        weights = matrix.to_array(weights)
         g.es[attribute] = weights.flatten().tolist()
         return g
 
@@ -1237,7 +1214,7 @@ class PyGSPGraph(with_metaclass(abc.ABCMeta, pygsp.graphs.Graph, Base)):
 
         weight = kernel.copy()
         self._diagonal = weight.diagonal().copy()
-        weight = utils.set_diagonal(weight, 0)
+        weight = matrix.set_diagonal(weight, 0)
         return weight
 
 
