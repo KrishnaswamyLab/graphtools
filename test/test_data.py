@@ -24,6 +24,7 @@ except (ImportError, SyntaxError):
         warnings.filterwarnings("always")
         warnings.warn("Warning: failed to import anndata", ImportWarning)
     pass
+from graphtools.Data import PCAParameters
 
 #####################################################
 # Check parameters
@@ -526,6 +527,11 @@ def test_transform_sparse_adaptive_pca():
     G3 = build_graph(data, sparse=True, n_pca=G2.n_pca, random_state=42)
     assert np.allclose(G3.data_nu, G3.transform(G3.data))
     assert np.allclose(G3.data_nu, G2.transform(G2.data))
+
+
+#####################################################
+# Check PCAParameters
+#####################################################
 
 
 #############

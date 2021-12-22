@@ -3,10 +3,16 @@ from builtins import super
 from copy import copy as shallow_copy
 import numpy as np
 import abc
+import mock
+from functools import partial
+from dataclasses import dataclass
 import pygsp
 from inspect import signature
-from sklearn.decomposition import PCA, TruncatedSVD
+
 from sklearn.preprocessing import normalize
+
+import sklearn
+from sklearn.decomposition import PCA, TruncatedSVD
 from sklearn.utils.graph import graph_shortest_path
 from scipy import sparse
 import warnings
@@ -30,6 +36,117 @@ except (ImportError, SyntaxError):
 from . import utils
 
 _logger = tasklogger.get_tasklogger("graphtools")
+
+
+@dataclass
+class PCAParameters(object):
+    """Data class that stores PCA parameters.
+    Parameters
+    ----------
+    n_oversamples : int, default=10
+        Additional number of random vectors to sample the range of M so as
+        to ensure proper conditioning. The total number of random vectors
+        used to find the range of M is n_components + n_oversamples. Smaller
+        number can improve speed but can negatively impact the quality of
+        approximation of singular vectors and singular values. Users might wish
+        to increase this parameter up to `2*k - n_components` where k is the
+        effective rank, for large matrices, noisy problems, matrices with
+        slowly decaying spectrums, or to increase precision accuracy.
+
+    n_iter : int or 'auto', default='auto'
+        Number of power iterations. It can be used to deal with very noisy
+        problems. When 'auto', it is set to 4, unless `n_components` is small
+        (< .1 * min(X.shape)) in which case `n_iter` is set to 7.
+        This improves precision with few components. Note that in general
+        users should rather increase `n_oversamples` before increasing `n_iter`
+        as the principle of the randomized method is to avoid usage of these
+        more costly power iterations steps. When `n_components` is equal
+        or greater to the effective matrix rank and the spectrum does not
+        present a slow decay, `n_iter=0` or `1` should even work fine in theory
+
+    power_iteration_normalizer : {'auto', 'QR', 'LU', 'none'}, default='auto'
+        Whether the power iterations are normalized with step-by-step
+        QR factorization (the slowest but most accurate), 'none'
+        (the fastest but numerically unstable when `n_iter` is large, e.g.
+        typically 5 or larger), or 'LU' factorization (numerically stable
+        but can lose slightly in accuracy). The 'auto' mode applies no
+        normalization if `n_iter` <= 2 and switches to LU otherwise.
+
+    See documentation for sklearn.utils.extmath.randomized_svd
+    """
+
+    _valid = {}
+    _valid["n_oversamples"] = {int: lambda x: x > 0}
+    _valid["n_iter"] = {str: lambda x: x in ["auto"], int: lambda x: x >= 0}
+    _valid["power_iteration_normalizer"] = {
+        str: lambda x: x.lower() in ["auto", "QR", "LU", "none"]
+    }
+    _valid_str = {}
+    _valid_str["n_oversamples"] = "int > 0"
+    _valid_str["n_iter"] = ["str", "int >= 0"]
+    _valid_str["power_iteration_normalizer"] = ["auto", "QR", "LU", "none"]
+    n_oversamples: int = 10
+    n_iter: int = "auto"
+    power_iteration_normalizer: str = "auto"
+
+    def validate(self):
+        validated = []
+        errs = []
+        valids = []
+        for field_name, field_def in self.__dataclass_fields__.items():
+            attr = getattr(self, field_name)
+            validated.append(False)
+            for typ, typfun in self._valid[field_name].items():
+                if isinstance(attr, typ):
+                    validated[-1] = typfun(attr)
+            if not validated[-1]:
+                errs.append(field_name)
+                valids.append(self._valid_str[field_name])
+        return all(validated), errs, valids
+
+    def __post_init__(self):
+        validated, errs, valids = self.validate()
+        if not validated:
+            errorstring = (
+                f"{errs} were invalid type or value. " f"Valid values for {errs} are "
+            )
+            for valid in valids:
+                errorstring += f"{valid} "
+            errorstring += ", respectively."
+            raise ValueError(errorstring)
+
+
+##some monkey patching of randomized_svd...
+def randomized_svd_monkey(
+    M,
+    n_components,
+    *,
+    pca_params=PCAParameters(),
+    n_oversamples=10,
+    n_iter="auto",
+    power_iteration_normalizer="auto",
+    transpose="auto",
+    flip_sign=True,
+    random_state="warn",
+):
+    if sklearn.__version__ > "1.0.1":
+        warnings.warn(
+            "Graphtools is using a patched version of randomized_svd "
+            "designed for sklearn version 1.0.1. The current version "
+            "of sklearn is {}. Please alert the graphtools authors to "
+            "update the patch.".format(sklearn.__version__),
+            RuntimeWarning,
+        )
+    return sklearn.utils.extmath.randomized_svd(
+        M,
+        n_components=n_components,
+        n_oversamples=pca_params.n_oversamples,
+        n_iter=pca_params.n_iter,
+        power_iteration_normalizer=pca_params.power_iteration_normalizer,
+        transpose=transpose,
+        flip_sign=flip_sign,
+        random_state=random_state,
+    )
 
 
 class Base(object):
@@ -121,7 +238,13 @@ class Data(Base):
     """
 
     def __init__(
-        self, data, n_pca=None, rank_threshold=None, random_state=None, **kwargs
+        self,
+        data,
+        n_pca=None,
+        rank_threshold=None,
+        pca_params=PCAParameters(),
+        random_state=None,
+        **kwargs,
     ):
 
         self._check_data(data)
@@ -152,6 +275,7 @@ class Data(Base):
         self.n_pca = n_pca
         self.rank_threshold = rank_threshold
         self.random_state = random_state
+        self.pca_params = pca_params
         self.data_nu = self._reduce_data()
         super().__init__(**kwargs)
 
@@ -259,6 +383,9 @@ class Data(Base):
             self.n_pca == "auto" or self.n_pca < self.data.shape[1]
         ):
             with _logger.task("PCA"):
+                randomized_pca = partial(
+                    randomized_svd_monkey, pca_params=self.pca_params
+                )
                 n_pca = self.data.shape[1] - 1 if self.n_pca == "auto" else self.n_pca
                 if sparse.issparse(self.data):
                     if (
@@ -272,7 +399,13 @@ class Data(Base):
                     self.data_pca = PCA(
                         n_pca, svd_solver="randomized", random_state=self.random_state
                     )
-                self.data_pca.fit(self.data)
+                with mock.patch(
+                    "sklearn.decomposition._pca.randomized_svd", new=randomized_pca
+                ) as foo, mock.patch(
+                    "sklearn.decomposition._truncated_svd.randomized_svd",
+                    new=randomized_pca,
+                ) as bar:
+                    self.data_pca.fit(self.data)
                 if self.n_pca == "auto":
                     s = self.data_pca.singular_values_
                     smax = s.max()
@@ -303,6 +436,7 @@ class Data(Base):
                         op  # im not clear if this is needed due to assignment rules
                     )
                 data_nu = self.data_pca.transform(self.data)
+                # randomized_svd = randomized_svd_bak
             return data_nu
         else:
             data_nu = self.data
@@ -490,7 +624,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         anisotropy=0,
         gamma=None,
         initialize=True,
-        **kwargs
+        **kwargs,
     ):
         if gamma is not None:
             warnings.warn(
