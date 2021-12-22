@@ -4,7 +4,7 @@ from scipy import sparse
 import pickle
 import pygsp
 import tasklogger
-
+from dataclasses import dataclass
 from . import base, graphs
 
 _logger = tasklogger.get_tasklogger("graphtools")
@@ -36,7 +36,7 @@ def Graph(
     graphtype="auto",
     use_pygsp=False,
     initialize=True,
-    **kwargs
+    **kwargs,
 ):
     """Create a graph built on data.
 
@@ -345,3 +345,46 @@ def read_pickle(path):
     elif isinstance(G, base.PyGSPGraph) and isinstance(G.logger, str):
         G.logger = pygsp.utils.build_logger(G.logger)
     return G
+
+
+@dataclass
+class PCAParameters(object):
+    _valid = {}
+    _valid["n_oversamples"] = {int: lambda x: x > 0}
+    _valid["n_iter"] = {str: lambda x: x in ["auto"], int: lambda x: x >= 0}
+    _valid["power_iteration_normalizer"] = {
+        str: lambda x: x.lower() in ["auto", "QR", "LU", "none"]
+    }
+    _valid_str = {}
+    _valid_str["n_oversamples"] = "int > 0"
+    _valid_str["n_iter"] = ["str", "int >= 0"]
+    _valid_str["power_iteration_normalizer"] = ["auto", "QR", "LU", "none"]
+    n_oversamples: int = 10
+    n_iter: int = "auto"
+    power_iteration_normalizer: str = "auto"
+
+    def validate(self):
+        validated = []
+        errs = []
+        valids = []
+        for field_name, field_def in self.__dataclass_fields__.items():
+            attr = getattr(self, field_name)
+            validated.append(False)
+            for typ, typfun in self._valid[field_name].items():
+                if isinstance(attr, typ):
+                    validated[-1] = typfun(attr)
+            if not validated[-1]:
+                errs.append(field_name)
+                valids.append(self._valid_str[field_name])
+        return all(validated), errs, valids
+
+    def __post_init__(self):
+        validated, errs, valids = self.validate()
+        if not validated:
+            errorstring = (
+                f"{errs} were invalid type or value. " f"Valid values for {errs} are "
+            )
+            for valid in valids:
+                errorstring += f"{valid} "
+            errorstring += ", respectively."
+            raise ValueError(errorstring)
