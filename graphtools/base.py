@@ -3,7 +3,7 @@ from builtins import super
 from copy import copy as shallow_copy
 import numpy as np
 import abc
-import mock
+from mock import patch
 from functools import partial
 from dataclasses import dataclass
 import pygsp
@@ -79,12 +79,13 @@ class PCAParameters(object):
     _valid["n_oversamples"] = {int: lambda x: x > 0}
     _valid["n_iter"] = {str: lambda x: x in ["auto"], int: lambda x: x >= 0}
     _valid["power_iteration_normalizer"] = {
-        str: lambda x: x.lower() in ["auto", "QR", "LU", "none"]
+        str: lambda x: x.lower() in ["auto", "qr", "lu", "none"]
     }
     _valid_str = {}
-    _valid_str["n_oversamples"] = "int > 0"
-    _valid_str["n_iter"] = ["str", "int >= 0"]
+    _valid_str["n_oversamples"] = ["int > 0"]
+    _valid_str["n_iter"] = ["auto", "int >= 0"]
     _valid_str["power_iteration_normalizer"] = ["auto", "QR", "LU", "none"]
+
     n_oversamples: int = 10
     n_iter: int = "auto"
     power_iteration_normalizer: str = "auto"
@@ -93,7 +94,9 @@ class PCAParameters(object):
         validated = []
         errs = []
         valids = []
-        for field_name, field_def in self.__dataclass_fields__.items():
+        fields = list(self.__dataclass_fields__.items())
+        fields.sort(key=lambda x: x[0])
+        for field_name, field_def in fields:
             attr = getattr(self, field_name)
             validated.append(False)
             for typ, typfun in self._valid[field_name].items():
@@ -101,18 +104,16 @@ class PCAParameters(object):
                     validated[-1] = typfun(attr)
             if not validated[-1]:
                 errs.append(field_name)
-                valids.append(self._valid_str[field_name])
-        return all(validated), errs, valids
+        return all(validated), errs
 
     def __post_init__(self):
-        validated, errs, valids = self.validate()
+        validated, errs = self.validate()
+        errs = errs
         if not validated:
-            errorstring = (
-                f"{errs} were invalid type or value. " f"Valid values for {errs} are "
-            )
-            for valid in valids:
-                errorstring += f"{valid} "
-            errorstring += ", respectively."
+            errorstring = f"{errs} were invalid type or value. " f"Valid values are "
+            for err in errs:
+                errorstring += f"{self._valid_str[err]}, "
+            errorstring += "respectively."
             raise ValueError(errorstring)
 
 
@@ -318,7 +319,7 @@ class Data(Base):
             n_pca = None
         elif n_pca is True:  # notify that we're going to estimate rank.
             n_pca = "auto"
-            _logger.info(
+            _logger.log_task(
                 "Estimating n_pca from matrix rank. "
                 "Supply an integer n_pca "
                 "for fixed amount."
@@ -382,7 +383,7 @@ class Data(Base):
         if self.n_pca is not None and (
             self.n_pca == "auto" or self.n_pca < self.data.shape[1]
         ):
-            with _logger.task("PCA"):
+            with _logger.log_task("PCA"):
                 randomized_pca = partial(
                     randomized_svd_monkey, pca_params=self.pca_params
                 )
@@ -399,9 +400,9 @@ class Data(Base):
                     self.data_pca = PCA(
                         n_pca, svd_solver="randomized", random_state=self.random_state
                     )
-                with mock.patch(
+                with patch(
                     "sklearn.decomposition._pca.randomized_svd", new=randomized_pca
-                ) as foo, mock.patch(
+                ) as foo, patch(
                     "sklearn.decomposition._truncated_svd.randomized_svd",
                     new=randomized_pca,
                 ) as bar:
@@ -423,7 +424,7 @@ class Data(Base):
                             "maximum singular value {} "
                             "for the data matrix".format(threshold, smax)
                         )
-                    _logger.info(
+                    _logger.log_task(
                         "Using rank estimate of {} as n_pca".format(self.n_pca)
                     )
                     # reset the sklearn operator
@@ -659,10 +660,10 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         self.anisotropy = anisotropy
 
         if initialize:
-            _logger.debug("Initializing kernel...")
+            _logger.log_debug("Initializing kernel...")
             self.K
         else:
-            _logger.debug("Not initializing kernel.")
+            _logger.log_debug("Not initializing kernel.")
         super().__init__(**kwargs)
 
     def _check_symmetrization(self, kernel_symm, theta):
@@ -717,18 +718,20 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
     def symmetrize_kernel(self, K):
         # symmetrize
         if self.kernel_symm == "+":
-            _logger.debug("Using addition symmetrization.")
+            _logger.log_debug("Using addition symmetrization.")
             K = (K + K.T) / 2
         elif self.kernel_symm == "*":
-            _logger.debug("Using multiplication symmetrization.")
+            _logger.log_debug("Using multiplication symmetrization.")
             K = K.multiply(K.T)
         elif self.kernel_symm == "mnn":
-            _logger.debug("Using mnn symmetrization (theta = {}).".format(self.theta))
+            _logger.log_debug(
+                "Using mnn symmetrization (theta = {}).".format(self.theta)
+            )
             K = self.theta * utils.elementwise_minimum(K, K.T) + (
                 1 - self.theta
             ) * utils.elementwise_maximum(K, K.T)
         elif self.kernel_symm is None:
-            _logger.debug("Using no symmetrization.")
+            _logger.log_debug("Using no symmetrization.")
             pass
         else:
             # this should never happen
@@ -1084,10 +1087,10 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
     def _default_shortest_path_distance(self):
         if not self.weighted:
             distance = "data"
-            _logger.info("Using ambient data distances.")
+            _logger.log_task("Using ambient data distances.")
         else:
             distance = "affinity"
-            _logger.info("Using negative log affinity distances.")
+            _logger.log_task("Using negative log affinity distances.")
         return distance
 
     def shortest_path(self, method="auto", distance=None):
