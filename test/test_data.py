@@ -567,9 +567,46 @@ def test_pca_parameters():
 def test_warns_sklearn_version():
     import sklearn
 
+    sklbak = sklearn.__version__
     sklearn.__version__ = "1.0.2"
     x = np.random.randn(100, 100)
-    Data(x, n_pca=2)
+    with assert_warns_message(
+        RuntimeWarning,
+        "Graphtools is using a patched version of randomized_svd designed for sklearn version 1.0.1. The current version of sklearn is 1.0.2. Please alert the graphtools authors to update the patch.",
+    ):
+        Data(x, n_pca=2)
+    sklearn.__version__ = sklbak
+
+
+def test_gets_good_svs():
+    x = np.random.randn(1000, 500)
+    u, s, vt = np.linalg.svd(x, full_matrices=False)
+    sy = np.r_[
+        np.arange(50),
+        np.zeros(
+            450,
+        ),
+    ]
+    y = (u * sy) @ vt
+    # test the sparse case (truncated SVD, no mean centering)
+    y = sp.csr_matrix(y)
+    obj = Data(y, n_pca=25)
+    assert np.any(
+        np.logical_not(obj.data_pca.singular_values_ == np.arange(50)[::-1][:25])
+    )
+    params = PCAParameters(n_oversamples=100)
+    obj = Data(y, n_pca=25, pca_params=params)
+    assert np.allclose(obj.data_pca.singular_values_, np.arange(50)[::-1][:25])
+    # test the dense case, has mean centering
+    y = y.toarray()
+    y = y - np.mean(y, axis=0)
+    u, s, vt = np.linalg.svd(y, full_matrices=False)
+    params = PCAParameters(n_oversamples=1)
+    obj = Data(y, n_pca=25, pca_params=params)
+    assert not (np.allclose(obj.data_pca.singular_values_, s[:25]))
+    params = PCAParameters(n_oversamples=1000)
+    obj = Data(y, n_pca=25, pca_params=params)
+    assert np.allclose(obj.data_pca.singular_values_, s[:25])
 
 
 #############
