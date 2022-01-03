@@ -14,6 +14,7 @@ from load_tests import (
     build_graph,
     PCA,
     TruncatedSVD,
+    Data,
 )
 
 
@@ -196,8 +197,8 @@ def test_knn_graph_multiplication_symm():
 def test_knn_graph_sparse():
     k = 3
     n_pca = 20
-    pca = TruncatedSVD(n_pca, random_state=42).fit(data)
-    data_nu = pca.transform(data)
+    pca = Data(sp.coo_matrix(data), n_pca, random_state=42)
+    data_nu = pca.data_pca.transform(data)
     pdx = squareform(pdist(data_nu, metric="euclidean"))
     knn_dist = np.partition(pdx, k, axis=1)[:, :k]
     epsilon = np.max(knn_dist, axis=1)

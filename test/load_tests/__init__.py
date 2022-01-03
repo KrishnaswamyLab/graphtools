@@ -1,4 +1,5 @@
 from sklearn.decomposition import PCA, TruncatedSVD
+from sklearn.utils.extmath import randomized_svd
 from graphtools.base import PCAParameters, Data
 from sklearn import datasets
 from scipy.spatial.distance import pdist, cdist, squareform
