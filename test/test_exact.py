@@ -1,5 +1,5 @@
 from __future__ import print_function
-from sklearn.utils.graph import graph_shortest_path
+from scipy.sparse.csgraph import shortest_path as graph_shortest_path
 from load_tests import (
     graphtools,
     np,
@@ -12,6 +12,7 @@ from load_tests import (
     pdist,
     PCA,
     TruncatedSVD,
+    Data,
     assert_raises_message,
     assert_warns_message,
 )
@@ -212,8 +213,8 @@ def test_truncated_exact_graph():
     n_pca = 20
     thresh = 1e-4
     data_small = data[np.random.choice(len(data), len(data) // 2, replace=False)]
-    pca = PCA(n_pca, svd_solver="randomized", random_state=42).fit(data_small)
-    data_small_nu = pca.transform(data_small)
+    pca = Data(data_small, n_pca, random_state=42)
+    data_small_nu = pca.data_pca.transform(data_small)
     pdx = squareform(pdist(data_small_nu, metric="euclidean"))
     knn_dist = np.partition(pdx, k, axis=1)[:, :k]
     epsilon = np.max(knn_dist, axis=1)
@@ -283,8 +284,8 @@ def test_truncated_exact_graph_sparse():
     n_pca = 20
     thresh = 1e-4
     data_small = data[np.random.choice(len(data), len(data) // 2, replace=False)]
-    pca = TruncatedSVD(n_pca, random_state=42).fit(data_small)
-    data_small_nu = pca.transform(data_small)
+    pca = Data(sp.coo_matrix(data_small), n_pca, random_state=42)
+    data_small_nu = pca.data_pca.transform(data_small)
     pdx = squareform(pdist(data_small_nu, metric="euclidean"))
     knn_dist = np.partition(pdx, k, axis=1)[:, :k]
     epsilon = np.max(knn_dist, axis=1)

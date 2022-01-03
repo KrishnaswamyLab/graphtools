@@ -1,5 +1,5 @@
 from __future__ import print_function, division
-from sklearn.utils.graph import graph_shortest_path
+from scipy.sparse.csgraph import shortest_path as graph_shortest_path
 from scipy.spatial.distance import pdist, squareform
 from load_tests import assert_raises_message, assert_warns_message
 from nose.tools import assert_raises_regex, assert_warns_regex
@@ -14,6 +14,7 @@ from load_tests import (
     build_graph,
     PCA,
     TruncatedSVD,
+    Data,
 )
 
 
@@ -156,7 +157,8 @@ def test_knn_graph():
         ),
     ):
         G2.build_kernel_to_data(
-            Y=G2.data_nu, knn=data.shape[0] + 1,
+            Y=G2.data_nu,
+            knn=data.shape[0] + 1,
         )
 
 
@@ -195,8 +197,8 @@ def test_knn_graph_multiplication_symm():
 def test_knn_graph_sparse():
     k = 3
     n_pca = 20
-    pca = TruncatedSVD(n_pca, random_state=42).fit(data)
-    data_nu = pca.transform(data)
+    pca = Data(sp.coo_matrix(data), n_pca, random_state=42)
+    data_nu = pca.data_pca.transform(data)
     pdx = squareform(pdist(data_nu, metric="euclidean"))
     knn_dist = np.partition(pdx, k, axis=1)[:, :k]
     epsilon = np.max(knn_dist, axis=1)
