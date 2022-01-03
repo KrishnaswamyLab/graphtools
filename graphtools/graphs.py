@@ -668,7 +668,6 @@ class LandmarkGraph(DataGraph):
                     random_state=self.random_state,
                 )
                 self._clusters = kmeans.fit_predict(self.diff_op.dot(VT.T))
-
             # transition matrices
             pmn = self._landmarks_to_data()
 
