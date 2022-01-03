@@ -2,6 +2,8 @@ from future.utils import with_metaclass
 from builtins import super
 from copy import copy as shallow_copy
 from dataclasses import dataclass
+from mock import patch
+from functools import partial
 import numpy as np
 import abc
 import pygsp
@@ -95,6 +97,39 @@ class PCAParameters(object):
                 errorstring += f"{self._valid_str[err]}, "
             errorstring += "respectively."
             raise ValueError(errorstring)
+
+
+##some monkey patching of randomized_svd...
+def randomized_svd_monkey(
+    M,
+    n_components,
+    *,
+    pca_params=PCAParameters(),
+    n_oversamples=10,
+    n_iter="auto",
+    power_iteration_normalizer="auto",
+    transpose="auto",
+    flip_sign=True,
+    random_state="warn",
+):
+    if sklearn.__version__ > "1.0.1":
+        warnings.warn(
+            "Graphtools is using a patched version of randomized_svd "
+            "designed for sklearn version 1.0.1. The current version "
+            "of sklearn is {}. Please alert the graphtools authors to "
+            "update the patch.".format(sklearn.__version__),
+            RuntimeWarning,
+        )
+    return sklearn.utils.extmath.randomized_svd(
+        M,
+        n_components=n_components,
+        n_oversamples=pca_params.n_oversamples,
+        n_iter=pca_params.n_iter,
+        power_iteration_normalizer=pca_params.power_iteration_normalizer,
+        transpose=transpose,
+        flip_sign=flip_sign,
+        random_state=random_state,
+    )
 
 
 class Base(object):
@@ -331,6 +366,9 @@ class Data(Base):
             self.n_pca == "auto" or self.n_pca < self.data.shape[1]
         ):
             with _logger.log_task("PCA"):
+                randomized_pca = partial(
+                    randomized_svd_monkey, pca_params=self.pca_params
+                )
                 n_pca = self.data.shape[1] - 1 if self.n_pca == "auto" else self.n_pca
                 if sparse.issparse(self.data):
                     if (
@@ -344,7 +382,14 @@ class Data(Base):
                     self.data_pca = PCA(
                         n_pca, svd_solver="randomized", random_state=self.random_state
                     )
-                self.data_pca.fit(self.data)
+                with patch(
+                    "sklearn.decomposition._pca.randomized_svd", new=randomized_pca
+                ) as foo, patch(
+                    "sklearn.decomposition._truncated_svd.randomized_svd",
+                    new=randomized_pca,
+                ) as bar:
+                    self.data_pca.fit(self.data)
+
                 if self.n_pca == "auto":
                     s = self.data_pca.singular_values_
                     smax = s.max()
