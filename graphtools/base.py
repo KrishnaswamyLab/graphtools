@@ -1,6 +1,7 @@
 from future.utils import with_metaclass
 from builtins import super
 from copy import copy as shallow_copy
+from dataclasses import dataclass
 import numpy as np
 import abc
 import pygsp
@@ -18,6 +19,82 @@ import tasklogger
 from . import matrix, utils
 
 _logger = tasklogger.get_tasklogger("graphtools")
+
+
+@dataclass
+class PCAParameters(object):
+    """Data class that stores PCA parameters.
+    Parameters
+    ----------
+    n_oversamples : int, default=10
+        Additional number of random vectors to sample the range of M so as
+        to ensure proper conditioning. The total number of random vectors
+        used to find the range of M is n_components + n_oversamples. Smaller
+        number can improve speed but can negatively impact the quality of
+        approximation of singular vectors and singular values. Users might wish
+        to increase this parameter up to `2*k - n_components` where k is the
+        effective rank, for large matrices, noisy problems, matrices with
+        slowly decaying spectrums, or to increase precision accuracy.
+    n_iter : int or 'auto', default='auto'
+        Number of power iterations. It can be used to deal with very noisy
+        problems. When 'auto', it is set to 4, unless `n_components` is small
+        (< .1 * min(X.shape)) in which case `n_iter` is set to 7.
+        This improves precision with few components. Note that in general
+        users should rather increase `n_oversamples` before increasing `n_iter`
+        as the principle of the randomized method is to avoid usage of these
+        more costly power iterations steps. When `n_components` is equal
+        or greater to the effective matrix rank and the spectrum does not
+        present a slow decay, `n_iter=0` or `1` should even work fine in theory
+    power_iteration_normalizer : {'auto', 'QR', 'LU', 'none'}, default='auto'
+        Whether the power iterations are normalized with step-by-step
+        QR factorization (the slowest but most accurate), 'none'
+        (the fastest but numerically unstable when `n_iter` is large, e.g.
+        typically 5 or larger), or 'LU' factorization (numerically stable
+        but can lose slightly in accuracy). The 'auto' mode applies no
+        normalization if `n_iter` <= 2 and switches to LU otherwise.
+    See documentation for sklearn.utils.extmath.randomized_svd
+    """
+
+    _valid = {}
+    _valid["n_oversamples"] = {int: lambda x: x > 0}
+    _valid["n_iter"] = {str: lambda x: x in ["auto"], int: lambda x: x >= 0}
+    _valid["power_iteration_normalizer"] = {
+        str: lambda x: x.lower() in ["auto", "qr", "lu", "none"]
+    }
+    _valid_str = {}
+    _valid_str["n_oversamples"] = ["int > 0"]
+    _valid_str["n_iter"] = ["auto", "int >= 0"]
+    _valid_str["power_iteration_normalizer"] = ["auto", "QR", "LU", "none"]
+
+    n_oversamples: int = 10
+    n_iter: int = "auto"
+    power_iteration_normalizer: str = "auto"
+
+    def validate(self):
+        validated = []
+        errs = []
+        valids = []
+        fields = list(self.__dataclass_fields__.items())
+        fields.sort(key=lambda x: x[0])
+        for field_name, field_def in fields:
+            attr = getattr(self, field_name)
+            validated.append(False)
+            for typ, typfun in self._valid[field_name].items():
+                if isinstance(attr, typ):
+                    validated[-1] = typfun(attr)
+            if not validated[-1]:
+                errs.append(field_name)
+        return all(validated), errs
+
+    def __post_init__(self):
+        validated, errs = self.validate()
+        errs = errs
+        if not validated:
+            errorstring = f"{errs} were invalid type or value. " f"Valid values are "
+            for err in errs:
+                errorstring += f"{self._valid_str[err]}, "
+            errorstring += "respectively."
+            raise ValueError(errorstring)
 
 
 class Base(object):
@@ -90,7 +167,9 @@ class Data(Base):
         s_max * eps * max(n_samples, n_features)
         where s_max is the maximum singular value of the data matrix
         and eps is numerical precision. [press2007]_.
-
+    pca_params : `PCAParameters`, optional (default: `PCAParameters()`)
+        Parameters to use for randomized SVD and PCA. See documentation
+        for graphtools.base.PCAParameters.
     random_state : `int` or `None`, optional (default: `None`)
         Random state for random PCA
 
@@ -109,11 +188,19 @@ class Data(Base):
     """
 
     def __init__(
-        self, data, n_pca=None, rank_threshold=None, random_state=None, **kwargs
+        self,
+        data,
+        n_pca=None,
+        rank_threshold=None,
+        pca_params=PCAParameters(),
+        random_state=None,
+        **kwargs,
     ):
 
         self._check_data(data)
-        n_pca, rank_threshold = self._parse_n_pca_threshold(data, n_pca, rank_threshold)
+        n_pca, rank_threshold = self._parse_pca_parameters(
+            data, n_pca, rank_threshold, pca_params
+        )
 
         if utils.is_SparseDataFrame(data):
             data = data.to_coo()
@@ -130,11 +217,12 @@ class Data(Base):
         self.data = data
         self.n_pca = n_pca
         self.rank_threshold = rank_threshold
+        self.pca_params = pca_params
         self.random_state = random_state
         self.data_nu = self._reduce_data()
         super().__init__(**kwargs)
 
-    def _parse_n_pca_threshold(self, data, n_pca, rank_threshold):
+    def _parse_pca_parameters(self, data, n_pca, rank_threshold, pca_params):
         if isinstance(n_pca, str):
             n_pca = n_pca.lower()
             if n_pca != "auto":
@@ -207,7 +295,12 @@ class Data(Base):
                     raise ValueError(
                         "rank_threshold must be positive float or 'auto'. "
                     )
-        return n_pca, rank_threshold
+        if pca_params is None:
+            pca_params = PCAParameters()
+        else:
+            if not isinstance(pca_params, PCAParameters):
+                raise ValueError("pca_params must be an instance of PCAParameters.")
+        return n_pca, rank_threshold, pca_params
 
     def _check_data(self, data):
         if len(data.shape) != 2:
@@ -468,7 +561,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         anisotropy=0,
         gamma=None,
         initialize=True,
-        **kwargs
+        **kwargs,
     ):
         if gamma is not None:
             warnings.warn(
@@ -893,8 +986,12 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
                 np.sum((self.data_nu[D.row] - self.data_nu[D.col]) ** 2, axis=1)
             )
         elif distance == "affinity":
-            D = sparse.csr_matrix(self.K)
-            D.data = -1 * np.log(D.data)
+            # D = sparse.csr_matrix(self.K)
+            # D.data = -1 * np.log(D.data)
+            D = -1 * np.where(
+                self.K != 0, np.log(np.where(self.K != 0, self.K, np.nan)), 0
+            )
+            # D = sparse.csr_matrix(D)
         else:
             raise ValueError(
                 "Expected `distance` in ['constant', 'data', 'affinity']. "
