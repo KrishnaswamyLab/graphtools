@@ -173,7 +173,7 @@ class Data(Base):
             n_pca = None
         elif n_pca is True:  # notify that we're going to estimate rank.
             n_pca = "auto"
-            _logger.info(
+            _logger.log_info(
                 "Estimating n_pca from matrix rank. "
                 "Supply an integer n_pca "
                 "for fixed amount."
@@ -237,7 +237,7 @@ class Data(Base):
         if self.n_pca is not None and (
             self.n_pca == "auto" or self.n_pca < self.data.shape[1]
         ):
-            with _logger.task("PCA"):
+            with _logger.log_task("PCA"):
                 n_pca = self.data.shape[1] - 1 if self.n_pca == "auto" else self.n_pca
                 if sparse.issparse(self.data):
                     if (
@@ -269,7 +269,7 @@ class Data(Base):
                             "maximum singular value {} "
                             "for the data matrix".format(threshold, smax)
                         )
-                    _logger.info(
+                    _logger.log_info(
                         "Using rank estimate of {} as n_pca".format(self.n_pca)
                     )
                     # reset the sklearn operator
@@ -292,8 +292,7 @@ class Data(Base):
             return data_nu
 
     def get_params(self):
-        """Get parameters from this object
-        """
+        """Get parameters from this object"""
         return {"n_pca": self.n_pca, "random_state": self.random_state}
 
     def set_params(self, **params):
@@ -498,10 +497,10 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         self.anisotropy = anisotropy
 
         if initialize:
-            _logger.debug("Initializing kernel...")
+            _logger.log_debug("Initializing kernel...")
             self.K
         else:
-            _logger.debug("Not initializing kernel.")
+            _logger.log_debug("Not initializing kernel.")
         super().__init__(**kwargs)
 
     def _check_symmetrization(self, kernel_symm, theta):
@@ -556,18 +555,20 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
     def symmetrize_kernel(self, K):
         # symmetrize
         if self.kernel_symm == "+":
-            _logger.debug("Using addition symmetrization.")
+            _logger.log_debug("Using addition symmetrization.")
             K = (K + K.T) / 2
         elif self.kernel_symm == "*":
-            _logger.debug("Using multiplication symmetrization.")
+            _logger.log_debug("Using multiplication symmetrization.")
             K = K.multiply(K.T)
         elif self.kernel_symm == "mnn":
-            _logger.debug("Using mnn symmetrization (theta = {}).".format(self.theta))
+            _logger.log_debug(
+                "Using mnn symmetrization (theta = {}).".format(self.theta)
+            )
             K = self.theta * matrix.elementwise_minimum(K, K.T) + (
                 1 - self.theta
             ) * matrix.elementwise_maximum(K, K.T)
         elif self.kernel_symm is None:
-            _logger.debug("Using no symmetrization.")
+            _logger.log_debug("Using no symmetrization.")
             pass
         else:
             raise NotImplementedError
@@ -589,8 +590,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         return K
 
     def get_params(self):
-        """Get parameters from this object
-        """
+        """Get parameters from this object"""
         return {
             "kernel_symm": self.kernel_symm,
             "theta": self.theta,
@@ -697,8 +697,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
 
     @property
     def diff_op(self):
-        """Synonym for P
-        """
+        """Synonym for P"""
         return self.P
 
     @property
@@ -719,8 +718,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
 
     @property
     def kernel(self):
-        """Synonym for K
-        """
+        """Synonym for K"""
         return self.K
 
     @property
@@ -850,10 +848,10 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
     def _default_shortest_path_distance(self):
         if not self.weighted:
             distance = "data"
-            _logger.info("Using ambient data distances.")
+            _logger.log_info("Using ambient data distances.")
         else:
             distance = "affinity"
-            _logger.info("Using negative log affinity distances.")
+            _logger.log_info("Using negative log affinity distances.")
         return distance
 
     def shortest_path(self, method="auto", distance=None):
@@ -1019,8 +1017,7 @@ class DataGraph(with_metaclass(abc.ABCMeta, Data, BaseGraph)):
         super().__init__(data, **kwargs)
 
     def get_params(self):
-        """Get parameters from this object
-        """
+        """Get parameters from this object"""
         params = Data.get_params(self)
         params.update(BaseGraph.get_params(self))
         return params
