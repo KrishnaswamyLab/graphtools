@@ -1,5 +1,5 @@
 from __future__ import print_function, division
-from sklearn.utils.graph import graph_shortest_path
+from scipy.sparse.csgraph import shortest_path as graph_shortest_path
 from scipy.spatial.distance import pdist, squareform
 from load_tests import assert_raises_message, assert_warns_message
 from nose.tools import assert_raises_regex, assert_warns_regex
@@ -156,7 +156,8 @@ def test_knn_graph():
         ),
     ):
         G2.build_kernel_to_data(
-            Y=G2.data_nu, knn=data.shape[0] + 1,
+            Y=G2.data_nu,
+            knn=data.shape[0] + 1,
         )
 
 

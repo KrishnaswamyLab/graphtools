@@ -1,5 +1,5 @@
 from __future__ import print_function
-from sklearn.utils.graph import graph_shortest_path
+from scipy.sparse.csgraph import shortest_path as graph_shortest_path
 from load_tests import (
     graphtools,
     np,
