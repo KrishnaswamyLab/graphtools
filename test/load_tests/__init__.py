@@ -1,4 +1,5 @@
 from sklearn.decomposition import PCA, TruncatedSVD
+from graphtools.base import PCAParameters, Data
 from sklearn import datasets
 from scipy.spatial.distance import pdist, cdist, squareform
 import pygsp
@@ -7,7 +8,7 @@ import numpy as np
 import scipy.sparse as sp
 import warnings
 import pandas as pd
-
+import sklearn
 import nose2
 from nose.tools import assert_raises_regex, assert_warns_regex
 import re

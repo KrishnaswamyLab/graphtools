@@ -8,6 +8,7 @@ import numpy as np
 import abc
 import pygsp
 from inspect import signature
+import sklearn
 from sklearn.decomposition import PCA, TruncatedSVD
 from sklearn.preprocessing import normalize
 from scipy.sparse.csgraph import shortest_path as graph_shortest_path
@@ -233,7 +234,7 @@ class Data(Base):
     ):
 
         self._check_data(data)
-        n_pca, rank_threshold = self._parse_pca_parameters(
+        n_pca, rank_threshold, pca_params = self._parse_pca_parameters(
             data, n_pca, rank_threshold, pca_params
         )
 
