@@ -16,7 +16,7 @@ from nose.tools import assert_raises_regex
 from nose.tools import assert_warns_regex
 from scipy.spatial.distance import pdist
 from scipy.spatial.distance import squareform
-from sklearn.utils.graph import graph_shortest_path
+from scipy.sparse.csgraph import shortest_path
 
 import warnings
 
@@ -529,7 +529,7 @@ def test_knn_interpolate_wrong_shape():
 def test_shortest_path_constant():
     data_small = data[np.random.choice(len(data), len(data) // 4, replace=False)]
     G = build_graph(data_small, knn=5, decay=None)
-    P = graph_shortest_path(G.K)
+    P = shortest_path(G.K)
     # sklearn returns 0 if no path exists
     P[np.where(P == 0)] = np.inf
     # diagonal should actually be zero
@@ -541,7 +541,7 @@ def test_shortest_path_precomputed_constant():
     data_small = data[np.random.choice(len(data), len(data) // 4, replace=False)]
     G = build_graph(data_small, knn=5, decay=None)
     G = graphtools.Graph(G.K, precomputed="affinity")
-    P = graph_shortest_path(G.K)
+    P = shortest_path(G.K)
     # sklearn returns 0 if no path exists
     P[np.where(P == 0)] = np.inf
     # diagonal should actually be zero
@@ -554,7 +554,7 @@ def test_shortest_path_data():
     data_small = data[np.random.choice(len(data), len(data) // 4, replace=False)]
     G = build_graph(data_small, knn=5, decay=None)
     D = squareform(pdist(G.data_nu)) * np.where(G.K.toarray() > 0, 1, 0)
-    P = graph_shortest_path(D)
+    P = shortest_path(D)
     # sklearn returns 0 if no path exists
     P[np.where(P == 0)] = np.inf
     # diagonal should actually be zero
