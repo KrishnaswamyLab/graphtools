@@ -251,7 +251,7 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
                     )
                 self.graph.set_params(**params)
             except ValueError as e:
-                _logger.debug("Reset graph due to {}".format(str(e)))
+                _logger.log_debug("Reset graph due to {}".format(str(e)))
                 self.graph = None
 
     @abc.abstractmethod
@@ -364,7 +364,7 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
                 **(self.kwargs),
             )
             if self.graph is not None:
-                _logger.info("Using precomputed graph and diffusion operator...")
+                _logger.log_info("Using precomputed graph and diffusion operator...")
 
     def fit(self, X, **kwargs):
         """Computes the graph
@@ -387,13 +387,13 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
         X, n_pca, n_landmark, precomputed, update_graph = self._parse_input(X)
 
         if precomputed is None:
-            _logger.info(
+            _logger.log_info(
                 "Building graph on {} samples and {} features.".format(
                     X.shape[0], X.shape[1]
                 )
             )
         else:
-            _logger.info(
+            _logger.log_info(
                 "Building graph on precomputed {} matrix with {} samples.".format(
                     precomputed, X.shape[0]
                 )
@@ -405,7 +405,7 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
         self.X = X
 
         if self.graph is None:
-            with _logger.task("graph and diffusion operator"):
+            with _logger.log_task("graph and diffusion operator"):
                 self.graph = api.Graph(
                     X,
                     n_pca=n_pca,
