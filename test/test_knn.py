@@ -54,7 +54,7 @@ def test_duplicate_data():
         RuntimeWarning,
         r"Detected zero distance between samples ([0-9and,\s]*). Consider removing duplicates to avoid errors in downstream processing.",
     ):
-        build_graph(np.vstack([data, data[:9]]), n_pca=50, decay=10, thresh=1e-4)
+        build_graph(np.vstack([data, data[:9]]), n_pca=None, decay=10, thresh=1e-4)
 
 
 def test_duplicate_data_many():
@@ -62,7 +62,7 @@ def test_duplicate_data_many():
         RuntimeWarning,
         "Detected zero distance between ([0-9]*) pairs of samples. Consider removing duplicates to avoid errors in downstream processing.",
     ):
-        build_graph(np.vstack([data, data[:21]]), n_pca=50, decay=10, thresh=1e-4)
+        build_graph(np.vstack([data, data[:21]]), n_pca=None, decay=10, thresh=1e-4)
 
 
 def test_balltree_cosine():
