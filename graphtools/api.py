@@ -1,11 +1,12 @@
-import numpy as np
-import warnings
+from . import base
+from . import graphs
 from scipy import sparse
+
+import numpy as np
 import pickle
 import pygsp
 import tasklogger
-
-from . import base, graphs
+import warnings
 
 _logger = tasklogger.get_tasklogger("graphtools")
 
@@ -36,7 +37,7 @@ def Graph(
     graphtype="auto",
     use_pygsp=False,
     initialize=True,
-    **kwargs
+    **kwargs,
 ):
     """Create a graph built on data.
 
@@ -255,7 +256,7 @@ def Graph(
         else:
             msg = msg + " and PyGSP inheritance"
 
-    _logger.debug(msg)
+    _logger.log_debug(msg)
 
     class_names = [p.__name__.replace("Graph", "") for p in parent_classes]
     try:
@@ -273,7 +274,7 @@ def Graph(
                 pass
 
     # build graph and return
-    _logger.debug(
+    _logger.log_debug(
         "Initializing {} with arguments {}".format(
             parent_classes,
             ", ".join(

@@ -1,16 +1,16 @@
 from __future__ import print_function
-from load_tests import (
-    np,
-    sp,
-    pd,
-    graphtools,
-    nose2,
-    data,
-    build_graph,
-    squareform,
-    pdist,
-)
-from load_tests import assert_raises_message, assert_warns_message
+
+from load_tests import assert_raises_message
+from load_tests import assert_warns_message
+from load_tests import build_graph
+from load_tests import data
+from load_tests import graphtools
+from load_tests import nose2
+from load_tests import np
+from load_tests import pd
+from load_tests import pdist
+from load_tests import sp
+from load_tests import squareform
 from nose.tools import assert_raises_regex
 
 import numbers
@@ -219,7 +219,7 @@ def test_anndata():
     except NameError:
         # not installed
         return
-    G = build_graph(anndata.AnnData(data))
+    G = build_graph(anndata.AnnData(data, dtype=data.dtype))
     assert isinstance(G, graphtools.base.BaseGraph)
     assert isinstance(G.data, np.ndarray)
 
@@ -230,7 +230,7 @@ def test_anndata_sparse():
     except NameError:
         # not installed
         return
-    G = build_graph(anndata.AnnData(sp.csr_matrix(data)))
+    G = build_graph(anndata.AnnData(sp.csr_matrix(data), dtype=data.dtype))
     assert isinstance(G, graphtools.base.BaseGraph)
     assert isinstance(G.data, sp.csr_matrix)
 

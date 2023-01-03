@@ -8,9 +8,9 @@ graphtools
 .. image:: https://anaconda.org/conda-forge/graphtools/badges/version.svg
     :target: https://anaconda.org/conda-forge/graphtools/
     :alt: Latest Conda version
-.. image:: https://api.travis-ci.com/KrishnaswamyLab/graphtools.svg?branch=master
+.. image:: https://img.shields.io/github/workflow/status/KrishnaswamyLab/graphtools/Unit%20Tests/master?label=Github%20Actions
     :target: https://travis-ci.com/KrishnaswamyLab/graphtools
-    :alt: Travis CI Build
+    :alt: Github Actions Build
 .. image:: https://img.shields.io/readthedocs/graphtools.svg
     :target: https://graphtools.readthedocs.io/
     :alt: Read the Docs

@@ -1,7 +1,7 @@
-import numpy as np
-import numbers
-
 from scipy import sparse
+
+import numbers
+import numpy as np
 
 
 def if_sparse(sparse_func, dense_func, *args, **kwargs):

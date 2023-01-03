@@ -1,11 +1,12 @@
-import graphtools.matrix
-import graphtools.utils
+from load_tests import assert_warns_message
+from load_tests import data
 from parameterized import parameterized
 from scipy import sparse
-import numpy as np
+
 import graphtools
-from load_tests import data
-from load_tests import assert_warns_message
+import graphtools.matrix
+import graphtools.utils
+import numpy as np
 
 
 @parameterized(

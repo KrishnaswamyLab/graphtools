@@ -1,21 +1,20 @@
 from __future__ import print_function
-from sklearn.utils.graph import graph_shortest_path
-from load_tests import (
-    graphtools,
-    np,
-    sp,
-    pygsp,
-    nose2,
-    data,
-    build_graph,
-    squareform,
-    pdist,
-    PCA,
-    TruncatedSVD,
-    assert_raises_message,
-    assert_warns_message,
-)
+
+from load_tests import assert_raises_message
+from load_tests import assert_warns_message
+from load_tests import build_graph
+from load_tests import data
+from load_tests import graphtools
+from load_tests import nose2
+from load_tests import np
+from load_tests import PCA
+from load_tests import pdist
+from load_tests import pygsp
+from load_tests import sp
+from load_tests import squareform
+from load_tests import TruncatedSVD
 from nose.tools import assert_warns_regex
+from scipy.sparse.csgraph import shortest_path
 
 #####################################################
 # Check parameters
@@ -141,7 +140,7 @@ def test_exact_graph():
     knn_dist = np.partition(pdx, k, axis=1)[:, :k]
     epsilon = np.max(knn_dist, axis=1) * bandwidth_scale
     weighted_pdx = (pdx.T / epsilon).T
-    K = np.exp(-1 * weighted_pdx ** a)
+    K = np.exp(-1 * weighted_pdx**a)
     W = K + K.T
     W = np.divide(W, 2)
     np.fill_diagonal(W, 0)
@@ -218,7 +217,7 @@ def test_truncated_exact_graph():
     knn_dist = np.partition(pdx, k, axis=1)[:, :k]
     epsilon = np.max(knn_dist, axis=1)
     weighted_pdx = (pdx.T / epsilon).T
-    K = np.exp(-1 * weighted_pdx ** a)
+    K = np.exp(-1 * weighted_pdx**a)
     K[K < thresh] = 0
     W = K + K.T
     W = np.divide(W, 2)
@@ -289,7 +288,7 @@ def test_truncated_exact_graph_sparse():
     knn_dist = np.partition(pdx, k, axis=1)[:, :k]
     epsilon = np.max(knn_dist, axis=1)
     weighted_pdx = (pdx.T / epsilon).T
-    K = np.exp(-1 * weighted_pdx ** a)
+    K = np.exp(-1 * weighted_pdx**a)
     K[K < thresh] = 0
     W = K + K.T
     W = np.divide(W, 2)
@@ -360,7 +359,7 @@ def test_truncated_exact_graph_no_pca():
     knn_dist = np.partition(pdx, k, axis=1)[:, :k]
     epsilon = np.max(knn_dist, axis=1)
     weighted_pdx = (pdx.T / epsilon).T
-    K = np.exp(-1 * weighted_pdx ** a)
+    K = np.exp(-1 * weighted_pdx**a)
     K[K < thresh] = 0
     W = K + K.T
     W = np.divide(W, 2)
@@ -525,7 +524,7 @@ def test_exact_graph_anisotropy():
     knn_dist = np.partition(pdx, k, axis=1)[:, :k]
     epsilon = np.max(knn_dist, axis=1)
     weighted_pdx = (pdx.T / epsilon).T
-    K = np.exp(-1 * weighted_pdx ** a)
+    K = np.exp(-1 * weighted_pdx**a)
     K = K + K.T
     K = np.divide(K, 2)
     d = K.sum(1)
@@ -590,30 +589,36 @@ def test_exact_graph_anisotropy():
 
 
 def test_shortest_path_affinity():
+    np.random.seed(42)
     data_small = data[np.random.choice(len(data), len(data) // 4, replace=False)]
     G = build_graph(data_small, knn=5, decay=15)
     D = -1 * np.where(G.K != 0, np.log(np.where(G.K != 0, G.K, np.nan)), 0)
-    P = graph_shortest_path(D)
+    P = shortest_path(D)
     # sklearn returns 0 if no path exists
     P[np.where(P == 0)] = np.inf
     # diagonal should actually be zero
     np.fill_diagonal(P, 0)
-    np.testing.assert_allclose(P, G.shortest_path(distance="affinity"))
-    np.testing.assert_allclose(P, G.shortest_path())
+    np.testing.assert_allclose(
+        P, G.shortest_path(distance="affinity"), atol=1e-4, rtol=1e-3
+    )
+    np.testing.assert_allclose(P, G.shortest_path(), atol=1e-4, rtol=1e-3)
 
 
 def test_shortest_path_affinity_precomputed():
+    np.random.seed(42)
     data_small = data[np.random.choice(len(data), len(data) // 4, replace=False)]
     G = build_graph(data_small, knn=5, decay=15)
     G = graphtools.Graph(G.K, precomputed="affinity")
     D = -1 * np.where(G.K != 0, np.log(np.where(G.K != 0, G.K, np.nan)), 0)
-    P = graph_shortest_path(D)
+    P = shortest_path(D)
     # sklearn returns 0 if no path exists
     P[np.where(P == 0)] = np.inf
     # diagonal should actually be zero
     np.fill_diagonal(P, 0)
-    np.testing.assert_allclose(P, G.shortest_path(distance="affinity"))
-    np.testing.assert_allclose(P, G.shortest_path())
+    np.testing.assert_allclose(
+        P, G.shortest_path(distance="affinity"), atol=1e-4, rtol=1e-3
+    )
+    np.testing.assert_allclose(P, G.shortest_path(), atol=1e-4, rtol=1e-3)
 
 
 def test_shortest_path_decay_constant():

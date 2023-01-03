@@ -1,6 +1,7 @@
+from setuptools import setup
+
 import os
 import sys
-from setuptools import setup
 
 install_requires = [
     "numpy>=1.14.0",
@@ -44,7 +45,9 @@ setup(
     description="graphtools",
     author="Scott Gigante, Daniel Burkhardt, and Jay Stanley, Yale University",
     author_email="scott.gigante@yale.edu",
-    packages=["graphtools",],
+    packages=[
+        "graphtools",
+    ],
     license="GNU General Public License Version 2",
     install_requires=install_requires,
     extras_require={"test": test_requires, "doc": doc_requires},
@@ -54,7 +57,12 @@ setup(
     download_url="https://github.com/KrishnaswamyLab/graphtools/archive/v{}.tar.gz".format(
         version
     ),
-    keywords=["graphs", "big-data", "signal processing", "manifold-learning",],
+    keywords=[
+        "graphs",
+        "big-data",
+        "signal processing",
+        "manifold-learning",
+    ],
     classifiers=[
         "Development Status :: 4 - Beta",
         "Environment :: Console",

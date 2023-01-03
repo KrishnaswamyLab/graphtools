@@ -1,21 +1,20 @@
 from __future__ import print_function
-import warnings
-from load_tests import (
-    graphtools,
-    np,
-    pd,
-    pygsp,
-    nose2,
-    data,
-    digits,
-    build_graph,
-    generate_swiss_roll,
-    assert_raises_message,
-    assert_warns_message,
-    cdist,
-)
+
+from load_tests import assert_raises_message
+from load_tests import assert_warns_message
+from load_tests import build_graph
+from load_tests import cdist
+from load_tests import data
+from load_tests import digits
+from load_tests import generate_swiss_roll
+from load_tests import graphtools
+from load_tests import nose2
+from load_tests import np
+from load_tests import pd
+from load_tests import pygsp
 from scipy.linalg import norm
 
+import warnings
 
 #####################################################
 # Check parameters
@@ -420,7 +419,7 @@ def test_mnn_graph_decay():
             kdx_ij = np.sort(pdx_ij, axis=1)  # get kNN
             e_ij = kdx_ij[:, batch_k]  # dist to kNN
             pdxe_ij = pdx_ij / e_ij[:, np.newaxis]  # normalize
-            k_ij = np.exp(-1 * (pdxe_ij ** a))  # apply alpha-decaying kernel
+            k_ij = np.exp(-1 * (pdxe_ij**a))  # apply alpha-decaying kernel
             if si == sj:
                 K.iloc[sample_idx == si, sample_idx == sj] = (k_ij + k_ij.T) / 2
             else:

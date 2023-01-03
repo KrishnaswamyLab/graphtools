@@ -1,5 +1,6 @@
-import graphtools
 from load_tests import assert_raises_message
+
+import graphtools
 
 
 def test_check_in():

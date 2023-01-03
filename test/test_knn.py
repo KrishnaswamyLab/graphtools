@@ -1,21 +1,24 @@
-from __future__ import print_function, division
-from sklearn.utils.graph import graph_shortest_path
-from scipy.spatial.distance import pdist, squareform
-from load_tests import assert_raises_message, assert_warns_message
-from nose.tools import assert_raises_regex, assert_warns_regex
-import warnings
-from load_tests import (
-    graphtools,
-    np,
-    sp,
-    pygsp,
-    data,
-    datasets,
-    build_graph,
-    PCA,
-    TruncatedSVD,
-)
+from __future__ import division
+from __future__ import print_function
 
+from load_tests import assert_raises_message
+from load_tests import assert_warns_message
+from load_tests import build_graph
+from load_tests import data
+from load_tests import datasets
+from load_tests import graphtools
+from load_tests import np
+from load_tests import PCA
+from load_tests import pygsp
+from load_tests import sp
+from load_tests import TruncatedSVD
+from nose.tools import assert_raises_regex
+from nose.tools import assert_warns_regex
+from scipy.sparse.csgraph import shortest_path
+from scipy.spatial.distance import pdist
+from scipy.spatial.distance import squareform
+
+import warnings
 
 #####################################################
 # Check parameters
@@ -51,7 +54,7 @@ def test_duplicate_data():
         RuntimeWarning,
         r"Detected zero distance between samples ([0-9and,\s]*). Consider removing duplicates to avoid errors in downstream processing.",
     ):
-        build_graph(np.vstack([data, data[:9]]), n_pca=20, decay=10, thresh=1e-4)
+        build_graph(np.vstack([data, data[:9]]), n_pca=None, decay=10, thresh=1e-4)
 
 
 def test_duplicate_data_many():
@@ -59,7 +62,7 @@ def test_duplicate_data_many():
         RuntimeWarning,
         "Detected zero distance between ([0-9]*) pairs of samples. Consider removing duplicates to avoid errors in downstream processing.",
     ):
-        build_graph(np.vstack([data, data[:21]]), n_pca=20, decay=10, thresh=1e-4)
+        build_graph(np.vstack([data, data[:21]]), n_pca=None, decay=10, thresh=1e-4)
 
 
 def test_balltree_cosine():
@@ -156,7 +159,8 @@ def test_knn_graph():
         ),
     ):
         G2.build_kernel_to_data(
-            Y=G2.data_nu, knn=data.shape[0] + 1,
+            Y=G2.data_nu,
+            knn=data.shape[0] + 1,
         )
 
 
@@ -232,7 +236,7 @@ def test_sparse_alpha_knn_graph():
     knn_dist = np.partition(pdx, k, axis=1)[:, :k]
     epsilon = np.max(knn_dist, axis=1) * bandwidth_scale
     pdx = (pdx.T / epsilon).T
-    K = np.exp(-1 * pdx ** a)
+    K = np.exp(-1 * pdx**a)
     K = K + K.T
     W = np.divide(K, 2)
     np.fill_diagonal(W, 0)
@@ -278,7 +282,7 @@ def test_knnmax():
     knn_max_dist = np.max(np.partition(pdx, k_max, axis=1)[:, :k_max], axis=1)
     epsilon = np.max(knn_dist, axis=1)
     pdx_scale = (pdx.T / epsilon).T
-    K = np.where(pdx <= knn_max_dist[:, None], np.exp(-1 * pdx_scale ** a), 0)
+    K = np.where(pdx <= knn_max_dist[:, None], np.exp(-1 * pdx_scale**a), 0)
     K = K + K.T
     W = np.divide(K, 2)
     np.fill_diagonal(W, 0)
@@ -430,7 +434,7 @@ def test_knn_graph_anisotropy():
     knn_dist = np.partition(pdx, k, axis=1)[:, :k]
     epsilon = np.max(knn_dist, axis=1)
     weighted_pdx = (pdx.T / epsilon).T
-    K = np.exp(-1 * weighted_pdx ** a)
+    K = np.exp(-1 * weighted_pdx**a)
     K[K < thresh] = 0
     K = K + K.T
     K = np.divide(K, 2)
@@ -525,7 +529,7 @@ def test_knn_interpolate_wrong_shape():
 def test_shortest_path_constant():
     data_small = data[np.random.choice(len(data), len(data) // 4, replace=False)]
     G = build_graph(data_small, knn=5, decay=None)
-    P = graph_shortest_path(G.K)
+    P = shortest_path(G.K)
     # sklearn returns 0 if no path exists
     P[np.where(P == 0)] = np.inf
     # diagonal should actually be zero
@@ -537,7 +541,7 @@ def test_shortest_path_precomputed_constant():
     data_small = data[np.random.choice(len(data), len(data) // 4, replace=False)]
     G = build_graph(data_small, knn=5, decay=None)
     G = graphtools.Graph(G.K, precomputed="affinity")
-    P = graph_shortest_path(G.K)
+    P = shortest_path(G.K)
     # sklearn returns 0 if no path exists
     P[np.where(P == 0)] = np.inf
     # diagonal should actually be zero
@@ -550,7 +554,7 @@ def test_shortest_path_data():
     data_small = data[np.random.choice(len(data), len(data) // 4, replace=False)]
     G = build_graph(data_small, knn=5, decay=None)
     D = squareform(pdist(G.data_nu)) * np.where(G.K.toarray() > 0, 1, 0)
-    P = graph_shortest_path(D)
+    P = shortest_path(D)
     # sklearn returns 0 if no path exists
     P[np.where(P == 0)] = np.inf
     # diagonal should actually be zero

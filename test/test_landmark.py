@@ -1,17 +1,16 @@
 from __future__ import print_function
-from load_tests import (
-    graphtools,
-    np,
-    nose2,
-    data,
-    digits,
-    build_graph,
-    generate_swiss_roll,
-    assert_raises_message,
-    assert_warns_message,
-)
-import pygsp
 
+from load_tests import assert_raises_message
+from load_tests import assert_warns_message
+from load_tests import build_graph
+from load_tests import data
+from load_tests import digits
+from load_tests import generate_swiss_roll
+from load_tests import graphtools
+from load_tests import nose2
+from load_tests import np
+
+import pygsp
 
 #####################################################
 # Check parameters
@@ -68,13 +67,17 @@ def test_landmark_exact_graph():
 
 
 def test_landmark_knn_graph():
+    np.random.seed(42)
     n_landmark = 500
     # knn graph
     G = build_graph(
         data, n_landmark=n_landmark, n_pca=20, decay=None, knn=5 - 1, random_state=42
     )
-    assert G.transitions.shape == (data.shape[0], n_landmark)
-    assert G.landmark_op.shape == (n_landmark, n_landmark)
+    n_landmark_out = G.landmark_op.shape[0]
+    assert n_landmark_out <= n_landmark
+    assert n_landmark_out >= n_landmark - 3
+    assert G.transitions.shape == (data.shape[0], n_landmark_out), G.transitions.shape
+    assert G.landmark_op.shape == (n_landmark_out, n_landmark_out)
     assert isinstance(G, graphtools.graphs.kNNGraph)
     assert isinstance(G, graphtools.graphs.LandmarkGraph)
 

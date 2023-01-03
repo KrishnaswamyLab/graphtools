@@ -1,7 +1,8 @@
+from . import matrix
+from deprecated import deprecated
+
 import numbers
 import warnings
-from deprecated import deprecated
-from . import matrix
 
 try:
     import pandas as pd

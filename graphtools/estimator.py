@@ -1,12 +1,15 @@
-import numpy as np
-import tasklogger
-import pygsp
-import abc
-
+from . import api
+from . import base
+from . import graphs
+from . import matrix
+from . import utils
 from functools import partial
 from scipy import sparse
 
-from . import api, graphs, base, utils, matrix
+import abc
+import numpy as np
+import pygsp
+import tasklogger
 
 
 def attribute(attr, default=None, doc=None, on_set=None):
@@ -81,18 +84,18 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
 
     verbose : `int` or `boolean`, optional (default: 1)
         If `True` or `> 0`, print status messages
-        
+
     n_svd : int, optional (default: 100)
         number of singular vectors to compute for landmarking
-    
+
     thresh : float, optional (default: 1e-4)
         threshold below which to truncate kernel
-    
+
     kwargs : additional arguments for graphtools.Graph
-    
+
     Attributes
     ----------
-    
+
     graph : graphtools.Graph
     """
 
@@ -203,7 +206,7 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
         n_jobs=1,
         verbose=1,
         thresh=1e-4,
-        **kwargs
+        **kwargs,
     ):
 
         if verbose is True:
@@ -248,13 +251,13 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
                     )
                 self.graph.set_params(**params)
             except ValueError as e:
-                _logger.debug("Reset graph due to {}".format(str(e)))
+                _logger.log_debug("Reset graph due to {}".format(str(e)))
                 self.graph = None
 
     @abc.abstractmethod
     def _reset_graph(self):
         """Trigger a reset of self.graph
-        
+
         Any downstream effects of resetting the graph should override this function
         """
         raise NotImplementedError
@@ -358,10 +361,10 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
                 n_jobs=self.n_jobs,
                 thresh=self.thresh,
                 verbose=self.verbose,
-                **(self.kwargs)
+                **(self.kwargs),
             )
             if self.graph is not None:
-                _logger.info("Using precomputed graph and diffusion operator...")
+                _logger.log_info("Using precomputed graph and diffusion operator...")
 
     def fit(self, X, **kwargs):
         """Computes the graph
@@ -384,13 +387,13 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
         X, n_pca, n_landmark, precomputed, update_graph = self._parse_input(X)
 
         if precomputed is None:
-            _logger.info(
+            _logger.log_info(
                 "Building graph on {} samples and {} features.".format(
                     X.shape[0], X.shape[1]
                 )
             )
         else:
-            _logger.info(
+            _logger.log_info(
                 "Building graph on precomputed {} matrix with {} samples.".format(
                     precomputed, X.shape[0]
                 )
@@ -402,7 +405,7 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
         self.X = X
 
         if self.graph is None:
-            with _logger.task("graph and diffusion operator"):
+            with _logger.log_task("graph and diffusion operator"):
                 self.graph = api.Graph(
                     X,
                     n_pca=n_pca,
@@ -417,6 +420,6 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
                     thresh=self.thresh,
                     verbose=self.verbose,
                     **(self.kwargs),
-                    **kwargs
+                    **kwargs,
                 )
         return self

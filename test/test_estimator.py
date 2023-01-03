@@ -1,12 +1,14 @@
+from load_tests import assert_raises_message
+from load_tests import data
+from parameterized import parameterized
+from scipy import sparse
+
+import anndata
 import graphtools
 import graphtools.estimator
-import pygsp
-import anndata
-import warnings
 import numpy as np
-from load_tests import data, assert_raises_message
-from scipy import sparse
-from parameterized import parameterized
+import pygsp
+import warnings
 
 
 class Estimator(graphtools.estimator.GraphEstimator):
@@ -97,7 +99,7 @@ def test_anndata_input():
     E = Estimator(verbose=0)
     E.fit(X.astype(np.float32))
     E2 = Estimator(verbose=0)
-    E2.fit(anndata.AnnData(X))
+    E2.fit(anndata.AnnData(X, dtype=X.dtype))
     np.testing.assert_allclose(
         E.graph.K.toarray(), E2.graph.K.toarray(), rtol=1e-6, atol=2e-7
     )
