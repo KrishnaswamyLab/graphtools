@@ -7,7 +7,7 @@ import pygsp
 from inspect import signature
 from sklearn.decomposition import PCA, TruncatedSVD
 from sklearn.preprocessing import normalize
-from sklearn.utils.graph import graph_shortest_path
+from scipy.sparse.csgraph import shortest_path
 from scipy import sparse
 import warnings
 import numbers
@@ -903,7 +903,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
                 "Got {}".format(distance)
             )
 
-        P = graph_shortest_path(D, method=method)
+        P = shortest_path(D, method=method)
         # symmetrize for numerical error
         P = (P + P.T) / 2
         # sklearn returns 0 if no path exists
