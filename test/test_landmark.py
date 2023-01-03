@@ -72,7 +72,7 @@ def test_landmark_knn_graph():
     G = build_graph(
         data, n_landmark=n_landmark, n_pca=20, decay=None, knn=5 - 1, random_state=42
     )
-    assert G.transitions.shape == (data.shape[0], n_landmark)
+    assert G.transitions.shape == (data.shape[0], n_landmark), G.transitions.shape
     assert G.landmark_op.shape == (n_landmark, n_landmark)
     assert isinstance(G, graphtools.graphs.kNNGraph)
     assert isinstance(G, graphtools.graphs.LandmarkGraph)
