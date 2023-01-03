@@ -570,7 +570,8 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
             K = K.multiply(K.T)
         elif self.kernel_symm == "mnn":
             _logger.log_debug(
-                "Using mnn symmetrization (theta = {}).".format(self.theta))
+                "Using mnn symmetrization (theta = {}).".format(self.theta)
+            )
             K = self.theta * matrix.elementwise_minimum(K, K.T) + (
                 1 - self.theta
             ) * matrix.elementwise_maximum(K, K.T)
