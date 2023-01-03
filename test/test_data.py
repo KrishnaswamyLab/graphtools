@@ -219,7 +219,7 @@ def test_anndata():
     except NameError:
         # not installed
         return
-    G = build_graph(anndata.AnnData(data))
+    G = build_graph(anndata.AnnData(data, dtype=data.dtype))
     assert isinstance(G, graphtools.base.BaseGraph)
     assert isinstance(G.data, np.ndarray)
 
@@ -230,7 +230,7 @@ def test_anndata_sparse():
     except NameError:
         # not installed
         return
-    G = build_graph(anndata.AnnData(sp.csr_matrix(data)))
+    G = build_graph(anndata.AnnData(sp.csr_matrix(data), dtype=data.dtype))
     assert isinstance(G, graphtools.base.BaseGraph)
     assert isinstance(G.data, sp.csr_matrix)
 
