@@ -1,12 +1,12 @@
-import pickle
-import warnings
-
-import numpy as np
-import pygsp
-import tasklogger
+from . import base
+from . import graphs
 from scipy import sparse
 
-from . import base, graphs
+import numpy as np
+import pickle
+import pygsp
+import tasklogger
+import warnings
 
 _logger = tasklogger.get_tasklogger("graphtools")
 
@@ -342,8 +342,7 @@ def read_pickle(path):
         G = pickle.load(f)
 
     if not isinstance(G, base.BaseGraph):
-        warnings.warn(
-            "Returning object that is not a graphtools.base.BaseGraph")
+        warnings.warn("Returning object that is not a graphtools.base.BaseGraph")
     elif isinstance(G, base.PyGSPGraph) and isinstance(G.logger, str):
         G.logger = pygsp.utils.build_logger(G.logger)
     return G

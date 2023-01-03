@@ -1,20 +1,18 @@
 from __future__ import print_function
 
-from load_tests import (
-    PCA,
-    TruncatedSVD,
-    assert_raises_message,
-    assert_warns_message,
-    build_graph,
-    data,
-    graphtools,
-    nose2,
-    np,
-    pdist,
-    pygsp,
-    sp,
-    squareform,
-)
+from load_tests import assert_raises_message
+from load_tests import assert_warns_message
+from load_tests import build_graph
+from load_tests import data
+from load_tests import graphtools
+from load_tests import nose2
+from load_tests import np
+from load_tests import PCA
+from load_tests import pdist
+from load_tests import pygsp
+from load_tests import sp
+from load_tests import squareform
+from load_tests import TruncatedSVD
 from nose.tools import assert_warns_regex
 from scipy.sparse.csgraph import shortest_path
 
@@ -49,8 +47,7 @@ def test_build_exact_with_sample_idx():
         ValueError,
         "TraditionalGraph does not support batch correction. Use `graphtype='mnn'` or `sample_idx=None`",
     ):
-        build_graph(data, graphtype="exact",
-                    sample_idx=np.arange(len(data)), decay=10)
+        build_graph(data, graphtype="exact", sample_idx=np.arange(len(data)), decay=10)
 
 
 def test_precomputed_with_pca():
@@ -58,8 +55,7 @@ def test_precomputed_with_pca():
         RuntimeWarning,
         "n_pca cannot be given on a precomputed graph. Setting n_pca=None",
     ):
-        build_graph(squareform(pdist(data)),
-                    precomputed="distance", n_pca=20, decay=10)
+        build_graph(squareform(pdist(data)), precomputed="distance", n_pca=20, decay=10)
 
 
 def test_exact_no_decay():
@@ -137,8 +133,7 @@ def test_exact_graph():
     a = 13
     n_pca = 20
     bandwidth_scale = 1.3
-    data_small = data[np.random.choice(
-        len(data), len(data) // 2, replace=False)]
+    data_small = data[np.random.choice(len(data), len(data) // 2, replace=False)]
     pca = PCA(n_pca, svd_solver="randomized", random_state=42).fit(data_small)
     data_small_nu = pca.transform(data_small)
     pdx = squareform(pdist(data_small_nu, metric="euclidean"))
@@ -215,8 +210,7 @@ def test_truncated_exact_graph():
     a = 13
     n_pca = 20
     thresh = 1e-4
-    data_small = data[np.random.choice(
-        len(data), len(data) // 2, replace=False)]
+    data_small = data[np.random.choice(len(data), len(data) // 2, replace=False)]
     pca = PCA(n_pca, svd_solver="randomized", random_state=42).fit(data_small)
     data_small_nu = pca.transform(data_small)
     pdx = squareform(pdist(data_small_nu, metric="euclidean"))
@@ -287,8 +281,7 @@ def test_truncated_exact_graph_sparse():
     a = 13
     n_pca = 20
     thresh = 1e-4
-    data_small = data[np.random.choice(
-        len(data), len(data) // 2, replace=False)]
+    data_small = data[np.random.choice(len(data), len(data) // 2, replace=False)]
     pca = TruncatedSVD(n_pca, random_state=42).fit(data_small)
     data_small_nu = pca.transform(data_small)
     pdx = squareform(pdist(data_small_nu, metric="euclidean"))
@@ -361,8 +354,7 @@ def test_truncated_exact_graph_no_pca():
     a = 13
     n_pca = None
     thresh = 1e-4
-    data_small = data[np.random.choice(
-        len(data), len(data) // 10, replace=False)]
+    data_small = data[np.random.choice(len(data), len(data) // 10, replace=False)]
     pdx = squareform(pdist(data_small, metric="euclidean"))
     knn_dist = np.partition(pdx, k, axis=1)[:, :k]
     epsilon = np.max(knn_dist, axis=1)
@@ -525,8 +517,7 @@ def test_exact_graph_anisotropy():
     a = 13
     n_pca = 20
     anisotropy = 0.9
-    data_small = data[np.random.choice(
-        len(data), len(data) // 2, replace=False)]
+    data_small = data[np.random.choice(len(data), len(data) // 2, replace=False)]
     pca = PCA(n_pca, svd_solver="randomized", random_state=42).fit(data_small)
     data_small_nu = pca.transform(data_small)
     pdx = squareform(pdist(data_small_nu, metric="euclidean"))
@@ -598,8 +589,7 @@ def test_exact_graph_anisotropy():
 
 
 def test_shortest_path_affinity():
-    data_small = data[np.random.choice(
-        len(data), len(data) // 4, replace=False)]
+    data_small = data[np.random.choice(len(data), len(data) // 4, replace=False)]
     G = build_graph(data_small, knn=5, decay=15)
     D = -1 * np.where(G.K != 0, np.log(np.where(G.K != 0, G.K, np.nan)), 0)
     P = shortest_path(D)
@@ -612,8 +602,7 @@ def test_shortest_path_affinity():
 
 
 def test_shortest_path_affinity_precomputed():
-    data_small = data[np.random.choice(
-        len(data), len(data) // 4, replace=False)]
+    data_small = data[np.random.choice(len(data), len(data) // 4, replace=False)]
     G = build_graph(data_small, knn=5, decay=15)
     G = graphtools.Graph(G.K, precomputed="affinity")
     D = -1 * np.where(G.K != 0, np.log(np.where(G.K != 0, G.K, np.nan)), 0)
@@ -631,8 +620,7 @@ def test_shortest_path_decay_constant():
         NotImplementedError,
         "Graph shortest path with constant distance only implemented for unweighted graphs. For weighted graphs, use `distance='affinity'`.",
     ):
-        data_small = data[np.random.choice(
-            len(data), len(data) // 4, replace=False)]
+        data_small = data[np.random.choice(len(data), len(data) // 4, replace=False)]
         G = build_graph(data_small, knn=5, decay=15)
         G.shortest_path(distance="constant")
 
@@ -642,8 +630,7 @@ def test_shortest_path_precomputed_decay_constant():
         NotImplementedError,
         "Graph shortest path with constant distance only implemented for unweighted graphs. For weighted graphs, use `distance='affinity'`.",
     ):
-        data_small = data[np.random.choice(
-            len(data), len(data) // 4, replace=False)]
+        data_small = data[np.random.choice(len(data), len(data) // 4, replace=False)]
         G = build_graph(data_small, knn=5, decay=15)
         G = graphtools.Graph(G.K, precomputed="affinity")
         G.shortest_path(distance="constant")
@@ -654,8 +641,7 @@ def test_shortest_path_decay_data():
         NotImplementedError,
         "Graph shortest path with constant or data distance only implemented for unweighted graphs. For weighted graphs, use `distance='affinity'`.",
     ):
-        data_small = data[np.random.choice(
-            len(data), len(data) // 4, replace=False)]
+        data_small = data[np.random.choice(len(data), len(data) // 4, replace=False)]
         G = build_graph(data_small, knn=5, decay=15)
         G.shortest_path(distance="data")
 
@@ -665,8 +651,7 @@ def test_shortest_path_precomputed_data():
         ValueError,
         "Graph shortest path with data distance not valid for precomputed graphs. For precomputed graphs, use `distance='constant'` for unweighted graphs and `distance='affinity'` for weighted graphs.",
     ):
-        data_small = data[np.random.choice(
-            len(data), len(data) // 4, replace=False)]
+        data_small = data[np.random.choice(len(data), len(data) // 4, replace=False)]
         G = build_graph(data_small, knn=5, decay=15)
         G = graphtools.Graph(G.K, precomputed="affinity")
         G.shortest_path(distance="data")
@@ -726,8 +711,7 @@ def test_exact_interpolate():
 
 def test_precomputed_interpolate():
     with assert_raises_message(ValueError, "Cannot extend kernel on precomputed graph"):
-        G = build_graph(squareform(pdist(data)),
-                        n_pca=None, precomputed="distance")
+        G = build_graph(squareform(pdist(data)), n_pca=None, precomputed="distance")
         G.build_kernel_to_data(data)
 
 

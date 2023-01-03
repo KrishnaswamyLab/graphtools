@@ -1,7 +1,7 @@
+from setuptools import setup
+
 import os
 import sys
-
-from setuptools import setup
 
 install_requires = [
     "numpy>=1.14.0",
@@ -34,10 +34,8 @@ if sys.version_info[:2] < (3, 5):
 elif sys.version_info[:2] >= (3, 6):
     test_requires += ["black"]
 
-version_py = os.path.join(os.path.dirname(
-    __file__), "graphtools", "version.py")
-version = open(version_py).read().strip().split(
-    "=")[-1].replace('"', "").strip()
+version_py = os.path.join(os.path.dirname(__file__), "graphtools", "version.py")
+version = open(version_py).read().strip().split("=")[-1].replace('"', "").strip()
 
 readme = open("README.rst").read()
 

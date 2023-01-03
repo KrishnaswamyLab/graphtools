@@ -1,17 +1,20 @@
-import re
-import warnings
+from nose.tools import assert_raises_regex
+from nose.tools import assert_warns_regex
+from scipy.spatial.distance import cdist
+from scipy.spatial.distance import pdist
+from scipy.spatial.distance import squareform
+from sklearn import datasets
+from sklearn.decomposition import PCA
+from sklearn.decomposition import TruncatedSVD
 
+import graphtools
 import nose2
 import numpy as np
 import pandas as pd
 import pygsp
+import re
 import scipy.sparse as sp
-from nose.tools import assert_raises_regex, assert_warns_regex
-from scipy.spatial.distance import cdist, pdist, squareform
-from sklearn import datasets
-from sklearn.decomposition import PCA, TruncatedSVD
-
-import graphtools
+import warnings
 
 
 def assert_warns_message(expected_warning, expected_message, *args, **kwargs):

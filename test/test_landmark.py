@@ -1,17 +1,16 @@
 from __future__ import print_function
 
+from load_tests import assert_raises_message
+from load_tests import assert_warns_message
+from load_tests import build_graph
+from load_tests import data
+from load_tests import digits
+from load_tests import generate_swiss_roll
+from load_tests import graphtools
+from load_tests import nose2
+from load_tests import np
+
 import pygsp
-from load_tests import (
-    assert_raises_message,
-    assert_warns_message,
-    build_graph,
-    data,
-    digits,
-    generate_swiss_roll,
-    graphtools,
-    nose2,
-    np,
-)
 
 #####################################################
 # Check parameters

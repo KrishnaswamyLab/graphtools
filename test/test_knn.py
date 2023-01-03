@@ -1,23 +1,24 @@
-from __future__ import division, print_function
+from __future__ import division
+from __future__ import print_function
+
+from load_tests import assert_raises_message
+from load_tests import assert_warns_message
+from load_tests import build_graph
+from load_tests import data
+from load_tests import datasets
+from load_tests import graphtools
+from load_tests import np
+from load_tests import PCA
+from load_tests import pygsp
+from load_tests import sp
+from load_tests import TruncatedSVD
+from nose.tools import assert_raises_regex
+from nose.tools import assert_warns_regex
+from scipy.spatial.distance import pdist
+from scipy.spatial.distance import squareform
+from sklearn.utils.graph import graph_shortest_path
 
 import warnings
-
-from load_tests import (
-    PCA,
-    TruncatedSVD,
-    assert_raises_message,
-    assert_warns_message,
-    build_graph,
-    data,
-    datasets,
-    graphtools,
-    np,
-    pygsp,
-    sp,
-)
-from nose.tools import assert_raises_regex, assert_warns_regex
-from scipy.spatial.distance import pdist, squareform
-from sklearn.utils.graph import graph_shortest_path
 
 #####################################################
 # Check parameters
@@ -53,8 +54,7 @@ def test_duplicate_data():
         RuntimeWarning,
         r"Detected zero distance between samples ([0-9and,\s]*). Consider removing duplicates to avoid errors in downstream processing.",
     ):
-        build_graph(np.vstack([data, data[:9]]),
-                    n_pca=20, decay=10, thresh=1e-4)
+        build_graph(np.vstack([data, data[:9]]), n_pca=20, decay=10, thresh=1e-4)
 
 
 def test_duplicate_data_many():
@@ -62,8 +62,7 @@ def test_duplicate_data_many():
         RuntimeWarning,
         "Detected zero distance between ([0-9]*) pairs of samples. Consider removing duplicates to avoid errors in downstream processing.",
     ):
-        build_graph(np.vstack([data, data[:21]]),
-                    n_pca=20, decay=10, thresh=1e-4)
+        build_graph(np.vstack([data, data[:21]]), n_pca=20, decay=10, thresh=1e-4)
 
 
 def test_balltree_cosine():
@@ -103,8 +102,7 @@ def test_knn_no_knn_no_bandwidth():
     with assert_raises_message(
         ValueError, "Either `knn` or `bandwidth` must be provided."
     ):
-        build_graph(data, graphtype="knn", knn=None,
-                    bandwidth=None, thresh=1e-4)
+        build_graph(data, graphtype="knn", knn=None, bandwidth=None, thresh=1e-4)
 
 
 def test_knn_graph_invalid_symm():
@@ -112,8 +110,7 @@ def test_knn_graph_invalid_symm():
         ValueError,
         "kernel_symm 'invalid' not recognized. Choose from '+', '*', 'mnn', or 'none'.",
     ):
-        build_graph(data, graphtype="knn", knn=5,
-                    thresh=1e-4, kernel_symm="invalid")
+        build_graph(data, graphtype="knn", knn=5, thresh=1e-4, kernel_symm="invalid")
 
 
 #####################################################
@@ -267,8 +264,7 @@ def test_knnmax():
     thresh = 0
 
     with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore", "K should be symmetric", RuntimeWarning)
+        warnings.filterwarnings("ignore", "K should be symmetric", RuntimeWarning)
         G = build_graph(
             data,
             n_pca=None,  # n_pca,
@@ -431,8 +427,7 @@ def test_knn_graph_anisotropy():
     n_pca = 20
     anisotropy = 0.9
     thresh = 1e-4
-    data_small = data[np.random.choice(
-        len(data), len(data) // 2, replace=False)]
+    data_small = data[np.random.choice(len(data), len(data) // 2, replace=False)]
     pca = PCA(n_pca, svd_solver="randomized", random_state=42).fit(data_small)
     data_small_nu = pca.transform(data_small)
     pdx = squareform(pdist(data_small_nu, metric="euclidean"))
@@ -507,8 +502,7 @@ def test_knn_interpolate():
 def test_knn_interpolate_wrong_shape():
     G = build_graph(data, n_pca=10, decay=None)
     with assert_raises_message(
-        ValueError, "Expected a 2D matrix. Y has shape ({},)".format(
-            data.shape[0])
+        ValueError, "Expected a 2D matrix. Y has shape ({},)".format(data.shape[0])
     ):
         G.extend_to_data(data[:, 0])
     with assert_raises_message(
@@ -533,8 +527,7 @@ def test_knn_interpolate_wrong_shape():
 
 
 def test_shortest_path_constant():
-    data_small = data[np.random.choice(
-        len(data), len(data) // 4, replace=False)]
+    data_small = data[np.random.choice(len(data), len(data) // 4, replace=False)]
     G = build_graph(data_small, knn=5, decay=None)
     P = graph_shortest_path(G.K)
     # sklearn returns 0 if no path exists
@@ -545,8 +538,7 @@ def test_shortest_path_constant():
 
 
 def test_shortest_path_precomputed_constant():
-    data_small = data[np.random.choice(
-        len(data), len(data) // 4, replace=False)]
+    data_small = data[np.random.choice(len(data), len(data) // 4, replace=False)]
     G = build_graph(data_small, knn=5, decay=None)
     G = graphtools.Graph(G.K, precomputed="affinity")
     P = graph_shortest_path(G.K)
@@ -559,8 +551,7 @@ def test_shortest_path_precomputed_constant():
 
 
 def test_shortest_path_data():
-    data_small = data[np.random.choice(
-        len(data), len(data) // 4, replace=False)]
+    data_small = data[np.random.choice(len(data), len(data) // 4, replace=False)]
     G = build_graph(data_small, knn=5, decay=None)
     D = squareform(pdist(G.data_nu)) * np.where(G.K.toarray() > 0, 1, 0)
     P = graph_shortest_path(D)
@@ -577,8 +568,7 @@ def test_shortest_path_no_decay_affinity():
         ValueError,
         "Graph shortest path with affinity distance only valid for weighted graphs. For unweighted graphs, use `distance='constant'` or `distance='data'`.",
     ):
-        data_small = data[np.random.choice(
-            len(data), len(data) // 4, replace=False)]
+        data_small = data[np.random.choice(len(data), len(data) // 4, replace=False)]
         G = build_graph(data_small, knn=5, decay=None)
         G.shortest_path(distance="affinity")
 
@@ -588,8 +578,7 @@ def test_shortest_path_precomputed_no_decay_affinity():
         ValueError,
         "Graph shortest path with affinity distance only valid for weighted graphs. For unweighted graphs, use `distance='constant'` or `distance='data'`.",
     ):
-        data_small = data[np.random.choice(
-            len(data), len(data) // 4, replace=False)]
+        data_small = data[np.random.choice(len(data), len(data) // 4, replace=False)]
         G = build_graph(data_small, knn=5, decay=None)
         G = graphtools.Graph(G.K, precomputed="affinity")
         G.shortest_path(distance="affinity")
@@ -600,8 +589,7 @@ def test_shortest_path_precomputed_no_decay_data():
         ValueError,
         "Graph shortest path with data distance not valid for precomputed graphs. For precomputed graphs, use `distance='constant'` for unweighted graphs and `distance='affinity'` for weighted graphs.",
     ):
-        data_small = data[np.random.choice(
-            len(data), len(data) // 4, replace=False)]
+        data_small = data[np.random.choice(len(data), len(data) // 4, replace=False)]
         G = build_graph(data_small, knn=5, decay=None)
         G = graphtools.Graph(G.K, precomputed="affinity")
         G.shortest_path(distance="data")
@@ -612,8 +600,7 @@ def test_shortest_path_invalid():
         ValueError,
         "Expected `distance` in ['constant', 'data', 'affinity']. Got invalid",
     ):
-        data_small = data[np.random.choice(
-            len(data), len(data) // 4, replace=False)]
+        data_small = data[np.random.choice(len(data), len(data) // 4, replace=False)]
         G = build_graph(data_small, knn=5, decay=None)
         G.shortest_path(distance="invalid")
 

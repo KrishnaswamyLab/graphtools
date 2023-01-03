@@ -1,12 +1,15 @@
-import abc
+from . import api
+from . import base
+from . import graphs
+from . import matrix
+from . import utils
 from functools import partial
+from scipy import sparse
 
+import abc
 import numpy as np
 import pygsp
 import tasklogger
-from scipy import sparse
-
-from . import api, base, graphs, matrix, utils
 
 
 def attribute(attr, default=None, doc=None, on_set=None):
@@ -108,13 +111,11 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
     n_pca = attribute(
         "n_pca",
         default=100,
-        on_set=partial(utils.check_if_not, None,
-                       utils.check_positive, utils.check_int),
+        on_set=partial(utils.check_if_not, None, utils.check_positive, utils.check_int),
     )
     random_state = attribute("random_state")
 
-    knn = attribute("knn", default=5, on_set=[
-                    utils.check_positive, utils.check_int])
+    knn = attribute("knn", default=5, on_set=[utils.check_positive, utils.check_int])
     decay = attribute("decay", default=40, on_set=utils.check_positive)
     distance = attribute(
         "distance",
@@ -155,8 +156,7 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
     n_svd = attribute(
         "n_svd",
         default=100,
-        on_set=partial(utils.check_if_not, None,
-                       utils.check_positive, utils.check_int),
+        on_set=partial(utils.check_if_not, None, utils.check_positive, utils.check_int),
     )
     n_jobs = attribute(
         "n_jobs", on_set=partial(utils.check_if_not, None, utils.check_int)
@@ -182,8 +182,7 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
         if self.graph is not None:
             n_landmark = self._parse_n_landmark(self.graph.data_nu, n_landmark)
             if (
-                n_landmark is None and isinstance(
-                    self.graph, graphs.LandmarkGraph)
+                n_landmark is None and isinstance(self.graph, graphs.LandmarkGraph)
             ) or (
                 n_landmark is not None
                 and not isinstance(self.graph, graphs.LandmarkGraph)
@@ -365,8 +364,7 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
                 **(self.kwargs),
             )
             if self.graph is not None:
-                _logger.info(
-                    "Using precomputed graph and diffusion operator...")
+                _logger.info("Using precomputed graph and diffusion operator...")
 
     def fit(self, X, **kwargs):
         """Computes the graph

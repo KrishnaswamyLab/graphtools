@@ -1,22 +1,20 @@
 from __future__ import print_function
 
+from load_tests import assert_raises_message
+from load_tests import assert_warns_message
+from load_tests import build_graph
+from load_tests import data
+from load_tests import graphtools
+from load_tests import nose2
+from load_tests import np
+from load_tests import pd
+from load_tests import pdist
+from load_tests import sp
+from load_tests import squareform
+from nose.tools import assert_raises_regex
+
 import numbers
 import warnings
-
-from load_tests import (
-    assert_raises_message,
-    assert_warns_message,
-    build_graph,
-    data,
-    graphtools,
-    nose2,
-    np,
-    pd,
-    pdist,
-    sp,
-    squareform,
-)
-from nose.tools import assert_raises_regex
 
 try:
     import anndata
@@ -35,8 +33,7 @@ except (ImportError, SyntaxError):
 def test_1d_data():
     with assert_raises_message(
         ValueError,
-        "Expected 2D array, got 1D array instead (shape: ({},).)".format(
-            data.shape[0]),
+        "Expected 2D array, got 1D array instead (shape: ({},).)".format(data.shape[0]),
     ):
         build_graph(data[:, 0])
     with assert_raises_message(
@@ -340,8 +337,7 @@ def test_transform_sparse_no_pca():
 
 def test_inverse_transform_dense_pca():
     G = build_graph(data, n_pca=data.shape[1] - 1)
-    np.testing.assert_allclose(
-        G.data, G.inverse_transform(G.data_nu), atol=1e-12)
+    np.testing.assert_allclose(G.data, G.inverse_transform(G.data_nu), atol=1e-12)
     np.testing.assert_allclose(
         G.data[:, -1, None], G.inverse_transform(G.data_nu, columns=-1), atol=1e-12
     )
@@ -350,8 +346,7 @@ def test_inverse_transform_dense_pca():
     )
     with assert_raises_message(
         IndexError,
-        "index {0} is out of bounds for axis 1 with size {0}".format(
-            G.data.shape[1]),
+        "index {0} is out of bounds for axis 1 with size {0}".format(G.data.shape[1]),
     ):
         G.inverse_transform(G.data_nu, columns=data.shape[1])
     with assert_raises_message(
@@ -379,8 +374,7 @@ def test_inverse_transform_dense_pca():
 
 def test_inverse_transform_sparse_svd():
     G = build_graph(data, sparse=True, n_pca=data.shape[1] - 1)
-    np.testing.assert_allclose(
-        data, G.inverse_transform(G.data_nu), atol=1e-12)
+    np.testing.assert_allclose(data, G.inverse_transform(G.data_nu), atol=1e-12)
     np.testing.assert_allclose(
         data[:, -1, None], G.inverse_transform(G.data_nu, columns=-1), atol=1e-12
     )
@@ -495,8 +489,7 @@ def test_transform_adaptive_pca():
     ):
         G.transform(G.data[:, :15])
 
-    G2 = build_graph(data, n_pca=True,
-                     rank_threshold=G.rank_threshold, random_state=42)
+    G2 = build_graph(data, n_pca=True, rank_threshold=G.rank_threshold, random_state=42)
     assert np.allclose(G2.data_nu, G2.transform(G2.data))
     assert np.allclose(G2.data_nu, G.transform(G.data))
 

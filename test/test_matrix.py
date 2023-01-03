@@ -1,11 +1,12 @@
-import numpy as np
-from load_tests import assert_warns_message, data
+from load_tests import assert_warns_message
+from load_tests import data
 from parameterized import parameterized
 from scipy import sparse
 
 import graphtools
 import graphtools.matrix
 import graphtools.utils
+import numpy as np
 
 
 @parameterized(
@@ -120,8 +121,7 @@ def test_set_submatrix_deprecated():
         "Call to deprecated function (or staticmethod) set_submatrix. (Use graphtools.matrix.set_submatrix instead) -- Deprecated since version 1.5.0.",
     ):
         graphtools.utils.set_submatrix(
-            sparse.lil_matrix((4, 4)), [1, 2], [
-                0, 1], np.array([[1, 2], [3, 4]])
+            sparse.lil_matrix((4, 4)), [1, 2], [0, 1], np.array([[1, 2], [3, 4]])
         )
 
 
@@ -130,8 +130,7 @@ def test_sparse_nonzero_discrete_deprecated():
         DeprecationWarning,
         "Call to deprecated function (or staticmethod) sparse_nonzero_discrete. (Use graphtools.matrix.sparse_nonzero_discrete instead) -- Deprecated since version 1.5.0.",
     ):
-        graphtools.utils.sparse_nonzero_discrete(
-            sparse.csr_matrix((4, 4)), [1])
+        graphtools.utils.sparse_nonzero_discrete(sparse.csr_matrix((4, 4)), [1])
 
 
 def test_dense_nonzero_discrete_deprecated():

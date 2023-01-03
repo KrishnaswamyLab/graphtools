@@ -1,14 +1,16 @@
 from __future__ import print_function
 
+from load_tests import assert_raises_message
+from load_tests import assert_warns_message
+from load_tests import build_graph
+from load_tests import data
+
+import graphtools
+import igraph
+import numpy as np
 import os
 import pickle
 import tempfile
-
-import igraph
-import numpy as np
-from load_tests import assert_raises_message, assert_warns_message, build_graph, data
-
-import graphtools
 
 
 def test_from_igraph():

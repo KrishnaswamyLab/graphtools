@@ -1,22 +1,20 @@
 from __future__ import print_function
 
-import warnings
-
-from load_tests import (
-    assert_raises_message,
-    assert_warns_message,
-    build_graph,
-    cdist,
-    data,
-    digits,
-    generate_swiss_roll,
-    graphtools,
-    nose2,
-    np,
-    pd,
-    pygsp,
-)
+from load_tests import assert_raises_message
+from load_tests import assert_warns_message
+from load_tests import build_graph
+from load_tests import cdist
+from load_tests import data
+from load_tests import digits
+from load_tests import generate_swiss_roll
+from load_tests import graphtools
+from load_tests import nose2
+from load_tests import np
+from load_tests import pd
+from load_tests import pygsp
 from scipy.linalg import norm
+
+import warnings
 
 #####################################################
 # Check parameters
@@ -28,15 +26,13 @@ def test_sample_idx_and_precomputed():
         ValueError,
         "MNNGraph does not support precomputed values. Use `graphtype='exact'` and `sample_idx=None` or `precomputed=None`",
     ):
-        build_graph(data, n_pca=None, sample_idx=np.arange(
-            10), precomputed="distance")
+        build_graph(data, n_pca=None, sample_idx=np.arange(10), precomputed="distance")
 
 
 def test_sample_idx_wrong_length():
     with assert_raises_message(
         ValueError,
-        "sample_idx (10) must be the same length as data ({})".format(
-            data.shape[0]),
+        "sample_idx (10) must be the same length as data ({})".format(data.shape[0]),
     ):
         build_graph(data, graphtype="mnn", sample_idx=np.arange(10))
 
@@ -46,8 +42,7 @@ def test_sample_idx_unique():
         ValueError, "sample_idx must contain more than one unique value"
     ):
         build_graph(
-            data, graph_class=graphtools.graphs.MNNGraph, sample_idx=np.ones(
-                len(data))
+            data, graph_class=graphtools.graphs.MNNGraph, sample_idx=np.ones(len(data))
         )
     with assert_warns_message(
         UserWarning, "Only one unique sample. Not using MNNGraph"
@@ -360,8 +355,7 @@ def test_mnn_graph_no_decay():
             e_ij = kdx_ij[:, batch_k - 1]  # dist to kNN
             k_ij = np.where(pdx_ij <= e_ij[:, None], 1, 0)  # apply knn kernel
             if si == sj:
-                K.iloc[sample_idx == si, sample_idx == sj] = (
-                    k_ij + k_ij.T) / 2
+                K.iloc[sample_idx == si, sample_idx == sj] = (k_ij + k_ij.T) / 2
             else:
                 # fill out values in K for NN on diagonal
                 K.iloc[sample_idx == si, sample_idx == sj] = k_ij
@@ -382,8 +376,7 @@ def test_mnn_graph_no_decay():
                 )
 
     K = Kn
-    W = np.array((theta * np.minimum(K, K.T)) +
-                 ((1 - theta) * np.maximum(K, K.T)))
+    W = np.array((theta * np.minimum(K, K.T)) + ((1 - theta) * np.maximum(K, K.T)))
     np.fill_diagonal(W, 0)
     G = pygsp.graphs.Graph(W)
     G2 = graphtools.Graph(
@@ -428,8 +421,7 @@ def test_mnn_graph_decay():
             pdxe_ij = pdx_ij / e_ij[:, np.newaxis]  # normalize
             k_ij = np.exp(-1 * (pdxe_ij**a))  # apply alpha-decaying kernel
             if si == sj:
-                K.iloc[sample_idx == si, sample_idx == sj] = (
-                    k_ij + k_ij.T) / 2
+                K.iloc[sample_idx == si, sample_idx == sj] = (k_ij + k_ij.T) / 2
             else:
                 # fill out values in K for NN on diagonal
                 K.iloc[sample_idx == si, sample_idx == sj] = k_ij
@@ -450,8 +442,7 @@ def test_mnn_graph_decay():
                 )
 
     K = Kn
-    W = np.array((theta * np.minimum(K, K.T)) +
-                 ((1 - theta) * np.maximum(K, K.T)))
+    W = np.array((theta * np.minimum(K, K.T)) + ((1 - theta) * np.maximum(K, K.T)))
     np.fill_diagonal(W, 0)
     G = pygsp.graphs.Graph(W)
     G2 = graphtools.Graph(
