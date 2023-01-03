@@ -67,6 +67,7 @@ def test_landmark_exact_graph():
 
 
 def test_landmark_knn_graph():
+    np.random.seed(42)
     n_landmark = 500
     # knn graph
     G = build_graph(
