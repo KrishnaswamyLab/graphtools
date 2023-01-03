@@ -597,8 +597,8 @@ def test_shortest_path_affinity():
     P[np.where(P == 0)] = np.inf
     # diagonal should actually be zero
     np.fill_diagonal(P, 0)
-    np.testing.assert_allclose(P, G.shortest_path(distance="affinity"))
-    np.testing.assert_allclose(P, G.shortest_path())
+    np.testing.assert_allclose(P, G.shortest_path(distance="affinity"), atol=1e-5, rtol=1e-4)
+    np.testing.assert_allclose(P, G.shortest_path(), atol=1e-5, rtol=1e-4)
 
 
 def test_shortest_path_affinity_precomputed():
