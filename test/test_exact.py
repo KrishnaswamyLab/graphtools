@@ -589,6 +589,7 @@ def test_exact_graph_anisotropy():
 
 
 def test_shortest_path_affinity():
+    np.random.seed(42)
     data_small = data[np.random.choice(len(data), len(data) // 4, replace=False)]
     G = build_graph(data_small, knn=5, decay=15)
     D = -1 * np.where(G.K != 0, np.log(np.where(G.K != 0, G.K, np.nan)), 0)
@@ -604,6 +605,7 @@ def test_shortest_path_affinity():
 
 
 def test_shortest_path_affinity_precomputed():
+    np.random.seed(42)
     data_small = data[np.random.choice(len(data), len(data) // 4, replace=False)]
     G = build_graph(data_small, knn=5, decay=15)
     G = graphtools.Graph(G.K, precomputed="affinity")
