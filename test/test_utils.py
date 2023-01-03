@@ -1,5 +1,6 @@
-import graphtools
 from load_tests import assert_raises_message
+
+import graphtools
 
 
 def test_check_in():
@@ -28,7 +29,8 @@ def test_check_positive():
 def test_check_if_not():
     graphtools.utils.check_if_not(-5, graphtools.utils.check_positive, foo=-5)
     with assert_raises_message(ValueError, "Expected foo > 0, got -5"):
-        graphtools.utils.check_if_not(-4, graphtools.utils.check_positive, foo=-5)
+        graphtools.utils.check_if_not(-4,
+                                      graphtools.utils.check_positive, foo=-5)
 
 
 def test_check_between():

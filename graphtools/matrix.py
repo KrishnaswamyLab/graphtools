@@ -1,6 +1,6 @@
-import numpy as np
 import numbers
 
+import numpy as np
 from scipy import sparse
 
 
@@ -53,7 +53,8 @@ def set_submatrix(X, i, j, values):
 
 def sparse_nonzero_discrete(X, values):
     if isinstance(
-        X, (sparse.bsr_matrix, sparse.dia_matrix, sparse.dok_matrix, sparse.lil_matrix)
+        X, (sparse.bsr_matrix, sparse.dia_matrix,
+            sparse.dok_matrix, sparse.lil_matrix)
     ):
         X = X.tocsr()
     return dense_nonzero_discrete(X.data, values)

@@ -1,6 +1,8 @@
 import numbers
 import warnings
+
 from deprecated import deprecated
+
 from . import matrix
 
 try:
@@ -65,7 +67,8 @@ def check_greater(x, **params):
     """
     for p in params:
         if not isinstance(params[p], numbers.Number) or params[p] <= x:
-            raise ValueError("Expected {} > {}, got {}".format(p, x, params[p]))
+            raise ValueError(
+                "Expected {} > {}, got {}".format(p, x, params[p]))
 
 
 def check_positive(**params):
@@ -87,7 +90,8 @@ def check_int(**params):
     """
     for p in params:
         if not isinstance(params[p], numbers.Integral):
-            raise ValueError("Expected {} integer, got {}".format(p, params[p]))
+            raise ValueError(
+                "Expected {} integer, got {}".format(p, params[p]))
 
 
 def check_if_not(x, *checks, **params):

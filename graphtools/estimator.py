@@ -1,12 +1,12 @@
-import numpy as np
-import tasklogger
-import pygsp
 import abc
-
 from functools import partial
+
+import numpy as np
+import pygsp
+import tasklogger
 from scipy import sparse
 
-from . import api, graphs, base, utils, matrix
+from . import api, base, graphs, matrix, utils
 
 
 def attribute(attr, default=None, doc=None, on_set=None):
@@ -81,18 +81,18 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
 
     verbose : `int` or `boolean`, optional (default: 1)
         If `True` or `> 0`, print status messages
-        
+
     n_svd : int, optional (default: 100)
         number of singular vectors to compute for landmarking
-    
+
     thresh : float, optional (default: 1e-4)
         threshold below which to truncate kernel
-    
+
     kwargs : additional arguments for graphtools.Graph
-    
+
     Attributes
     ----------
-    
+
     graph : graphtools.Graph
     """
 
@@ -108,11 +108,13 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
     n_pca = attribute(
         "n_pca",
         default=100,
-        on_set=partial(utils.check_if_not, None, utils.check_positive, utils.check_int),
+        on_set=partial(utils.check_if_not, None,
+                       utils.check_positive, utils.check_int),
     )
     random_state = attribute("random_state")
 
-    knn = attribute("knn", default=5, on_set=[utils.check_positive, utils.check_int])
+    knn = attribute("knn", default=5, on_set=[
+                    utils.check_positive, utils.check_int])
     decay = attribute("decay", default=40, on_set=utils.check_positive)
     distance = attribute(
         "distance",
@@ -153,7 +155,8 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
     n_svd = attribute(
         "n_svd",
         default=100,
-        on_set=partial(utils.check_if_not, None, utils.check_positive, utils.check_int),
+        on_set=partial(utils.check_if_not, None,
+                       utils.check_positive, utils.check_int),
     )
     n_jobs = attribute(
         "n_jobs", on_set=partial(utils.check_if_not, None, utils.check_int)
@@ -179,7 +182,8 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
         if self.graph is not None:
             n_landmark = self._parse_n_landmark(self.graph.data_nu, n_landmark)
             if (
-                n_landmark is None and isinstance(self.graph, graphs.LandmarkGraph)
+                n_landmark is None and isinstance(
+                    self.graph, graphs.LandmarkGraph)
             ) or (
                 n_landmark is not None
                 and not isinstance(self.graph, graphs.LandmarkGraph)
@@ -203,7 +207,7 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
         n_jobs=1,
         verbose=1,
         thresh=1e-4,
-        **kwargs
+        **kwargs,
     ):
 
         if verbose is True:
@@ -254,7 +258,7 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def _reset_graph(self):
         """Trigger a reset of self.graph
-        
+
         Any downstream effects of resetting the graph should override this function
         """
         raise NotImplementedError
@@ -358,10 +362,11 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
                 n_jobs=self.n_jobs,
                 thresh=self.thresh,
                 verbose=self.verbose,
-                **(self.kwargs)
+                **(self.kwargs),
             )
             if self.graph is not None:
-                _logger.info("Using precomputed graph and diffusion operator...")
+                _logger.info(
+                    "Using precomputed graph and diffusion operator...")
 
     def fit(self, X, **kwargs):
         """Computes the graph
@@ -417,6 +422,6 @@ class GraphEstimator(object, metaclass=abc.ABCMeta):
                     thresh=self.thresh,
                     verbose=self.verbose,
                     **(self.kwargs),
-                    **kwargs
+                    **kwargs,
                 )
         return self

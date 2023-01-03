@@ -67,7 +67,8 @@ author = "Scott Gigante and Jay Stanley, Yale University"
 #
 version_py = os.path.join(root_dir, "graphtools", "version.py")
 # The full version, including alpha/beta/rc tags.
-release = open(version_py).read().strip().split("=")[-1].replace('"', "").strip()
+release = open(version_py).read().strip().split(
+    "=")[-1].replace('"', "").strip()
 # The short X.Y version.
 version = release.split("-")[0]
 
@@ -150,7 +151,8 @@ latex_documents = [
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
-man_pages = [(master_doc, "graphtools", "graphtools Documentation", [author], 1)]
+man_pages = [(master_doc, "graphtools",
+              "graphtools Documentation", [author], 1)]
 
 
 # -- Options for Texinfo output -------------------------------------------

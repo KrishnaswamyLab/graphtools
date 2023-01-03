@@ -1,12 +1,14 @@
+import warnings
+
+import anndata
+import numpy as np
+import pygsp
+from load_tests import assert_raises_message, data
+from parameterized import parameterized
+from scipy import sparse
+
 import graphtools
 import graphtools.estimator
-import pygsp
-import anndata
-import warnings
-import numpy as np
-from load_tests import data, assert_raises_message
-from scipy import sparse
-from parameterized import parameterized
 
 
 class Estimator(graphtools.estimator.GraphEstimator):
@@ -53,7 +55,8 @@ def test_estimator():
 def test_precomputed(distance, X, precomputed):
     E = Estimator(verbose=False, distance=distance)
     with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", message="K should have a non-zero diagonal")
+        warnings.filterwarnings(
+            "ignore", message="K should have a non-zero diagonal")
         E.fit(X)
     assert isinstance(E.graph, graphtools.graphs.TraditionalGraph)
     assert E.graph.precomputed == precomputed

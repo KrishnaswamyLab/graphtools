@@ -1,16 +1,17 @@
-from sklearn.decomposition import PCA, TruncatedSVD
-from sklearn import datasets
-from scipy.spatial.distance import pdist, cdist, squareform
-import pygsp
-import graphtools
-import numpy as np
-import scipy.sparse as sp
+import re
 import warnings
-import pandas as pd
 
 import nose2
+import numpy as np
+import pandas as pd
+import pygsp
+import scipy.sparse as sp
 from nose.tools import assert_raises_regex, assert_warns_regex
-import re
+from scipy.spatial.distance import cdist, pdist, squareform
+from sklearn import datasets
+from sklearn.decomposition import PCA, TruncatedSVD
+
+import graphtools
 
 
 def assert_warns_message(expected_warning, expected_message, *args, **kwargs):
@@ -110,7 +111,7 @@ def build_graph(
     sparse=False,
     graph_class=graphtools.Graph,
     verbose=0,
-    **kwargs
+    **kwargs,
 ):
     if sparse:
         data = sp.coo_matrix(data)
@@ -122,5 +123,5 @@ def build_graph(
         knn=knn,
         random_state=42,
         verbose=verbose,
-        **kwargs
+        **kwargs,
     )

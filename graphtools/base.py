@@ -1,19 +1,20 @@
-from future.utils import with_metaclass
-from builtins import super
-from copy import copy as shallow_copy
-import numpy as np
 import abc
-import pygsp
-from inspect import signature
-from sklearn.decomposition import PCA, TruncatedSVD
-from sklearn.preprocessing import normalize
-from scipy.sparse.csgraph import shortest_path
-from scipy import sparse
-import warnings
 import numbers
 import pickle
 import sys
+import warnings
+from builtins import super
+from copy import copy as shallow_copy
+from inspect import signature
+
+import numpy as np
+import pygsp
 import tasklogger
+from future.utils import with_metaclass
+from scipy import sparse
+from scipy.sparse.csgraph import shortest_path
+from sklearn.decomposition import PCA, TruncatedSVD
+from sklearn.preprocessing import normalize
 
 from . import matrix, utils
 
@@ -113,7 +114,8 @@ class Data(Base):
     ):
 
         self._check_data(data)
-        n_pca, rank_threshold = self._parse_n_pca_threshold(data, n_pca, rank_threshold)
+        n_pca, rank_threshold = self._parse_n_pca_threshold(
+            data, n_pca, rank_threshold)
 
         if utils.is_SparseDataFrame(data):
             data = data.to_coo()
@@ -238,7 +240,8 @@ class Data(Base):
             self.n_pca == "auto" or self.n_pca < self.data.shape[1]
         ):
             with _logger.task("PCA"):
-                n_pca = self.data.shape[1] - 1 if self.n_pca == "auto" else self.n_pca
+                n_pca = self.data.shape[1] - \
+                    1 if self.n_pca == "auto" else self.n_pca
                 if sparse.issparse(self.data):
                     if (
                         isinstance(self.data, sparse.coo_matrix)
@@ -246,7 +249,8 @@ class Data(Base):
                         or isinstance(self.data, sparse.dok_matrix)
                     ):
                         self.data = self.data.tocsr()
-                    self.data_pca = TruncatedSVD(n_pca, random_state=self.random_state)
+                    self.data_pca = TruncatedSVD(
+                        n_pca, random_state=self.random_state)
                 else:
                     self.data_pca = PCA(
                         n_pca, svd_solver="randomized", random_state=self.random_state
@@ -257,7 +261,8 @@ class Data(Base):
                     smax = s.max()
                     if self.rank_threshold == "auto":
                         threshold = (
-                            smax * np.finfo(self.data.dtype).eps * max(self.data.shape)
+                            smax * np.finfo(self.data.dtype).eps *
+                            max(self.data.shape)
                         )
                         self.rank_threshold = threshold
                     threshold = self.rank_threshold
@@ -276,7 +281,8 @@ class Data(Base):
                     op = self.data_pca  # for line-width brevity..
                     op.components_ = op.components_[gate, :]
                     op.explained_variance_ = op.explained_variance_[gate]
-                    op.explained_variance_ratio_ = op.explained_variance_ratio_[gate]
+                    op.explained_variance_ratio_ = op.explained_variance_ratio_[
+                        gate]
                     op.singular_values_ = op.singular_values_[gate]
                     self.data_pca = (
                         op  # im not clear if this is needed due to assignment rules
@@ -286,14 +292,14 @@ class Data(Base):
         else:
             data_nu = self.data
             if sparse.issparse(data_nu) and not isinstance(
-                data_nu, (sparse.csr_matrix, sparse.csc_matrix, sparse.bsr_matrix)
+                data_nu, (sparse.csr_matrix,
+                          sparse.csc_matrix, sparse.bsr_matrix)
             ):
                 data_nu = data_nu.tocsr()
             return data_nu
 
     def get_params(self):
-        """Get parameters from this object
-        """
+        """Get parameters from this object"""
         return {"n_pca": self.n_pca, "random_state": self.random_state}
 
     def set_params(self, **params):
@@ -469,11 +475,12 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         anisotropy=0,
         gamma=None,
         initialize=True,
-        **kwargs
+        **kwargs,
     ):
         if gamma is not None:
             warnings.warn(
-                "gamma is deprecated. " "Setting theta={}".format(gamma), FutureWarning
+                "gamma is deprecated. " "Setting theta={}".format(
+                    gamma), FutureWarning
             )
             theta = gamma
         if kernel_symm == "gamma":
@@ -562,7 +569,8 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
             _logger.debug("Using multiplication symmetrization.")
             K = K.multiply(K.T)
         elif self.kernel_symm == "mnn":
-            _logger.debug("Using mnn symmetrization (theta = {}).".format(self.theta))
+            _logger.debug(
+                "Using mnn symmetrization (theta = {}).".format(self.theta))
             K = self.theta * matrix.elementwise_minimum(K, K.T) + (
                 1 - self.theta
             ) * matrix.elementwise_maximum(K, K.T)
@@ -589,8 +597,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         return K
 
     def get_params(self):
-        """Get parameters from this object
-        """
+        """Get parameters from this object"""
         return {
             "kernel_symm": self.kernel_symm,
             "theta": self.theta,
@@ -618,9 +625,11 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         if "theta" in params and params["theta"] != self.theta:
             raise ValueError("Cannot update theta. Please create a new graph")
         if "anisotropy" in params and params["anisotropy"] != self.anisotropy:
-            raise ValueError("Cannot update anisotropy. Please create a new graph")
+            raise ValueError(
+                "Cannot update anisotropy. Please create a new graph")
         if "kernel_symm" in params and params["kernel_symm"] != self.kernel_symm:
-            raise ValueError("Cannot update kernel_symm. Please create a new graph")
+            raise ValueError(
+                "Cannot update kernel_symm. Please create a new graph")
         super().set_params(**params)
         return self
 
@@ -697,8 +706,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
 
     @property
     def diff_op(self):
-        """Synonym for P
-        """
+        """Synonym for P"""
         return self.P
 
     @property
@@ -719,8 +727,7 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
 
     @property
     def kernel(self):
-        """Synonym for K
-        """
+        """Synonym for K"""
         return self.K
 
     @property
@@ -819,7 +826,8 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         """
         pickle_obj = shallow_copy(self)
         is_oldpygsp = all(
-            [isinstance(self, pygsp.graphs.Graph), int(sys.version.split(".")[1]) < 7]
+            [isinstance(self, pygsp.graphs.Graph), int(
+                sys.version.split(".")[1]) < 7]
         )
         if is_oldpygsp:
             pickle_obj.logger = pickle_obj.logger.name
@@ -892,7 +900,8 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         elif distance == "data":
             D = sparse.coo_matrix(self.K)
             D.data = np.sqrt(
-                np.sum((self.data_nu[D.row] - self.data_nu[D.col]) ** 2, axis=1)
+                np.sum((self.data_nu[D.row] -
+                        self.data_nu[D.col]) ** 2, axis=1)
             )
         elif distance == "affinity":
             D = sparse.csr_matrix(self.K)
@@ -1019,8 +1028,7 @@ class DataGraph(with_metaclass(abc.ABCMeta, Data, BaseGraph)):
         super().__init__(data, **kwargs)
 
     def get_params(self):
-        """Get parameters from this object
-        """
+        """Get parameters from this object"""
         params = Data.get_params(self)
         params.update(BaseGraph.get_params(self))
         return params
@@ -1071,7 +1079,8 @@ class DataGraph(with_metaclass(abc.ABCMeta, Data, BaseGraph)):
         `self.n_pca`.
         """
         if len(Y.shape) != 2:
-            raise ValueError("Expected a 2D matrix. Y has shape {}".format(Y.shape))
+            raise ValueError(
+                "Expected a 2D matrix. Y has shape {}".format(Y.shape))
         if not Y.shape[1] == self.data_nu.shape[1]:
             # try PCA transform
             if Y.shape[1] == self.data.shape[1]:
@@ -1085,7 +1094,8 @@ class DataGraph(with_metaclass(abc.ABCMeta, Data, BaseGraph)):
                     )
                 else:
                     # no PCA, only one choice of shape
-                    msg = "Y must be of shape (n, {})".format(self.data.shape[1])
+                    msg = "Y must be of shape (n, {})".format(
+                        self.data.shape[1])
                 raise ValueError(msg)
         return Y
 
@@ -1148,7 +1158,8 @@ class DataGraph(with_metaclass(abc.ABCMeta, Data, BaseGraph)):
         """
         if transitions is None:
             if Y is None:
-                raise ValueError("Either `transitions` or `Y` must be provided.")
+                raise ValueError(
+                    "Either `transitions` or `Y` must be provided.")
             else:
                 transitions = self.extend_to_data(Y)
         Y_transform = transitions.dot(transform)

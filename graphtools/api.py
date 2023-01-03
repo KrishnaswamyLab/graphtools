@@ -1,9 +1,10 @@
-import numpy as np
-import warnings
-from scipy import sparse
 import pickle
+import warnings
+
+import numpy as np
 import pygsp
 import tasklogger
+from scipy import sparse
 
 from . import base, graphs
 
@@ -36,7 +37,7 @@ def Graph(
     graphtype="auto",
     use_pygsp=False,
     initialize=True,
-    **kwargs
+    **kwargs,
 ):
     """Create a graph built on data.
 
@@ -341,7 +342,8 @@ def read_pickle(path):
         G = pickle.load(f)
 
     if not isinstance(G, base.BaseGraph):
-        warnings.warn("Returning object that is not a graphtools.base.BaseGraph")
+        warnings.warn(
+            "Returning object that is not a graphtools.base.BaseGraph")
     elif isinstance(G, base.PyGSPGraph) and isinstance(G.logger, str):
         G.logger = pygsp.utils.build_logger(G.logger)
     return G
