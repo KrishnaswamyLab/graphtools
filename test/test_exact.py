@@ -1,5 +1,5 @@
 from __future__ import print_function
-from sklearn.utils.graph import graph_shortest_path
+from scipy.sparse.csgraph import shortest_path
 from load_tests import (
     graphtools,
     np,
@@ -593,7 +593,7 @@ def test_shortest_path_affinity():
     data_small = data[np.random.choice(len(data), len(data) // 4, replace=False)]
     G = build_graph(data_small, knn=5, decay=15)
     D = -1 * np.where(G.K != 0, np.log(np.where(G.K != 0, G.K, np.nan)), 0)
-    P = graph_shortest_path(D)
+    P = shortest_path(D)
     # sklearn returns 0 if no path exists
     P[np.where(P == 0)] = np.inf
     # diagonal should actually be zero
@@ -607,7 +607,7 @@ def test_shortest_path_affinity_precomputed():
     G = build_graph(data_small, knn=5, decay=15)
     G = graphtools.Graph(G.K, precomputed="affinity")
     D = -1 * np.where(G.K != 0, np.log(np.where(G.K != 0, G.K, np.nan)), 0)
-    P = graph_shortest_path(D)
+    P = shortest_path(D)
     # sklearn returns 0 if no path exists
     P[np.where(P == 0)] = np.inf
     # diagonal should actually be zero
