@@ -14,9 +14,9 @@ from load_tests import sp
 from load_tests import TruncatedSVD
 from nose.tools import assert_raises_regex
 from nose.tools import assert_warns_regex
+from scipy.sparse.csgraph import shortest_path
 from scipy.spatial.distance import pdist
 from scipy.spatial.distance import squareform
-from scipy.sparse.csgraph import shortest_path
 
 import warnings
 
