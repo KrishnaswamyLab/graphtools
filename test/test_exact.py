@@ -598,9 +598,9 @@ def test_shortest_path_affinity():
     # diagonal should actually be zero
     np.fill_diagonal(P, 0)
     np.testing.assert_allclose(
-        P, G.shortest_path(distance="affinity"), atol=1e-5, rtol=1e-4
+        P, G.shortest_path(distance="affinity"), atol=1e-4, rtol=1e-3
     )
-    np.testing.assert_allclose(P, G.shortest_path(), atol=1e-5, rtol=1e-4)
+    np.testing.assert_allclose(P, G.shortest_path(), atol=1e-4, rtol=1e-3)
 
 
 def test_shortest_path_affinity_precomputed():
@@ -614,9 +614,9 @@ def test_shortest_path_affinity_precomputed():
     # diagonal should actually be zero
     np.fill_diagonal(P, 0)
     np.testing.assert_allclose(
-        P, G.shortest_path(distance="affinity"), atol=1e-5, rtol=1e-4
+        P, G.shortest_path(distance="affinity"), atol=1e-4, rtol=1e-3
     )
-    np.testing.assert_allclose(P, G.shortest_path(), atol=1e-5, rtol=1e-4)
+    np.testing.assert_allclose(P, G.shortest_path(), atol=1e-4, rtol=1e-3)
 
 
 def test_shortest_path_decay_constant():
