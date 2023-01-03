@@ -40,12 +40,11 @@ jobs:
 
     - name: Lint with Black
       run: |
-        cd Python
         black . --check --diff
 
     - name: Lint with flake8
       run: |
-        flake8 phate || true
+        flake8 graphtools || true
 
   run_tester:
     runs-on: ${{ matrix.config.os }}
@@ -92,7 +91,6 @@ jobs:
 
     - name: Install package & dependencies
       run: |
-        cd Python
         python -m pip install --upgrade pip
         pip install -U wheel setuptools
         pip install -U .[test]
@@ -100,7 +98,6 @@ jobs:
 
     - name: Run tests
       run: |
-        cd Python
         nose2 -vvv
 
     - name: Coveralls
