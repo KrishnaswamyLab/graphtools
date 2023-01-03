@@ -668,6 +668,7 @@ class LandmarkGraph(DataGraph):
                 kmeans = MiniBatchKMeans(
                     self.n_landmark,
                     init_size=3 * self.n_landmark,
+                    n_init=1,
                     batch_size=10000,
                     random_state=self.random_state,
                 )
