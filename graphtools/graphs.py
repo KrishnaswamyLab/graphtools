@@ -224,28 +224,12 @@ class kNNGraph(DataGraph):
         try:
             return self._knn_tree
         except AttributeError:
-            try:
-                self._knn_tree = NearestNeighbors(
-                    n_neighbors=self.knn + 1,
-                    algorithm="ball_tree",
-                    metric=self.distance,
-                    n_jobs=self.n_jobs,
-                ).fit(self.data_nu)
-            except ValueError:
-                # invalid metric
-                warnings.warn(
-                    "Metric {} not valid for `sklearn.neighbors.BallTree`. "
-                    "Graph instantiation may be slower than normal.".format(
-                        self.distance
-                    ),
-                    UserWarning,
-                )
-                self._knn_tree = NearestNeighbors(
-                    n_neighbors=self.knn + 1,
-                    algorithm="auto",
-                    metric=self.distance,
-                    n_jobs=self.n_jobs,
-                ).fit(self.data_nu)
+            self._knn_tree = NearestNeighbors(
+                n_neighbors=self.knn + 1,
+                algorithm="auto",
+                metric=self.distance,
+                n_jobs=self.n_jobs,
+            ).fit(self.data_nu)
             return self._knn_tree
 
     def build_kernel(self):
