@@ -660,6 +660,7 @@ class LandmarkGraph(DataGraph):
                 # if n_samples > 5000 and self.distance == "euclidean":   ( sklearn.euclidean_distances is faster than cdist for big dataset) 
                 #     distances = euclidean_distances(data, data[landmark_indices])
                 #  this is a futur optimization for the euclidean case 
+                # 
                 distances = cdist(data, data[landmark_indices], metric=self.distance)
                 self._clusters = np.argmin(distances, axis=1)
 
