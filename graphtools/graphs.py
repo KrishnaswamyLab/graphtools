@@ -649,24 +649,21 @@ class LandmarkGraph(DataGraph):
 
             
         """
-        if self.random_landmarking :
-            with _logger.log_task("landmark operator"):
-                is_sparse = sparse.issparse(self.kernel)
+        with _logger.log_task("landmark operator"):
+        is_sparse = sparse.issparse(self.kernel)
+            
+            if self.random_landmark:
                 n_samples = self.data.shape[0]
                 rng = np.random.default_rng(self.random_state)
                 landmark_indices = rng.choice(n_samples, self.n_landmark, replace=False)
-                data = self.data if not hasattr(self, 'data_nu') else self.data_nu # because of the scaling to review
-                distances = cdist(data, data[landmark_indices], metric="euclidean")
-                if n_samples > 5000:   # sklearn.euclidean_distances is faster than cdist for big dataset 
-                    distances = euclidean_distances(data, data[landmark_indices])
-                else:
-                    distances = cdist(data, data[landmark_indices], metric="euclidean")
+                data = self.data if not hasattr(self, 'data_nu') else self.data_nu 
+                # if n_samples > 5000 and self.distance == "euclidean":   ( sklearn.euclidean_distances is faster than cdist for big dataset) 
+                #     distances = euclidean_distances(data, data[landmark_indices])
+                #  this is a futur optimization for the euclidean case 
+                distances = cdist(data, data[landmark_indices], metric=self.distance)
                 self._clusters = np.argmin(distances, axis=1)
 
-        else:
-            with _logger.log_task("landmark operator"):
-                is_sparse = sparse.issparse(self.kernel)
-                # spectral clustering
+            else:
                 with _logger.log_task("SVD"):
                     _, _, VT = randomized_svd(
                         self.diff_aff,
