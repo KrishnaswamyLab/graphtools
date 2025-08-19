@@ -21,7 +21,351 @@ import numpy as np
 import tasklogger
 import warnings
 
+# Import numba with fallback
+try:
+    from numba import njit
+    NUMBA_AVAILABLE = True
+except ImportError:
+    def njit(*args, **kwargs):
+        """Fallback decorator if numba is not available"""
+        def decorator(func):
+            return func
+        if len(args) == 1 and callable(args[0]):
+            return args[0]
+        return decorator
+    NUMBA_AVAILABLE = False
+
 _logger = tasklogger.get_tasklogger("graphtools")
+
+
+@njit(parallel=True)
+def _numba_compute_kernel_matrix(distances, indices, bandwidth, decay, thresh):
+    """
+    Advanced PHATE-inspired numba kernel computation.
+    
+    Key optimizations:
+    - Uses float32 for memory efficiency
+    - Vectorized operations with in-place modifications
+    - Parallel processing with prange
+    - Efficient sparse matrix construction
+    """
+    n_rows, n_cols = distances.shape
+    
+    # Convert inputs to float32 for memory efficiency (PHATE optimization)
+    distances_f32 = distances.astype(np.float32)
+    decay_f32 = np.float32(decay)
+    thresh_f32 = np.float32(thresh)
+    
+    # First pass: count valid entries per row (parallel)
+    row_counts = np.zeros(n_rows, dtype=np.int64)
+    
+    for i in prange(n_rows):
+        bw = bandwidth[i] if bandwidth.ndim > 0 else bandwidth
+        bw_f32 = np.float32(bw)
+        count = 0
+        
+        for j in range(n_cols):
+            if indices[i, j] >= 0 and np.isfinite(distances_f32[i, j]):
+                # Vectorized computation
+                scaled = distances_f32[i, j] / bw_f32
+                powered = scaled ** decay_f32
+                affinity = np.exp(-powered)
+                
+                # Handle edge cases efficiently
+                if np.isnan(affinity):
+                    affinity = np.float32(1.0)
+                    
+                if affinity >= thresh_f32:
+                    count += 1
+        
+        row_counts[i] = count
+    
+    # Compute total and allocate
+    total_valid = np.sum(row_counts)
+    data_out = np.empty(total_valid, dtype=np.float32)
+    indices_out = np.empty(total_valid, dtype=np.int32)
+    
+    # Second pass: fill arrays (parallel by row)
+    write_positions = np.empty(n_rows + 1, dtype=np.int64)
+    write_positions[0] = 0
+    for i in range(n_rows):
+        write_positions[i + 1] = write_positions[i] + row_counts[i]
+    
+    for i in prange(n_rows):
+        bw = bandwidth[i] if bandwidth.ndim > 0 else bandwidth
+        bw_f32 = np.float32(bw)
+        write_pos = write_positions[i]
+        
+        for j in range(n_cols):
+            if indices[i, j] >= 0 and np.isfinite(distances_f32[i, j]):
+                # Recompute affinity (same as counting pass)
+                scaled = distances_f32[i, j] / bw_f32
+                powered = scaled ** decay_f32
+                affinity = np.exp(-powered)
+                
+                if np.isnan(affinity):
+                    affinity = np.float32(1.0)
+                    
+                if affinity >= thresh_f32:
+                    data_out[write_pos] = affinity
+                    indices_out[write_pos] = indices[i, j]
+                    write_pos += 1
+    
+    return data_out, indices_out, row_counts
+
+
+@njit(parallel=True)
+def _numba_process_kernel_data_vectorized(distances, bandwidth, decay, thresh):
+    """
+    PHATE-inspired vectorized kernel computation with advanced optimizations.
+    
+    Key improvements:
+    - In-place vectorized operations like PHATE
+    - float32 precision for memory efficiency
+    - Parallel row processing with prange
+    - Efficient memory allocation strategy
+    """
+    n_samples, n_neighbors = distances.shape
+    
+    # Convert to float32 for PHATE-like memory efficiency
+    distances_f32 = distances.astype(np.float32)
+    decay_f32 = np.float32(decay)
+    thresh_f32 = np.float32(thresh)
+    
+    # Allocate output arrays
+    result_data = np.empty((n_samples, n_neighbors), dtype=np.float32)
+    valid_mask = np.empty((n_samples, n_neighbors), dtype=np.bool_)
+    
+    # Process rows in parallel (PHATE-style)
+    for i in prange(n_samples):
+        bw = bandwidth[i] if bandwidth.ndim > 0 else bandwidth
+        bw_f32 = np.float32(bw)
+        
+        # Vectorized processing for the row
+        for j in range(n_neighbors):
+            if np.isfinite(distances_f32[i, j]) and distances_f32[i, j] > 0:
+                # Vectorized computation (PHATE-style in-place ops)
+                scaled = distances_f32[i, j] / bw_f32
+                powered = scaled ** decay_f32  # More efficient than np.power
+                affinity = np.exp(-powered)
+                
+                # Handle edge cases
+                if np.isnan(affinity) or np.isinf(affinity):
+                    affinity = np.float32(1.0)
+                
+                result_data[i, j] = affinity
+                valid_mask[i, j] = affinity >= thresh_f32
+            else:
+                result_data[i, j] = np.float32(0.0)
+                valid_mask[i, j] = False
+    
+    return result_data, valid_mask
+
+
+@njit(parallel=True)
+def _numba_build_csr_components(data, indices, valid_mask, n_rows, n_cols):
+    """
+    PHATE-inspired efficient CSR matrix construction.
+    
+    Optimizations:
+    - Parallel row counting
+    - Efficient memory pre-allocation
+    - Single-pass construction strategy
+    """
+    # Count valid entries per row in parallel
+    row_counts = np.zeros(n_rows, dtype=np.int64)
+    
+    # Parallel counting pass
+    for i in prange(n_rows):
+        count = 0
+        for j in range(n_cols):
+            if valid_mask[i, j]:
+                count += 1
+        row_counts[i] = count
+    
+    # Compute total and build indptr
+    total_valid = np.sum(row_counts)
+    indptr = np.empty(n_rows + 1, dtype=np.int64)
+    indptr[0] = 0
+    for i in range(n_rows):
+        indptr[i + 1] = indptr[i] + row_counts[i]
+    
+    # Allocate output arrays
+    csr_data = np.empty(total_valid, dtype=np.float32)
+    csr_indices = np.empty(total_valid, dtype=np.int32)
+    
+    # Parallel extraction (each row handled by different thread)
+    for i in prange(n_rows):
+        write_pos = indptr[i]
+        for j in range(n_cols):
+            if valid_mask[i, j]:
+                csr_data[write_pos] = data[i, j]
+                csr_indices[write_pos] = indices[i, j]
+                write_pos += 1
+    
+    return csr_data, csr_indices, indptr
+
+
+@njit(parallel=True)
+def _numba_build_kernel_to_data_optimized(pdx, bandwidth, decay, thresh):
+    """
+    PHATE-inspired optimized kernel-to-data computation with numba.
+    
+    This function implements the core optimizations from PHATE benchmarks:
+    - float32 precision for memory efficiency
+    - Vectorized in-place operations
+    - Parallel processing
+    """
+    n_samples, n_features = pdx.shape
+    
+    # Convert to float32 for PHATE-like memory efficiency
+    pdx_f32 = pdx.astype(np.float32)
+    decay_f32 = np.float32(decay)
+    thresh_f32 = np.float32(thresh)
+    
+    # Handle bandwidth scaling and create output matrix
+    K = np.empty_like(pdx_f32)
+    
+    # Check if bandwidth is scalar or array
+    bandwidth_is_scalar = bandwidth.ndim == 0 or (bandwidth.ndim == 1 and bandwidth.size == 1)
+    
+    if bandwidth_is_scalar:
+        bw_f32 = np.float32(bandwidth)
+        # Process all elements in parallel
+        for i in prange(n_samples):
+            for j in range(n_features):
+                if np.isfinite(pdx_f32[i, j]):
+                    scaled = pdx_f32[i, j] / bw_f32
+                    powered = scaled ** decay_f32
+                    affinity = np.exp(-powered)
+                    
+                    if np.isnan(affinity) or np.isinf(affinity):
+                        affinity = np.float32(1.0)
+                    
+                    if affinity < thresh_f32:
+                        affinity = np.float32(0.0)
+                    
+                    K[i, j] = affinity
+                else:
+                    K[i, j] = np.float32(0.0)
+    else:
+        # Variable bandwidth per sample
+        bandwidth_f32 = bandwidth.astype(np.float32)
+        for i in prange(n_samples):
+            bw = bandwidth_f32[i]
+            for j in range(n_features):
+                if np.isfinite(pdx_f32[i, j]):
+                    scaled = pdx_f32[i, j] / bw
+                    powered = scaled ** decay_f32
+                    affinity = np.exp(-powered)
+                    
+                    if np.isnan(affinity) or np.isinf(affinity):
+                        affinity = np.float32(1.0)
+                    
+                    if affinity < thresh_f32:
+                        affinity = np.float32(0.0)
+                    
+                    K[i, j] = affinity
+                else:
+                    K[i, j] = np.float32(0.0)
+    
+    return K
+
+
+@njit
+def _numba_compute_bandwidths(distances, knn, bandwidth_scale):
+    """Compute bandwidths using numba acceleration"""
+    n_samples = distances.shape[0]
+    bandwidths = np.empty(n_samples, dtype=np.float32)
+    
+    for i in range(n_samples):
+        bandwidths[i] = distances[i, knn - 1] * bandwidth_scale
+    
+    return bandwidths
+
+
+@njit
+def _numba_compute_radius(bandwidth, thresh, decay):
+    """Compute radius for neighbor search using numba"""
+    return bandwidth * np.power(-np.log(thresh), 1.0 / decay)
+
+
+@njit
+def _numba_find_updates_scalar(distances, radius_scalar):
+    """Find rows that need more neighbors using numba (scalar radius)"""
+    n_samples = distances.shape[0]
+    need_update = np.zeros(n_samples, dtype=np.bool_)
+    
+    for i in range(n_samples):
+        max_dist = np.max(distances[i])
+        if max_dist < radius_scalar:
+            need_update[i] = True
+    
+    # Count and extract indices
+    count = np.sum(need_update)
+    updates = np.empty(count, dtype=np.int32)
+    idx = 0
+    for i in range(n_samples):
+        if need_update[i]:
+            updates[idx] = i
+            idx += 1
+    
+    return updates
+
+
+@njit
+def _numba_find_updates_array(distances, radius_array):
+    """Find rows that need more neighbors using numba (array radius)"""
+    n_samples = distances.shape[0]
+    need_update = np.zeros(n_samples, dtype=np.bool_)
+    
+    for i in range(n_samples):
+        max_dist = np.max(distances[i])
+        if max_dist < radius_array[i]:
+            need_update[i] = True
+    
+    # Count and extract indices
+    count = np.sum(need_update)
+    updates = np.empty(count, dtype=np.int32)
+    idx = 0
+    for i in range(n_samples):
+        if need_update[i]:
+            updates[idx] = i
+            idx += 1
+    
+    return updates
+
+
+def _numba_find_updates(distances, radius):
+    """Find rows that need more neighbors using numba (dispatcher)"""
+    if isinstance(radius, np.ndarray) and radius.size > 1:
+        return _numba_find_updates_array(distances, radius)
+    else:
+        # Convert to scalar if it's a single-element array
+        radius_scalar = float(radius) if hasattr(radius, '__iter__') else radius
+        return _numba_find_updates_scalar(distances, radius_scalar)
+
+
+@njit
+def _numba_scale_distances_single_bandwidth(distances, bandwidth):
+    """Scale distances by single bandwidth using numba"""
+    return distances / bandwidth
+
+
+@njit
+def _numba_compute_affinities(scaled_distances, decay):
+    """Compute affinities using numba"""
+    return np.exp(-np.power(scaled_distances, decay))
+
+
+@njit
+def _numba_threshold_affinities(affinities, thresh):
+    """Apply threshold to affinities using numba"""
+    result = affinities.copy()
+    for i in range(result.size):
+        if result.flat[i] < thresh:
+            result.flat[i] = 0.0
+    return result
 
 
 class kNNGraph(DataGraph):
@@ -350,15 +694,22 @@ class kNNGraph(DataGraph):
                 self._check_duplicates(distances, indices)
             with _logger.log_task("affinities"):
                 if bandwidth is None:
-                    bandwidth = distances[:, knn - 1]
+                    if NUMBA_AVAILABLE:
+                        bandwidth = _numba_compute_bandwidths(distances, knn, bandwidth_scale)
+                    else:
+                        bandwidth = distances[:, knn - 1] * bandwidth_scale
+                        bandwidth = np.maximum(bandwidth, np.finfo(float).eps)
+                else:
+                    bandwidth = bandwidth * bandwidth_scale
+                    # check for zero bandwidth
+                    bandwidth = np.maximum(bandwidth, np.finfo(float).eps)
 
-                bandwidth = bandwidth * bandwidth_scale
-
-                # check for zero bandwidth
-                bandwidth = np.maximum(bandwidth, np.finfo(float).eps)
-
-                radius = bandwidth * np.power(-1 * np.log(self.thresh), 1 / self.decay)
-                update_idx = np.argwhere(np.max(distances, axis=1) < radius).reshape(-1)
+                if NUMBA_AVAILABLE:
+                    radius = _numba_compute_radius(bandwidth, self.thresh, self.decay)
+                    update_idx = _numba_find_updates(distances, radius)
+                else:
+                    radius = bandwidth * np.power(-1 * np.log(self.thresh), 1 / self.decay)
+                    update_idx = np.argwhere(np.max(distances, axis=1) < radius).reshape(-1)
                 _logger.log_debug(
                     "search_knn = {}; {} remaining".format(search_knn, len(update_idx))
                 )
@@ -425,23 +776,41 @@ class kNNGraph(DataGraph):
                         for i, idx in enumerate(update_idx):
                             distances[idx] = dist_new[i]
                             indices[idx] = ind_new[i]
+                # Scale distances and compute affinities
                 if isinstance(bandwidth, numbers.Number):
-                    data = np.concatenate(distances) / bandwidth
+                    distances_flat = np.concatenate(distances)
+                    if NUMBA_AVAILABLE:
+                        data = _numba_scale_distances_single_bandwidth(distances_flat, bandwidth)
+                        data = _numba_compute_affinities(data, self.decay)
+                        data = _numba_threshold_affinities(data, self.thresh)
+                    else:
+                        data = distances_flat / bandwidth
+                        data = np.exp(-1 * np.power(data, self.decay))
+                        data = np.where(np.isnan(data), 1, data)
+                        data[data < self.thresh] = 0
                 else:
-                    data = np.concatenate(
-                        [distances[i] / bandwidth[i] for i in range(len(distances))]
-                    )
+                    if NUMBA_AVAILABLE:
+                        # For variable bandwidth, we need to handle the scaling differently
+                        data = []
+                        for i in range(len(distances)):
+                            scaled = _numba_scale_distances_single_bandwidth(distances[i], bandwidth[i])
+                            affinities = _numba_compute_affinities(scaled, self.decay)
+                            thresholded = _numba_threshold_affinities(affinities, self.thresh)
+                            data.append(thresholded)
+                        data = np.concatenate(data)
+                    else:
+                        data = np.concatenate(
+                            [distances[i] / bandwidth[i] for i in range(len(distances))]
+                        )
+                        data = np.exp(-1 * np.power(data, self.decay))
+                        data = np.where(np.isnan(data), 1, data)
+                        data[data < self.thresh] = 0
 
                 indices = np.concatenate(indices)
                 indptr = np.concatenate([[0], np.cumsum([len(d) for d in distances])])
                 K = sparse.csr_matrix(
                     (data, indices, indptr), shape=(Y.shape[0], self.data_nu.shape[0])
                 )
-                K.data = np.exp(-1 * np.power(K.data, self.decay))
-                # handle nan
-                K.data = np.where(np.isnan(K.data), 1, K.data)
-                # TODO: should we zero values that are below thresh?
-                K.data[K.data < self.thresh] = 0
                 K = K.tocoo()
                 K.eliminate_zeros()
                 K = K.tocsr()
@@ -489,7 +858,7 @@ class LandmarkGraph(DataGraph):
     >>> X_full = G.interpolate(X_landmark)
     """
 
-    def __init__(self, data, n_landmark=2000, n_svd=100, random_landmarking = False, **kwargs):
+    def __init__(self, data, n_landmark=2000, n_svd=100, random_landmarking=False, **kwargs):
         """Initialize a landmark graph.
 
         Raises
@@ -1114,11 +1483,21 @@ class TraditionalGraph(DataGraph):
                 elif callable(bandwidth):
                     bandwidth = bandwidth(pdx)
                 bandwidth = bandwidth_scale * bandwidth
-                pdx = (pdx.T / bandwidth).T
-                K = np.exp(-1 * pdx**self.decay)
-                # handle nan
-                K = np.where(np.isnan(K), 1, K)
-                K[K < self.thresh] = 0
+                
+                # Use PHATE-inspired numba optimization if available
+                if NUMBA_AVAILABLE:
+                    # Scale distances first, then compute kernel with numba
+                    pdx_scaled = (pdx.T / bandwidth).T
+                    K = _numba_build_kernel_to_data_optimized(
+                        pdx_scaled, np.ones(1, dtype=np.float32), self.decay, self.thresh
+                    )
+                else:
+                    # Original implementation
+                    pdx = (pdx.T / bandwidth).T
+                    K = np.exp(-1 * pdx**self.decay)
+                    # handle nan
+                    K = np.where(np.isnan(K), 1, K)
+                    K[K < self.thresh] = 0
         return K
 
     @property
