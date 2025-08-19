@@ -41,8 +41,6 @@ _logger = tasklogger.get_tasklogger("graphtools")
 @njit(parallel=True)
 def _numba_compute_kernel_matrix(distances, indices, bandwidth, decay, thresh):
     """
-    Advanced PHATE-inspired numba kernel computation.
-    
     Key optimizations:
     - Uses float32 for memory efficiency
     - Vectorized operations with in-place modifications
@@ -117,8 +115,6 @@ def _numba_compute_kernel_matrix(distances, indices, bandwidth, decay, thresh):
 @njit(parallel=True)
 def _numba_process_kernel_data_vectorized(distances, bandwidth, decay, thresh):
     """
-    PHATE-inspired vectorized kernel computation with advanced optimizations.
-    
     Key improvements:
     - In-place vectorized operations like PHATE
     - float32 precision for memory efficiency
@@ -165,8 +161,6 @@ def _numba_process_kernel_data_vectorized(distances, bandwidth, decay, thresh):
 @njit(parallel=True)
 def _numba_build_csr_components(data, indices, valid_mask, n_rows, n_cols):
     """
-    PHATE-inspired efficient CSR matrix construction.
-    
     Optimizations:
     - Parallel row counting
     - Efficient memory pre-allocation
@@ -209,9 +203,7 @@ def _numba_build_csr_components(data, indices, valid_mask, n_rows, n_cols):
 @njit(parallel=True)
 def _numba_build_kernel_to_data_optimized(pdx, bandwidth, decay, thresh):
     """
-    PHATE-inspired optimized kernel-to-data computation with numba.
-    
-    This function implements the core optimizations from PHATE benchmarks:
+    This function implements optimizations:
     - float32 precision for memory efficiency
     - Vectorized in-place operations
     - Parallel processing
@@ -871,7 +863,7 @@ class LandmarkGraph(DataGraph):
                 "n_landmark ({}) >= n_samples ({}). Use "
                 "kNNGraph instead".format(n_landmark, data.shape[0])
             )
-        if n_svd >= data.shape[0]:
+        if (n_svd >= data.shape[0]) and (not random_landmarking):
             warnings.warn(
                 "n_svd ({}) >= n_samples ({}) Consider "
                 "using kNNGraph or lower n_svd".format(n_svd, data.shape[0]),
@@ -885,7 +877,7 @@ class LandmarkGraph(DataGraph):
     def get_params(self):
         """Get parameters from this object"""
         params = super().get_params()
-        params.update({"n_landmark": self.n_landmark, "n_pca": self.n_pca})
+        params.update({"n_landmark": self.n_landmark, "n_pca": self.n_pca, "random_landmarking": self.random_landmarking})
         return params
 
     def set_params(self, **params):
@@ -896,6 +888,7 @@ class LandmarkGraph(DataGraph):
         Valid parameters:
         - n_landmark
         - n_svd
+        - random_landmarks
 
         Parameters
         ----------
@@ -912,6 +905,9 @@ class LandmarkGraph(DataGraph):
             reset_landmarks = True
         if "n_svd" in params and params["n_svd"] != self.n_svd:
             self.n_svd = params["n_svd"]
+            reset_landmarks = True
+        if "random_landmarking" in params and params["random_landmarking"] != self.random_landmarking:
+            self.random_landmarking = params["random_landmarking"]
             reset_landmarks = True
         # update superclass parameters
         super().set_params(**params)
@@ -1007,7 +1003,6 @@ class LandmarkGraph(DataGraph):
     def build_landmark_op(self):
         """Build the landmark operator
 
-
             Calculates spectral clusters on the kernel, and calculates transition
             probabilities between cluster centers by using transition probabilities
             between samples assigned to each cluster.
@@ -1016,7 +1011,6 @@ class LandmarkGraph(DataGraph):
             This method randomly selects n_landmark points and assigns each sample to its nearest landmark
             using Euclidean distance .
 
-            
         """
         if self.random_landmarking :
             with _logger.log_task("landmark operator"):
@@ -1025,7 +1019,6 @@ class LandmarkGraph(DataGraph):
                 rng = np.random.default_rng(self.random_state)
                 landmark_indices = rng.choice(n_samples, self.n_landmark, replace=False)
                 data = self.data if not hasattr(self, 'data_nu') else self.data_nu # because of the scaling to review
-                distances = cdist(data, data[landmark_indices], metric="euclidean")
                 if n_samples > 5000:   # sklearn.euclidean_distances is faster than cdist for big dataset 
                     distances = euclidean_distances(data, data[landmark_indices])
                 else:
@@ -1052,23 +1045,21 @@ class LandmarkGraph(DataGraph):
                     )
                     self._clusters = kmeans.fit_predict(self.diff_op.dot(VT.T))
 
+        # transition matrices
+        pmn = self._landmarks_to_data()
 
-
-            # transition matrices
-            pmn = self._landmarks_to_data()
-
-            # row normalize
-            pnm = pmn.transpose()
-            pmn = normalize(pmn, norm="l1", axis=1)
-            pnm = normalize(pnm, norm="l1", axis=1)
-            # sparsity agnostic matrix multiplication
-            landmark_op = pmn.dot(pnm)
-            if is_sparse:
-                # no need to have a sparse landmark operator
-                landmark_op = landmark_op.toarray()
-            # store output
-            self._landmark_op = landmark_op
-            self._transitions = pnm
+        # row normalize
+        pnm = pmn.transpose()
+        pmn = normalize(pmn, norm="l1", axis=1)
+        pnm = normalize(pnm, norm="l1", axis=1)
+        # sparsity agnostic matrix multiplication
+        landmark_op = pmn.dot(pnm)
+        if is_sparse:
+            # no need to have a sparse landmark operator
+            landmark_op = landmark_op.toarray()
+        # store output
+        self._landmark_op = landmark_op
+        self._transitions = pnm
 
     def extend_to_data(self, data, **kwargs):
         """Build transition matrix from new data to the graph
