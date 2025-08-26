@@ -84,7 +84,6 @@ class kNNGraph(DataGraph):
         n_pca=None,
         **kwargs,
     ):
-
         if decay is not None:
             if thresh <= 0 and knn_max is None:
                 raise ValueError(
@@ -491,7 +490,9 @@ class LandmarkGraph(DataGraph):
     >>> X_full = G.interpolate(X_landmark)
     """
 
-    def __init__(self, data, n_landmark=2000, n_svd=100, random_landmarking = False, **kwargs):
+    def __init__(
+        self, data, n_landmark=2000, n_svd=100, random_landmarking=False, **kwargs
+    ):
         """Initialize a landmark graph.
 
         Raises
@@ -641,28 +642,28 @@ class LandmarkGraph(DataGraph):
         """Build the landmark operator
 
 
-            Calculates spectral clusters on the kernel, and calculates transition
-            probabilities between cluster centers by using transition probabilities
-            between samples assigned to each cluster.
-            
-            random_landmarking:
-            This method randomly selects n_landmark points and assigns each sample to its nearest landmark
-            using Euclidean distance .
+        Calculates spectral clusters on the kernel, and calculates transition
+        probabilities between cluster centers by using transition probabilities
+        between samples assigned to each cluster.
 
-            
+        random_landmarking:
+        This method randomly selects n_landmark points and assigns each sample to its nearest landmark
+        using Euclidean distance .
+
+
         """
         with _logger.log_task("landmark operator"):
-        is_sparse = sparse.issparse(self.kernel)
-            
+            is_sparse = sparse.issparse(self.kernel)
+
             if self.random_landmark:
                 n_samples = self.data.shape[0]
                 rng = np.random.default_rng(self.random_state)
                 landmark_indices = rng.choice(n_samples, self.n_landmark, replace=False)
-                data = self.data if not hasattr(self, 'data_nu') else self.data_nu 
-                # if n_samples > 5000 and self.distance == "euclidean":   ( sklearn.euclidean_distances is faster than cdist for big dataset) 
+                data = self.data if not hasattr(self, "data_nu") else self.data_nu
+                # if n_samples > 5000 and self.distance == "euclidean":   ( sklearn.euclidean_distances is faster than cdist for big dataset)
                 #     distances = euclidean_distances(data, data[landmark_indices])
-                #  this is a futur optimization for the euclidean case 
-                # 
+                #  this is a futur optimization for the euclidean case
+                #
                 distances = cdist(data, data[landmark_indices], metric=self.distance)
                 self._clusters = np.argmin(distances, axis=1)
 
@@ -682,8 +683,6 @@ class LandmarkGraph(DataGraph):
                         random_state=self.random_state,
                     )
                     self._clusters = kmeans.fit_predict(self.diff_op.dot(VT.T))
-
-
 
             # transition matrices
             pmn = self._landmarks_to_data()
