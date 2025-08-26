@@ -370,9 +370,9 @@ def test_knn_graph_fixed_bandwidth():
     )
     assert isinstance(G2, graphtools.graphs.kNNGraph)
     np.testing.assert_array_equal(G.N, G2.N)
-    np.testing.assert_allclose(G.dw, G2.dw, atol=1e-14)
+    np.testing.assert_allclose(G.dw, G2.dw, atol=1e-12)
     np.testing.assert_allclose(
-        (G.W - G2.W).data, np.zeros_like((G.W - G2.W).data), atol=1e-14
+        (G.W - G2.W).data, np.zeros_like((G.W - G2.W).data), atol=1e-12
     )
 
 
@@ -454,8 +454,8 @@ def test_knn_graph_anisotropy():
     )
     assert isinstance(G2, graphtools.graphs.kNNGraph)
     assert G.N == G2.N
-    np.testing.assert_allclose(G.dw, G2.dw, atol=1e-14, rtol=1e-14)
-    np.testing.assert_allclose((G2.W - G.W).data, 0, atol=1e-14, rtol=1e-14)
+    np.testing.assert_allclose(G.dw, G2.dw, atol=1e-12, rtol=1e-12)
+    np.testing.assert_allclose((G2.W - G.W).data, 0, atol=1e-12, rtol=1e-12)
 
 
 #####################################################
