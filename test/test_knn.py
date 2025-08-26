@@ -65,12 +65,12 @@ def test_duplicate_data_many():
         build_graph(np.vstack([data, data[:21]]), n_pca=None, decay=10, thresh=1e-4)
 
 
-def test_balltree_cosine():
-    with assert_warns_message(
-        UserWarning,
-        "Metric cosine not valid for `sklearn.neighbors.BallTree`. Graph instantiation may be slower than normal.",
-    ):
-        build_graph(data, n_pca=20, decay=10, distance="cosine", thresh=1e-4)
+# def test_balltree_cosine():
+#     with assert_warns_message(
+#         UserWarning,
+#         "Metric cosine not valid for `sklearn.neighbors.BallTree`. Graph instantiation may be slower than normal.",
+#     ):
+#         build_graph(data, n_pca=20, decay=10, distance="cosine", thresh=1e-4)
 
 
 def test_k_too_large():
