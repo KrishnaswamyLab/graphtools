@@ -655,7 +655,7 @@ class LandmarkGraph(DataGraph):
         with _logger.log_task("landmark operator"):
             is_sparse = sparse.issparse(self.kernel)
 
-            if self.random_landmark:
+            if self.random_landmarking:
                 n_samples = self.data.shape[0]
                 rng = np.random.default_rng(self.random_state)
                 landmark_indices = rng.choice(n_samples, self.n_landmark, replace=False)
