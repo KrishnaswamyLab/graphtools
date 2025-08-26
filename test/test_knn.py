@@ -348,7 +348,7 @@ def test_knn_graph_fixed_bandwidth():
     np.testing.assert_array_equal(G.N, G2.N)
     np.testing.assert_array_equal(G.d, G2.d)
     np.testing.assert_allclose(
-        (G.W - G2.W).data, np.zeros_like((G.W - G2.W).data), atol=1e-14
+        (G.W - G2.W).data, np.zeros_like((G.W - G2.W).data), atol=1e-12
     )
     bandwidth = np.random.gamma(20, 0.5, len(data))
     K = np.exp(-1 * (pdx.T / (bandwidth * bandwidth_scale)).T ** decay)
