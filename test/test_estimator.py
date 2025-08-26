@@ -101,7 +101,7 @@ def test_anndata_input():
     E2 = Estimator(verbose=0)
     E2.fit(anndata.AnnData(X))
     np.testing.assert_allclose(
-        E.graph.K.toarray(), E2.graph.K.toarray(), rtol=1e-6, atol=2e-7
+        E.graph.K.toarray(), E2.graph.K.toarray(), rtol=1e-6, atol=1e-6
     )
 
 

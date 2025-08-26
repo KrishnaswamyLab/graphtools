@@ -13,6 +13,8 @@ from sklearn.cluster import MiniBatchKMeans
 from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import normalize
 from sklearn.utils.extmath import randomized_svd
+from sklearn.metrics.pairwise import euclidean_distances
+
 
 import numbers
 import numpy as np
@@ -82,7 +84,6 @@ class kNNGraph(DataGraph):
         n_pca=None,
         **kwargs,
     ):
-
         if decay is not None:
             if thresh <= 0 and knn_max is None:
                 raise ValueError(
@@ -489,7 +490,9 @@ class LandmarkGraph(DataGraph):
     >>> X_full = G.interpolate(X_landmark)
     """
 
-    def __init__(self, data, n_landmark=2000, n_svd=100, **kwargs):
+    def __init__(
+        self, data, n_landmark=2000, n_svd=100, random_landmarking=False, **kwargs
+    ):
         """Initialize a landmark graph.
 
         Raises
@@ -508,6 +511,7 @@ class LandmarkGraph(DataGraph):
                 "using kNNGraph or lower n_svd".format(n_svd, data.shape[0]),
                 RuntimeWarning,
             )
+        self.random_landmarking = random_landmarking
         self.n_landmark = n_landmark
         self.n_svd = n_svd
         super().__init__(data, **kwargs)
@@ -637,28 +641,48 @@ class LandmarkGraph(DataGraph):
     def build_landmark_op(self):
         """Build the landmark operator
 
+
         Calculates spectral clusters on the kernel, and calculates transition
         probabilities between cluster centers by using transition probabilities
         between samples assigned to each cluster.
+
+        random_landmarking:
+        This method randomly selects n_landmark points and assigns each sample to its nearest landmark
+        using Euclidean distance .
+
+
         """
         with _logger.log_task("landmark operator"):
             is_sparse = sparse.issparse(self.kernel)
-            # spectral clustering
-            with _logger.log_task("SVD"):
-                _, _, VT = randomized_svd(
-                    self.diff_aff,
-                    n_components=self.n_svd,
-                    random_state=self.random_state,
-                )
-            with _logger.log_task("KMeans"):
-                kmeans = MiniBatchKMeans(
-                    self.n_landmark,
-                    init_size=3 * self.n_landmark,
-                    n_init=1,
-                    batch_size=10000,
-                    random_state=self.random_state,
-                )
-                self._clusters = kmeans.fit_predict(self.diff_op.dot(VT.T))
+
+            if self.random_landmarking:
+                n_samples = self.data.shape[0]
+                rng = np.random.default_rng(self.random_state)
+                landmark_indices = rng.choice(n_samples, self.n_landmark, replace=False)
+                data = self.data if not hasattr(self, "data_nu") else self.data_nu
+                # if n_samples > 5000 and self.distance == "euclidean":   ( sklearn.euclidean_distances is faster than cdist for big dataset)
+                #     distances = euclidean_distances(data, data[landmark_indices])
+                #  this is a futur optimization for the euclidean case
+                #
+                distances = cdist(data, data[landmark_indices], metric=self.distance)
+                self._clusters = np.argmin(distances, axis=1)
+
+            else:
+                with _logger.log_task("SVD"):
+                    _, _, VT = randomized_svd(
+                        self.diff_aff,
+                        n_components=self.n_svd,
+                        random_state=self.random_state,
+                    )
+                with _logger.log_task("KMeans"):
+                    kmeans = MiniBatchKMeans(
+                        self.n_landmark,
+                        init_size=3 * self.n_landmark,
+                        n_init=1,
+                        batch_size=10000,
+                        random_state=self.random_state,
+                    )
+                    self._clusters = kmeans.fit_predict(self.diff_op.dot(VT.T))
 
             # transition matrices
             pmn = self._landmarks_to_data()
