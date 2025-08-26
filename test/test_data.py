@@ -388,16 +388,12 @@ def test_inverse_transform_sparse_svd():
 
     # Flexible regex pattern that works across Python versions
     sparse_error_pattern = r".*sparse.*passed, but dense data is required.*toarray\(\).*dense numpy array.*"
-    with assert_raises_message(
-        TypeError,
-        sparse_error_pattern,
-    ):
+    with assert_raises_regex(TypeError, sparse_error_pattern):
         G.inverse_transform(sp.csr_matrix(G.data)[:, 0])
-    with assert_raises_message(
-        TypeError,
-        sparse_error_pattern,
-    ):
+
+    with assert_raises_regex(TypeError, sparse_error_pattern):
         G.inverse_transform(sp.csr_matrix(G.data)[:, :15])
+
     with assert_raises_message(
         ValueError,
         "data of shape ({0},) cannot be inverse transformed from graph built on reduced data of shape ({0}, {1}). Expected shape ({0}, {1})".format(
