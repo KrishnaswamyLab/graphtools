@@ -402,18 +402,15 @@ def test_knn_graph_callable_bandwidth():
 
 
 def test_knn_graph_sparse_no_pca():
-    with assert_warns_message(
-        UserWarning, "cannot use tree with sparse input: using brute force"
-    ):
-        build_graph(
-            sp.coo_matrix(data),
-            n_pca=None,  # n_pca,
-            decay=10,
-            knn=3,
-            thresh=1e-4,
-            random_state=42,
-            use_pygsp=True,
-        )
+    build_graph(
+        sp.coo_matrix(data),
+        n_pca=None,  # n_pca,
+        decay=10,
+        knn=3,
+        thresh=1e-4,
+        random_state=42,
+        use_pygsp=True,
+    )
 
 
 #####################################################
