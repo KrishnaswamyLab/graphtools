@@ -416,9 +416,11 @@ class kNNGraph(DataGraph):
                         # give up - radius search
                         dist_new, ind_new = knn_tree.radius_neighbors(
                             Y[update_idx, :],
-                            radius=radius
-                            if isinstance(bandwidth, numbers.Number)
-                            else np.max(radius[update_idx]),
+                            radius=(
+                                radius
+                                if isinstance(bandwidth, numbers.Number)
+                                else np.max(radius[update_idx])
+                            ),
                         )
                         for i, idx in enumerate(update_idx):
                             distances[idx] = dist_new[i]
