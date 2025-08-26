@@ -129,6 +129,9 @@ def test_landmark_exact_pygsp_graph():
 def test_landmark_knn_pygsp_graph():
     n_landmark = 150
     # knn graph
+    print(f"Data shape: {data.shape}")
+    print(f"n_landmark requested: {n_landmark}")
+
     G = build_graph(
         data,
         n_landmark=n_landmark,
@@ -138,6 +141,17 @@ def test_landmark_knn_pygsp_graph():
         random_state=42,
         use_pygsp=True,
     )
+    print(f"Graph type: {type(G)}")
+    print(f"Has landmark_op: {hasattr(G, 'landmark_op')}")
+    if hasattr(G, "landmark_op"):
+        print(f"landmark_op shape: {G.landmark_op.shape}")
+
+    # Check if landmarks were actually created
+    if hasattr(G, "n_landmark"):
+        print(f"G.n_landmark: {G.n_landmark}")
+    if hasattr(G, "landmark_indices"):
+        print(f"Number of landmark indices: {len(G.landmark_indices)}")
+
     assert G.landmark_op.shape == (n_landmark, n_landmark)
     assert isinstance(G, graphtools.graphs.kNNGraph)
     assert isinstance(G, graphtools.graphs.LandmarkGraph)
@@ -162,17 +176,6 @@ def test_landmark_mnn_pygsp_graph():
         sample_idx=sample_idx,
         use_pygsp=True,
     )
-
-    print(f"Graph type: {type(G)}")
-    print(f"Has landmark_op: {hasattr(G, 'landmark_op')}")
-    if hasattr(G, "landmark_op"):
-        print(f"landmark_op shape: {G.landmark_op.shape}")
-
-    # Check if landmarks were actually created
-    if hasattr(G, "n_landmark"):
-        print(f"G.n_landmark: {G.n_landmark}")
-    if hasattr(G, "landmark_indices"):
-        print(f"Number of landmark indices: {len(G.landmark_indices)}")
 
     assert G.landmark_op.shape == (n_landmark, n_landmark)
 
