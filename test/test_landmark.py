@@ -127,7 +127,7 @@ def test_landmark_exact_pygsp_graph():
 
 
 def test_landmark_knn_pygsp_graph():
-    n_landmark = 500
+    n_landmark = 150
     # knn graph
     G = build_graph(
         data,

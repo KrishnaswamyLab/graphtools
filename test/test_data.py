@@ -387,12 +387,12 @@ def test_inverse_transform_sparse_svd():
         G.inverse_transform(G.data_nu, columns=data.shape[1])
     with assert_raises_message(
         TypeError,
-        "A sparse matrix was passed, but dense data is required. Use X.toarray() to convert to a dense numpy array.",
+        "Sparse data was passed, but dense data is required. Use '.toarray()' to convert to a dense numpy array.",
     ):
         G.inverse_transform(sp.csr_matrix(G.data)[:, 0])
     with assert_raises_message(
         TypeError,
-        "A sparse matrix was passed, but dense data is required. Use X.toarray() to convert to a dense numpy array.",
+        "Sparse data was passed, but dense data is required. Use '.toarray()' to convert to a dense numpy array.",
     ):
         G.inverse_transform(sp.csr_matrix(G.data)[:, :15])
     with assert_raises_message(
