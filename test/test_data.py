@@ -387,7 +387,7 @@ def test_inverse_transform_sparse_svd():
         G.inverse_transform(G.data_nu, columns=data.shape[1])
 
     # Flexible regex pattern that works across Python versions
-    sparse_error_pattern = r".*sparse.*passed, but dense data is required.*toarray\(\).*dense numpy array.*"
+    sparse_error_pattern = r"(Sparse data|A sparse matrix) was passed, but dense data is required\. Use (?:'.*?'|X\.toarray\(\)) to convert to a dense numpy array\."
     with assert_raises_regex(TypeError, sparse_error_pattern):
         G.inverse_transform(sp.csr_matrix(G.data)[:, 0])
 
