@@ -385,14 +385,17 @@ def test_inverse_transform_sparse_svd():
         IndexError, "index 64 is out of bounds for axis 1 with size 64"
     ):
         G.inverse_transform(G.data_nu, columns=data.shape[1])
+
+    # Flexible regex pattern that works across Python versions
+    sparse_error_pattern = ".*sparse.*was passed, but dense data is required.*toarray.*to convert.*dense.*array.*"
     with assert_raises_message(
         TypeError,
-        "Sparse data was passed, but dense data is required. Use '.toarray()' to convert to a dense numpy array.",
+        sparse_error_pattern,
     ):
         G.inverse_transform(sp.csr_matrix(G.data)[:, 0])
     with assert_raises_message(
         TypeError,
-        "Sparse data was passed, but dense data is required. Use '.toarray()' to convert to a dense numpy array.",
+        sparse_error_pattern,
     ):
         G.inverse_transform(sp.csr_matrix(G.data)[:, :15])
     with assert_raises_message(
