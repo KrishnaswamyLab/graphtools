@@ -44,6 +44,10 @@ Or, to install the latest version from github::
 
     pip install --user git+git://github.com/KrishnaswamyLab/graphtools.git
 
+For improved performance with large datasets, install with numba acceleration::
+
+    pip install --user graphtools[fast]
+
 Usage example
 -------------
 
