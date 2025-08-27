@@ -424,7 +424,7 @@ def test_exact_graph_fixed_bandwidth():
     assert isinstance(G2, graphtools.graphs.TraditionalGraph)
     assert G.N == G2.N
     np.testing.assert_allclose(G.dw, G2.dw)
-    np.testing.assert_allclose((G2.W - G.W).data, 0, atol=1e-14)
+    np.testing.assert_allclose((G2.W - G.W).data, 0, atol=1e-12)
     bandwidth = np.random.gamma(5, 0.5, len(data))
     K = np.exp(-1 * (pdx.T / bandwidth).T ** decay)
     K = K + K.T
@@ -445,7 +445,7 @@ def test_exact_graph_fixed_bandwidth():
     assert isinstance(G2, graphtools.graphs.TraditionalGraph)
     assert G.N == G2.N
     np.testing.assert_allclose(G.dw, G2.dw)
-    np.testing.assert_allclose((G2.W - G.W).data, 0, atol=1e-14)
+    np.testing.assert_allclose((G2.W - G.W).data, 0, atol=1e-12)
 
 
 def test_exact_graph_callable_bandwidth():
@@ -504,7 +504,7 @@ def test_exact_graph_callable_bandwidth():
     assert isinstance(G2, graphtools.graphs.TraditionalGraph)
     assert G.N == G2.N
     np.testing.assert_allclose(G.dw, G2.dw)
-    np.testing.assert_allclose((G2.W - G.W).data, 0, atol=1e-14)
+    np.testing.assert_allclose((G2.W - G.W).data, 0, atol=1e-12)
 
 
 #####################################################

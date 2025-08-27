@@ -420,7 +420,6 @@ class kNNGraph(DataGraph):
         n_pca=None,
         **kwargs,
     ):
-
         if decay is not None:
             if thresh <= 0 and knn_max is None:
                 raise ValueError(
@@ -761,9 +760,11 @@ class kNNGraph(DataGraph):
                         # give up - radius search
                         dist_new, ind_new = knn_tree.radius_neighbors(
                             Y[update_idx, :],
-                            radius=radius
-                            if isinstance(bandwidth, numbers.Number)
-                            else np.max(radius[update_idx]),
+                            radius=(
+                                radius
+                                if isinstance(bandwidth, numbers.Number)
+                                else np.max(radius[update_idx])
+                            ),
                         )
                         for i, idx in enumerate(update_idx):
                             distances[idx] = dist_new[i]
@@ -849,6 +850,7 @@ class LandmarkGraph(DataGraph):
     >>> X_landmark = transform(G.landmark_op)
     >>> X_full = G.interpolate(X_landmark)
     """
+
 
     def __init__(self, data, n_landmark=2000, n_svd=100, random_landmarking=False, **kwargs):
         """Initialize a landmark graph.
@@ -1002,7 +1004,6 @@ class LandmarkGraph(DataGraph):
 
     def build_landmark_op(self):
         """Build the landmark operator
-
             Calculates spectral clusters on the kernel, and calculates transition
             probabilities between cluster centers by using transition probabilities
             between samples assigned to each cluster.
@@ -1010,11 +1011,11 @@ class LandmarkGraph(DataGraph):
             random_landmarking:
             This method randomly selects n_landmark points and assigns each sample to its nearest landmark
             using Euclidean distance .
-
         """
-        if self.random_landmarking :
-            with _logger.log_task("landmark operator"):
-                is_sparse = sparse.issparse(self.kernel)
+        with _logger.log_task("landmark operator"):
+            is_sparse = sparse.issparse(self.kernel)
+
+            if self.random_landmarking:
                 n_samples = self.data.shape[0]
                 rng = np.random.default_rng(self.random_state)
                 landmark_indices = rng.choice(n_samples, self.n_landmark, replace=False)
@@ -1025,10 +1026,7 @@ class LandmarkGraph(DataGraph):
                     distances = cdist(data, data[landmark_indices], metric="euclidean")
                 self._clusters = np.argmin(distances, axis=1)
 
-        else:
-            with _logger.log_task("landmark operator"):
-                is_sparse = sparse.issparse(self.kernel)
-                # spectral clustering
+            else:
                 with _logger.log_task("SVD"):
                     _, _, VT = randomized_svd(
                         self.diff_aff,
@@ -1044,7 +1042,7 @@ class LandmarkGraph(DataGraph):
                         random_state=self.random_state,
                     )
                     self._clusters = kmeans.fit_predict(self.diff_op.dot(VT.T))
-
+                    
         # transition matrices
         pmn = self._landmarks_to_data()
 

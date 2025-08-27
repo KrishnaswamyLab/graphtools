@@ -219,7 +219,7 @@ def test_anndata():
     except NameError:
         # not installed
         return
-    G = build_graph(anndata.AnnData(data, dtype=data.dtype))
+    G = build_graph(anndata.AnnData(data))
     assert isinstance(G, graphtools.base.BaseGraph)
     assert isinstance(G.data, np.ndarray)
 
@@ -230,7 +230,7 @@ def test_anndata_sparse():
     except NameError:
         # not installed
         return
-    G = build_graph(anndata.AnnData(sp.csr_matrix(data), dtype=data.dtype))
+    G = build_graph(anndata.AnnData(sp.csr_matrix(data)))
     assert isinstance(G, graphtools.base.BaseGraph)
     assert isinstance(G.data, sp.csr_matrix)
 
@@ -385,16 +385,15 @@ def test_inverse_transform_sparse_svd():
         IndexError, "index 64 is out of bounds for axis 1 with size 64"
     ):
         G.inverse_transform(G.data_nu, columns=data.shape[1])
-    with assert_raises_message(
-        TypeError,
-        "A sparse matrix was passed, but dense data is required. Use X.toarray() to convert to a dense numpy array.",
-    ):
+
+    # Flexible regex pattern that works across Python versions
+    sparse_error_pattern = r"(Sparse data|A sparse matrix) was passed, but dense data is required\. Use (?:'.*?'|X\.toarray\(\)) to convert to a dense numpy array\."
+    with assert_raises_regex(TypeError, sparse_error_pattern):
         G.inverse_transform(sp.csr_matrix(G.data)[:, 0])
-    with assert_raises_message(
-        TypeError,
-        "A sparse matrix was passed, but dense data is required. Use X.toarray() to convert to a dense numpy array.",
-    ):
+
+    with assert_raises_regex(TypeError, sparse_error_pattern):
         G.inverse_transform(sp.csr_matrix(G.data)[:, :15])
+
     with assert_raises_message(
         ValueError,
         "data of shape ({0},) cannot be inverse transformed from graph built on reduced data of shape ({0}, {1}). Expected shape ({0}, {1})".format(

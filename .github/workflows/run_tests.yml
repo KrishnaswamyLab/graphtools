@@ -22,14 +22,14 @@ jobs:
       fail-fast: false
       matrix:
         config:
+        - {name: '3.11', os: ubuntu-latest, python: '3.11' }
         - {name: '3.10', os: ubuntu-latest, python: '3.10' }
         - {name: '3.9', os: ubuntu-latest, python: '3.9' }
         - {name: '3.8', os: ubuntu-latest, python: '3.8' }
-        - {name: '3.7', os: ubuntu-latest, python: '3.7' }
 
     steps:
 
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         fetch-depth: 0
 
@@ -40,12 +40,12 @@ jobs:
         sudo apt-get install -y libhdf5-dev libhdf5-serial-dev pandoc gfortran libblas-dev liblapack-dev llvm-dev
 
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v3
       with:
         python-version: ${{ matrix.config.python }}
 
     - name: Cache Python packages
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       with:
         path: ${{ env.pythonLocation }}
         key: ${{runner.os}}-${{ matrix.config.python }}-pip-${{ env.pythonLocation }}-${{ hashFiles('setup.py') }}
