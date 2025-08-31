@@ -398,69 +398,76 @@ def test_mnn_graph_no_decay():
 
 
 def test_mnn_graph_decay():
-    X, sample_idx = generate_swiss_roll()
-    theta = 0.9
-    k = 10
-    a = 20
-    metric = "euclidean"
-    beta = 0.2
-    samples = np.unique(sample_idx)
+    import graphtools.graphs as gg
+    original_numba = gg.NUMBA_AVAILABLE
+    gg.NUMBA_AVAILABLE = False
+    
+    try:
+        X, sample_idx = generate_swiss_roll()
+        theta = 0.9
+        k = 10
+        a = 20
+        metric = "euclidean"
+        beta = 0.2
+        samples = np.unique(sample_idx)
 
-    K = np.zeros((len(X), len(X)))
-    K[:] = np.nan
-    K = pd.DataFrame(K)
+        K = np.zeros((len(X), len(X)))
+        K[:] = np.nan
+        K = pd.DataFrame(K)
 
-    for si in samples:
-        X_i = X[sample_idx == si]  # get observations in sample i
-        for sj in samples:
-            batch_k = k if si == sj else k - 1
-            X_j = X[sample_idx == sj]  # get observation in sample j
-            pdx_ij = cdist(X_i, X_j, metric=metric)  # pairwise distances
-            kdx_ij = np.sort(pdx_ij, axis=1)  # get kNN
-            e_ij = kdx_ij[:, batch_k]  # dist to kNN
-            pdxe_ij = pdx_ij / e_ij[:, np.newaxis]  # normalize
-            k_ij = np.exp(-1 * (pdxe_ij**a))  # apply alpha-decaying kernel
-            if si == sj:
-                K.iloc[sample_idx == si, sample_idx == sj] = (k_ij + k_ij.T) / 2
-            else:
-                # fill out values in K for NN on diagonal
-                K.iloc[sample_idx == si, sample_idx == sj] = k_ij
+        for si in samples:
+            X_i = X[sample_idx == si]  # get observations in sample i
+            for sj in samples:
+                batch_k = k if si == sj else k - 1
+                X_j = X[sample_idx == sj]  # get observation in sample j
+                pdx_ij = cdist(X_i, X_j, metric=metric)  # pairwise distances
+                kdx_ij = np.sort(pdx_ij, axis=1)  # get kNN
+                e_ij = kdx_ij[:, batch_k]  # dist to kNN
+                pdxe_ij = pdx_ij / e_ij[:, np.newaxis]  # normalize
+                k_ij = np.exp(-1 * (pdxe_ij**a))  # apply alpha-decaying kernel
+                if si == sj:
+                    K.iloc[sample_idx == si, sample_idx == sj] = (k_ij + k_ij.T) / 2
+                else:
+                    # fill out values in K for NN on diagonal
+                    K.iloc[sample_idx == si, sample_idx == sj] = k_ij
 
-    Kn = K.copy()
-    for i in samples:
-        curr_K = K.iloc[sample_idx == i, sample_idx == i]
-        i_norm = norm(curr_K, 1, axis=1)
-        for j in samples:
-            if i == j:
-                continue
-            else:
-                curr_K = K.iloc[sample_idx == i, sample_idx == j]
-                curr_norm = norm(curr_K, 1, axis=1)
-                scale = np.minimum(1, i_norm / curr_norm) * beta
-                Kn.iloc[sample_idx == i, sample_idx == j] = (
-                    curr_K.values * scale[:, None]
-                )
+        Kn = K.copy()
+        for i in samples:
+            curr_K = K.iloc[sample_idx == i, sample_idx == i]
+            i_norm = norm(curr_K, 1, axis=1)
+            for j in samples:
+                if i == j:
+                    continue
+                else:
+                    curr_K = K.iloc[sample_idx == i, sample_idx == j]
+                    curr_norm = norm(curr_K, 1, axis=1)
+                    scale = np.minimum(1, i_norm / curr_norm) * beta
+                    Kn.iloc[sample_idx == i, sample_idx == j] = (
+                        curr_K.values * scale[:, None]
+                    )
 
-    K = Kn
-    W = np.array((theta * np.minimum(K, K.T)) + ((1 - theta) * np.maximum(K, K.T)))
-    np.fill_diagonal(W, 0)
-    G = pygsp.graphs.Graph(W)
-    G2 = graphtools.Graph(
-        X,
-        knn=k,
-        decay=a,
-        beta=beta,
-        kernel_symm="mnn",
-        theta=theta,
-        distance=metric,
-        sample_idx=sample_idx,
-        thresh=0,
-        use_pygsp=True,
-    )
-    assert G.N == G2.N
-    np.testing.assert_array_equal(G.dw, G2.dw)
-    np.testing.assert_array_equal((G.W - G2.W).data, 0)
-    assert isinstance(G2, graphtools.graphs.MNNGraph)
+        K = Kn
+        W = np.array((theta * np.minimum(K, K.T)) + ((1 - theta) * np.maximum(K, K.T)))
+        np.fill_diagonal(W, 0)
+        G = pygsp.graphs.Graph(W)
+        G2 = graphtools.Graph(
+            X,
+            knn=k,
+            decay=a,
+            beta=beta,
+            kernel_symm="mnn",
+            theta=theta,
+            distance=metric,
+            sample_idx=sample_idx,
+            thresh=0,
+            use_pygsp=True,
+        )
+        assert G.N == G2.N
+        np.testing.assert_array_equal(G.dw, G2.dw)
+        np.testing.assert_array_equal((G.W - G2.W).data, 0)
+        assert isinstance(G2, graphtools.graphs.MNNGraph)
+    finally:
+        gg.NUMBA_AVAILABLE = original_numba
 
 
 #####################################################
