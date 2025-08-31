@@ -257,15 +257,42 @@ def test_sparse_alpha_knn_graph():
 
 
 def test_knnmax():
-    data = datasets.make_swiss_roll()[0]
-    k = 5
-    k_max = 10
-    a = 0.45
-    thresh = 0
+    import graphtools.graphs as gg
+    original_numba = gg.NUMBA_AVAILABLE
+    gg.NUMBA_AVAILABLE = False
+    
+    try:
+        data = datasets.make_swiss_roll()[0]
+        k = 5
+        k_max = 10
+        a = 0.45
+        thresh = 0
 
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", "K should be symmetric", RuntimeWarning)
-        G = build_graph(
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", "K should be symmetric", RuntimeWarning)
+            G = build_graph(
+                data,
+                n_pca=None,  # n_pca,
+                decay=a,
+                knn=k - 1,
+                knn_max=k_max - 1,
+                thresh=0,
+                random_state=42,
+                kernel_symm=None,
+            )
+            assert np.all((G.K > 0).sum(axis=1) == k_max)
+
+        pdx = squareform(pdist(data, metric="euclidean"))
+        knn_dist = np.partition(pdx, k, axis=1)[:, :k]
+        knn_max_dist = np.max(np.partition(pdx, k_max, axis=1)[:, :k_max], axis=1)
+        epsilon = np.max(knn_dist, axis=1)
+        pdx_scale = (pdx.T / epsilon).T
+        K = np.where(pdx <= knn_max_dist[:, None], np.exp(-1 * pdx_scale**a), 0)
+        K = K + K.T
+        W = np.divide(K, 2)
+        np.fill_diagonal(W, 0)
+        G = pygsp.graphs.Graph(W)
+        G2 = build_graph(
             data,
             n_pca=None,  # n_pca,
             decay=a,
@@ -273,34 +300,14 @@ def test_knnmax():
             knn_max=k_max - 1,
             thresh=0,
             random_state=42,
-            kernel_symm=None,
+            use_pygsp=True,
         )
-        assert np.all((G.K > 0).sum(axis=1) == k_max)
-
-    pdx = squareform(pdist(data, metric="euclidean"))
-    knn_dist = np.partition(pdx, k, axis=1)[:, :k]
-    knn_max_dist = np.max(np.partition(pdx, k_max, axis=1)[:, :k_max], axis=1)
-    epsilon = np.max(knn_dist, axis=1)
-    pdx_scale = (pdx.T / epsilon).T
-    K = np.where(pdx <= knn_max_dist[:, None], np.exp(-1 * pdx_scale**a), 0)
-    K = K + K.T
-    W = np.divide(K, 2)
-    np.fill_diagonal(W, 0)
-    G = pygsp.graphs.Graph(W)
-    G2 = build_graph(
-        data,
-        n_pca=None,  # n_pca,
-        decay=a,
-        knn=k - 1,
-        knn_max=k_max - 1,
-        thresh=0,
-        random_state=42,
-        use_pygsp=True,
-    )
-    assert isinstance(G2, graphtools.graphs.kNNGraph)
-    assert G.N == G2.N
-    assert np.all(G.dw == G2.dw)
-    assert (G.W - G2.W).nnz == 0
+        assert isinstance(G2, graphtools.graphs.kNNGraph)
+        assert G.N == G2.N
+        assert np.all(G.dw == G2.dw)
+        assert (G.W - G2.W).nnz == 0
+    finally:
+        gg.NUMBA_AVAILABLE = original_numba
 
 
 def test_thresh_small():
@@ -419,40 +426,47 @@ def test_knn_graph_sparse_no_pca():
 
 
 def test_knn_graph_anisotropy():
-    k = 3
-    a = 13
-    n_pca = 20
-    anisotropy = 0.9
-    thresh = 1e-4
-    data_small = data[np.random.choice(len(data), len(data) // 2, replace=False)]
-    pca = PCA(n_pca, svd_solver="randomized", random_state=42).fit(data_small)
-    data_small_nu = pca.transform(data_small)
-    pdx = squareform(pdist(data_small_nu, metric="euclidean"))
-    knn_dist = np.partition(pdx, k, axis=1)[:, :k]
-    epsilon = np.max(knn_dist, axis=1)
-    weighted_pdx = (pdx.T / epsilon).T
-    K = np.exp(-1 * weighted_pdx**a)
-    K[K < thresh] = 0
-    K = K + K.T
-    K = np.divide(K, 2)
-    d = K.sum(1)
-    W = K / (np.outer(d, d) ** anisotropy)
-    np.fill_diagonal(W, 0)
-    G = pygsp.graphs.Graph(W)
-    G2 = build_graph(
-        data_small,
-        n_pca=n_pca,
-        thresh=thresh,
-        decay=a,
-        knn=k - 1,
-        random_state=42,
-        use_pygsp=True,
-        anisotropy=anisotropy,
-    )
-    assert isinstance(G2, graphtools.graphs.kNNGraph)
-    assert G.N == G2.N
-    np.testing.assert_allclose(G.dw, G2.dw, atol=1e-12, rtol=1e-12)
-    np.testing.assert_allclose((G2.W - G.W).data, 0, atol=1e-12, rtol=1e-12)
+    import graphtools.graphs as gg
+    original_numba = gg.NUMBA_AVAILABLE
+    gg.NUMBA_AVAILABLE = False
+    
+    try:
+        k = 3
+        a = 13
+        n_pca = 20
+        anisotropy = 0.9
+        thresh = 1e-4
+        data_small = data[np.random.choice(len(data), len(data) // 2, replace=False)]
+        pca = PCA(n_pca, svd_solver="randomized", random_state=42).fit(data_small)
+        data_small_nu = pca.transform(data_small)
+        pdx = squareform(pdist(data_small_nu, metric="euclidean"))
+        knn_dist = np.partition(pdx, k, axis=1)[:, :k]
+        epsilon = np.max(knn_dist, axis=1)
+        weighted_pdx = (pdx.T / epsilon).T
+        K = np.exp(-1 * weighted_pdx**a)
+        K[K < thresh] = 0
+        K = K + K.T
+        K = np.divide(K, 2)
+        d = K.sum(1)
+        W = K / (np.outer(d, d) ** anisotropy)
+        np.fill_diagonal(W, 0)
+        G = pygsp.graphs.Graph(W)
+        G2 = build_graph(
+            data_small,
+            n_pca=n_pca,
+            thresh=thresh,
+            decay=a,
+            knn=k - 1,
+            random_state=42,
+            use_pygsp=True,
+            anisotropy=anisotropy,
+        )
+        assert isinstance(G2, graphtools.graphs.kNNGraph)
+        assert G.N == G2.N
+        np.testing.assert_allclose(G.dw, G2.dw, atol=1e-12, rtol=1e-12)
+        np.testing.assert_allclose((G2.W - G.W).data, 0, atol=1e-12, rtol=1e-12)
+    finally:
+        gg.NUMBA_AVAILABLE = original_numba
 
 
 #####################################################

@@ -31,6 +31,7 @@ def Graph(
     adaptive_k=None,
     n_landmark=None,
     n_svd=100,
+    random_landmarking=False,
     n_jobs=-1,
     verbose=False,
     random_state=None,
@@ -140,6 +141,11 @@ def Graph(
 
     n_svd : `int`, optional (default: 100)
         number of SVD components to use for spectral clustering
+
+    random_landmarking : `bool`, optional (default: False)
+        If True, use random landmark selection instead of spectral clustering.
+        Randomly selects n_landmark points and assigns samples to nearest landmark.
+        Only used when n_landmark is not None.
 
     random_state : `int` or `None`, optional (default: `None`)
         Random state for random PCA
