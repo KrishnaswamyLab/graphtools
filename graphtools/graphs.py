@@ -227,7 +227,10 @@ def _numba_build_kernel_to_data_optimized(pdx, bandwidth, decay, thresh):
     bandwidth_is_scalar = bandwidth.ndim == 0 or (bandwidth.ndim == 1 and bandwidth.size == 1)
     
     if bandwidth_is_scalar:
-        bw_f32 = np.float32(bandwidth)
+        if bandwidth.ndim == 0:
+            bw_f32 = np.float32(bandwidth)
+        else:  # bandwidth.ndim == 1 and bandwidth.size == 1
+            bw_f32 = np.float32(bandwidth[0])
         # Process all elements in parallel
         for i in prange(n_samples):
             for j in range(n_features):
