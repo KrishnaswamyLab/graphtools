@@ -669,36 +669,57 @@ def test_shortest_path_precomputed_data():
 
 
 def test_build_dense_exact_kernel_to_data(**kwargs):
-    G = build_graph(data, decay=10, thresh=0)
-    n = G.data.shape[0]
-    K = G.build_kernel_to_data(data[: n // 2, :])
-    assert K.shape == (n // 2, n)
-    K = G.build_kernel_to_data(G.data, knn=G.knn + 1)
-    np.testing.assert_equal(G.kernel - (K + K.T) / 2, 0)
-    K = G.build_kernel_to_data(G.data_nu, knn=G.knn + 1)
-    np.testing.assert_equal(G.kernel - (K + K.T) / 2, 0)
+    import graphtools.graphs as gg
+    original_numba = gg.NUMBA_AVAILABLE
+    gg.NUMBA_AVAILABLE = False
+    
+    try:
+        G = build_graph(data, decay=10, thresh=0)
+        n = G.data.shape[0]
+        K = G.build_kernel_to_data(data[: n // 2, :])
+        assert K.shape == (n // 2, n)
+        K = G.build_kernel_to_data(G.data, knn=G.knn + 1)
+        np.testing.assert_equal(G.kernel - (K + K.T) / 2, 0)
+        K = G.build_kernel_to_data(G.data_nu, knn=G.knn + 1)
+        np.testing.assert_equal(G.kernel - (K + K.T) / 2, 0)
+    finally:
+        gg.NUMBA_AVAILABLE = original_numba
 
 
 def test_build_dense_exact_callable_bw_kernel_to_data(**kwargs):
-    G = build_graph(data, decay=10, thresh=0, bandwidth=lambda x: x.mean(1))
-    n = G.data.shape[0]
-    K = G.build_kernel_to_data(data[: n // 2, :])
-    assert K.shape == (n // 2, n)
-    K = G.build_kernel_to_data(G.data, knn=G.knn + 1)
-    np.testing.assert_equal(G.kernel - (K + K.T) / 2, 0)
-    K = G.build_kernel_to_data(G.data_nu, knn=G.knn + 1)
-    np.testing.assert_equal(G.kernel - (K + K.T) / 2, 0)
+    import graphtools.graphs as gg
+    original_numba = gg.NUMBA_AVAILABLE
+    gg.NUMBA_AVAILABLE = False
+    
+    try:
+        G = build_graph(data, decay=10, thresh=0, bandwidth=lambda x: x.mean(1))
+        n = G.data.shape[0]
+        K = G.build_kernel_to_data(data[: n // 2, :])
+        assert K.shape == (n // 2, n)
+        K = G.build_kernel_to_data(G.data, knn=G.knn + 1)
+        np.testing.assert_equal(G.kernel - (K + K.T) / 2, 0)
+        K = G.build_kernel_to_data(G.data_nu, knn=G.knn + 1)
+        np.testing.assert_equal(G.kernel - (K + K.T) / 2, 0)
+    finally:
+        gg.NUMBA_AVAILABLE = original_numba
 
 
 def test_build_sparse_exact_kernel_to_data(**kwargs):
-    G = build_graph(data, decay=10, thresh=0, sparse=True)
-    n = G.data.shape[0]
-    K = G.build_kernel_to_data(data[: n // 2, :])
-    assert K.shape == (n // 2, n)
-    K = G.build_kernel_to_data(G.data, knn=G.knn + 1)
-    np.testing.assert_equal(G.kernel - (K + K.T) / 2, 0)
-    K = G.build_kernel_to_data(G.data_nu, knn=G.knn + 1)
-    np.testing.assert_equal(G.kernel - (K + K.T) / 2, 0)
+    import graphtools.graphs as gg
+    original_numba = gg.NUMBA_AVAILABLE
+    gg.NUMBA_AVAILABLE = False
+    
+    try:
+        G = build_graph(data, decay=10, thresh=0, sparse=True)
+        n = G.data.shape[0]
+        K = G.build_kernel_to_data(data[: n // 2, :])
+        assert K.shape == (n // 2, n)
+        K = G.build_kernel_to_data(G.data, knn=G.knn + 1)
+        np.testing.assert_equal(G.kernel - (K + K.T) / 2, 0)
+        K = G.build_kernel_to_data(G.data_nu, knn=G.knn + 1)
+        np.testing.assert_equal(G.kernel - (K + K.T) / 2, 0)
+    finally:
+        gg.NUMBA_AVAILABLE = original_numba
 
 
 def test_exact_interpolate():
