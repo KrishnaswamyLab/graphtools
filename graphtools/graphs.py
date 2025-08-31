@@ -23,7 +23,7 @@ import warnings
 
 # Import numba with fallback
 try:
-    from numba import njit
+    from numba import njit, prange
     NUMBA_AVAILABLE = True
 except ImportError:
     def njit(*args, **kwargs):
@@ -33,6 +33,11 @@ except ImportError:
         if len(args) == 1 and callable(args[0]):
             return args[0]
         return decorator
+    
+    def prange(*args, **kwargs):
+        """Fallback for prange if numba is not available"""
+        return range(*args, **kwargs)
+    
     NUMBA_AVAILABLE = False
 
 _logger = tasklogger.get_tasklogger("graphtools")
