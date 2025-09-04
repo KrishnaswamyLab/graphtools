@@ -30,7 +30,7 @@ jobs:
 
     steps:
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
@@ -41,12 +41,12 @@ jobs:
         sudo apt-get install -y libhdf5-dev libhdf5-serial-dev pandoc gfortran libblas-dev liblapack-dev llvm-dev
 
     - name: Set up Python
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.config.python }}
 
     - name: Cache Python packages
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ${{ env.pythonLocation }}
         key: ${{runner.os}}-${{ matrix.config.python }}-pip-${{ env.pythonLocation }}-${{ hashFiles('setup.py') }}
