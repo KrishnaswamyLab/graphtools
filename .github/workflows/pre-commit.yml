@@ -23,19 +23,19 @@ jobs:
 
     steps:
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Cache pre-commit
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.cache/pre-commit
           key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}-
 
       - name: Run pre-commit
         id: precommit
-        uses: pre-commit/action@v3.0.0
+        uses: pre-commit/action@v4.2.0
         continue-on-error: true
 
       - name: Commit files
@@ -59,4 +59,4 @@ jobs:
 
       - name: Check pre-commit
         if: steps.precommit.outcome == 'failure'
-        uses: pre-commit/action@v3.0.0
+        uses: pre-commit/action@v4.2.0
