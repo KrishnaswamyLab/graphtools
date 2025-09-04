@@ -35,7 +35,7 @@ jobs:
 
       - name: Run pre-commit
         id: precommit
-        uses: pre-commit/action@v4.2.0
+        uses: pre-commit/action@v3.0.1
         continue-on-error: true
 
       - name: Commit files
@@ -59,4 +59,4 @@ jobs:
 
       - name: Check pre-commit
         if: steps.precommit.outcome == 'failure'
-        uses: pre-commit/action@v4.2.0
+        uses: pre-commit/action@v3.0.1
