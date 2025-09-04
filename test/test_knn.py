@@ -258,9 +258,10 @@ def test_sparse_alpha_knn_graph():
 
 def test_knnmax():
     import graphtools.graphs as gg
+
     original_numba = gg.NUMBA_AVAILABLE
     gg.NUMBA_AVAILABLE = False
-    
+
     try:
         data = datasets.make_swiss_roll()[0]
         k = 5
@@ -427,9 +428,10 @@ def test_knn_graph_sparse_no_pca():
 
 def test_knn_graph_anisotropy():
     import graphtools.graphs as gg
+
     original_numba = gg.NUMBA_AVAILABLE
     gg.NUMBA_AVAILABLE = False
-    
+
     try:
         k = 3
         a = 13
