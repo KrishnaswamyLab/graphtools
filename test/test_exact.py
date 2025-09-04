@@ -670,9 +670,10 @@ def test_shortest_path_precomputed_data():
 
 def test_build_dense_exact_kernel_to_data(**kwargs):
     import graphtools.graphs as gg
+
     original_numba = gg.NUMBA_AVAILABLE
     gg.NUMBA_AVAILABLE = False
-    
+
     try:
         G = build_graph(data, decay=10, thresh=0)
         n = G.data.shape[0]
@@ -688,9 +689,10 @@ def test_build_dense_exact_kernel_to_data(**kwargs):
 
 def test_build_dense_exact_callable_bw_kernel_to_data(**kwargs):
     import graphtools.graphs as gg
+
     original_numba = gg.NUMBA_AVAILABLE
     gg.NUMBA_AVAILABLE = False
-    
+
     try:
         G = build_graph(data, decay=10, thresh=0, bandwidth=lambda x: x.mean(1))
         n = G.data.shape[0]
@@ -706,9 +708,10 @@ def test_build_dense_exact_callable_bw_kernel_to_data(**kwargs):
 
 def test_build_sparse_exact_kernel_to_data(**kwargs):
     import graphtools.graphs as gg
+
     original_numba = gg.NUMBA_AVAILABLE
     gg.NUMBA_AVAILABLE = False
-    
+
     try:
         G = build_graph(data, decay=10, thresh=0, sparse=True)
         n = G.data.shape[0]

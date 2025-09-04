@@ -58,11 +58,11 @@ setup(
     license="GNU General Public License Version 2",
     install_requires=install_requires,
     extras_require={
-        "test": test_requires, 
-        "doc": doc_requires, 
+        "test": test_requires,
+        "doc": doc_requires,
         "numba": numba_requires,
         "fast": fast_requires,
-        "all": all_requires
+        "all": all_requires,
     },
     test_suite="nose2.collector.collector",
     long_description=readme,

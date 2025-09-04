@@ -399,9 +399,10 @@ def test_mnn_graph_no_decay():
 
 def test_mnn_graph_decay():
     import graphtools.graphs as gg
+
     original_numba = gg.NUMBA_AVAILABLE
     gg.NUMBA_AVAILABLE = False
-    
+
     try:
         X, sample_idx = generate_swiss_roll()
         theta = 0.9
