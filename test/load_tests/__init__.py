@@ -124,7 +124,7 @@ def build_graph(
         n_pca=n_pca,
         decay=decay,
         knn=knn,
-        random_state=42,
+        random_state=random_state,
         verbose=verbose,
         **kwargs,
     )

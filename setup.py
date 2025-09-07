@@ -29,6 +29,13 @@ if sys.version_info[0] == 3:
 
 doc_requires = ["sphinx", "sphinxcontrib-napoleon", "sphinxcontrib-bibtex"]
 
+# Optional dependencies for performance acceleration
+numba_requires = ["numba>=0.50.0"]
+
+# Convenience extras
+fast_requires = numba_requires  # For performance acceleration
+all_requires = test_requires + doc_requires + numba_requires
+
 if sys.version_info[:2] < (3, 5):
     raise RuntimeError("Python version >=3.5 required.")
 elif sys.version_info[:2] >= (3, 6):
@@ -50,7 +57,13 @@ setup(
     ],
     license="GNU General Public License Version 2",
     install_requires=install_requires,
-    extras_require={"test": test_requires, "doc": doc_requires},
+    extras_require={
+        "test": test_requires,
+        "doc": doc_requires,
+        "numba": numba_requires,
+        "fast": fast_requires,
+        "all": all_requires,
+    },
     test_suite="nose2.collector.collector",
     long_description=readme,
     url="https://github.com/KrishnaswamyLab/graphtools",
