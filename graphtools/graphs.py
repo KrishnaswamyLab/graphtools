@@ -374,6 +374,191 @@ def _numba_threshold_affinities(affinities, thresh):
     return result
 
 
+@njit(parallel=True)
+def _numba_build_csr_from_neighbors_scalar_bw(
+    row_neighbors, row_distances, bandwidth, decay, thresh, n_rows, n_cols
+):
+    """
+    Build CSR in a single pass; threshold before allocation; avoid COO conversions for lower peak memory.
+    Optimized version for scalar bandwidth using numba acceleration.
+
+    Two-pass approach:
+    - Pass 1: compute weights per row, apply thresh to make a boolean mask, and count kept edges
+    - Pass 2: fill each row's slice with the kept neighbors and weights
+    """
+    # Convert to float32 for memory efficiency
+    bandwidth_f32 = np.float32(bandwidth)
+    decay_f32 = np.float32(decay)
+    thresh_f32 = np.float32(thresh)
+
+    # Pass 1: count valid entries per row (parallel)
+    row_kept_counts = np.zeros(n_rows, dtype=np.int64)
+
+    for i in prange(n_rows):
+        count = 0
+        for j in range(len(row_distances[i])):
+            if j < len(row_neighbors[i]) and row_neighbors[i][j] >= 0:
+                # Compute weight
+                scaled = np.float32(row_distances[i][j]) / bandwidth_f32
+                powered = scaled**decay_f32
+                affinity = np.exp(-powered)
+
+                # Handle edge cases
+                if np.isnan(affinity) or np.isinf(affinity):
+                    affinity = np.float32(1.0)
+
+                if affinity >= thresh_f32:
+                    count += 1
+
+        row_kept_counts[i] = count
+
+    # Compute indptr
+    indptr = np.empty(n_rows + 1, dtype=np.int64)
+    indptr[0] = 0
+    for i in range(n_rows):
+        indptr[i + 1] = indptr[i] + row_kept_counts[i]
+
+    nnz = int(indptr[-1])
+
+    # Allocate output arrays
+    indices = np.empty(nnz, dtype=np.int32)
+    data = np.empty(nnz, dtype=np.float32)
+
+    # Pass 2: fill arrays (parallel by row)
+    for i in prange(n_rows):
+        start_pos = indptr[i]
+        write_pos = start_pos
+
+        for j in range(len(row_distances[i])):
+            if j < len(row_neighbors[i]) and row_neighbors[i][j] >= 0:
+                # Recompute weight (same as counting pass)
+                scaled = np.float32(row_distances[i][j]) / bandwidth_f32
+                powered = scaled**decay_f32
+                affinity = np.exp(-powered)
+
+                if np.isnan(affinity) or np.isinf(affinity):
+                    affinity = np.float32(1.0)
+
+                if affinity >= thresh_f32:
+                    indices[write_pos] = row_neighbors[i][j]
+                    data[write_pos] = affinity
+                    write_pos += 1
+
+    return data, indices, indptr
+
+
+def _build_csr_from_neighbors(row_neighbors, row_distances, bandwidth, decay, thresh, shape):
+    """
+    Build CSR in a single pass; threshold before allocation; avoid COO conversions for lower peak memory.
+
+    Parameters
+    ----------
+    row_neighbors : list of arrays
+        Per-row neighbor indices
+    row_distances : list of arrays
+        Per-row distances to neighbors
+    bandwidth : float or array
+        Bandwidth parameter(s)
+    decay : float
+        Decay parameter
+    thresh : float
+        Threshold for keeping edges
+    shape : tuple
+        Shape of output matrix (n_rows, n_cols)
+
+    Returns
+    -------
+    csr_matrix : scipy.sparse.csr_matrix
+        Constructed CSR matrix with thresholding applied
+    """
+    n_rows, n_cols = shape
+
+    # Handle scalar bandwidth with numba optimization
+    if isinstance(bandwidth, numbers.Number) and NUMBA_AVAILABLE:
+        # Convert lists to arrays for numba
+        max_neighbors = max(len(neighbors) for neighbors in row_neighbors)
+        neighbors_array = np.full((n_rows, max_neighbors), -1, dtype=np.int32)
+        distances_array = np.full((n_rows, max_neighbors), np.inf, dtype=np.float32)
+
+        for i in range(n_rows):
+            n_neighbors = len(row_neighbors[i])
+            neighbors_array[i, :n_neighbors] = row_neighbors[i]
+            distances_array[i, :n_neighbors] = row_distances[i]
+
+        data, indices, indptr = _numba_build_csr_from_neighbors_scalar_bw(
+            neighbors_array, distances_array, bandwidth, decay, thresh, n_rows, n_cols
+        )
+    else:
+        # Fallback implementation for variable bandwidth or no numba
+        # Pass 1: compute weights and count kept edges
+        row_masks = []
+        row_kept_counts = np.empty(n_rows, dtype=np.int64)
+
+        for i in range(n_rows):
+            distances_i = np.array(row_distances[i], dtype=np.float32)
+            if isinstance(bandwidth, numbers.Number):
+                bw = bandwidth
+            else:
+                bw = bandwidth[i]
+
+            # Compute weights
+            scaled = distances_i / bw
+            weights = np.exp(-np.power(scaled, decay))
+            weights = np.where(np.isnan(weights), 1.0, weights)
+
+            # Apply threshold
+            mask = weights >= thresh
+            row_masks.append(mask)
+            row_kept_counts[i] = int(np.count_nonzero(mask))
+
+        # Compute indptr
+        indptr = np.empty(n_rows + 1, dtype=np.int64)
+        indptr[0] = 0
+        np.cumsum(row_kept_counts, out=indptr[1:])
+        nnz = int(indptr[-1])
+
+        # Allocate output arrays
+        indices = np.empty(nnz, dtype=np.int32)
+        data = np.empty(nnz, dtype=np.float32)
+
+        # Pass 2: fill arrays
+        for i in range(n_rows):
+            start, end = indptr[i], indptr[i + 1]
+            if start == end:
+                continue
+
+            mask = row_masks[i]
+            neighbors_i = np.array(row_neighbors[i])[mask]
+            distances_i = np.array(row_distances[i], dtype=np.float32)[mask]
+
+            if isinstance(bandwidth, numbers.Number):
+                bw = bandwidth
+            else:
+                bw = bandwidth[i]
+
+            # Recompute weights for kept edges
+            scaled = distances_i / bw
+            weights_i = np.exp(-np.power(scaled, decay))
+            weights_i = np.where(np.isnan(weights_i), 1.0, weights_i)
+
+            # Optional: sort by column index for canonical order
+            if len(neighbors_i) > 1:
+                sort_order = np.argsort(neighbors_i)
+                neighbors_i = neighbors_i[sort_order]
+                weights_i = weights_i[sort_order]
+
+            indices[start:end] = neighbors_i
+            data[start:end] = weights_i
+
+    # Build CSR matrix
+    K = sparse.csr_matrix((data, indices, indptr), shape=shape)
+
+    # Handle potential duplicates
+    K.sum_duplicates()
+
+    return K
+
+
 class kNNGraph(DataGraph):
     """
     K nearest neighbors graph
@@ -789,50 +974,11 @@ class kNNGraph(DataGraph):
                         for i, idx in enumerate(update_idx):
                             distances[idx] = dist_new[i]
                             indices[idx] = ind_new[i]
-                # Scale distances and compute affinities
-                if isinstance(bandwidth, numbers.Number):
-                    distances_flat = np.concatenate(distances)
-                    if NUMBA_AVAILABLE:
-                        data = _numba_scale_distances_single_bandwidth(
-                            distances_flat, bandwidth
-                        )
-                        data = _numba_compute_affinities(data, self.decay)
-                        data = _numba_threshold_affinities(data, self.thresh)
-                    else:
-                        data = distances_flat / bandwidth
-                        data = np.exp(-1 * np.power(data, self.decay))
-                        data = np.where(np.isnan(data), 1, data)
-                        data[data < self.thresh] = 0
-                else:
-                    if NUMBA_AVAILABLE:
-                        # For variable bandwidth, we need to handle the scaling differently
-                        data = []
-                        for i in range(len(distances)):
-                            scaled = _numba_scale_distances_single_bandwidth(
-                                distances[i], bandwidth[i]
-                            )
-                            affinities = _numba_compute_affinities(scaled, self.decay)
-                            thresholded = _numba_threshold_affinities(
-                                affinities, self.thresh
-                            )
-                            data.append(thresholded)
-                        data = np.concatenate(data)
-                    else:
-                        data = np.concatenate(
-                            [distances[i] / bandwidth[i] for i in range(len(distances))]
-                        )
-                        data = np.exp(-1 * np.power(data, self.decay))
-                        data = np.where(np.isnan(data), 1, data)
-                        data[data < self.thresh] = 0
-
-                indices = np.concatenate(indices)
-                indptr = np.concatenate([[0], np.cumsum([len(d) for d in distances])])
-                K = sparse.csr_matrix(
-                    (data, indices, indptr), shape=(Y.shape[0], self.data_nu.shape[0])
+                # Use optimized CSR construction to avoid COO conversions
+                K = _build_csr_from_neighbors(
+                    indices, distances, bandwidth, self.decay, self.thresh,
+                    (Y.shape[0], self.data_nu.shape[0])
                 )
-                K = K.tocoo()
-                K.eliminate_zeros()
-                K = K.tocsr()
         return K
 
 
@@ -1457,9 +1603,8 @@ class TraditionalGraph(DataGraph):
             ):
                 K = K.tocsr()
             K.data[K.data < self.thresh] = 0
-            K = K.tocoo()
+            # Eliminate zeros directly on CSR - avoid unnecessary COO conversion
             K.eliminate_zeros()
-            K = K.tocsr()
         else:
             K[K < self.thresh] = 0
         return K
