@@ -386,10 +386,10 @@ def _numba_build_csr_from_neighbors_scalar_bw(
     - Pass 1: compute weights per row, apply thresh to make a boolean mask, and count kept edges
     - Pass 2: fill each row's slice with the kept neighbors and weights
     """
-    # Convert to float32 for memory efficiency
-    bandwidth_f32 = np.float32(bandwidth)
-    decay_f32 = np.float32(decay)
-    thresh_f32 = np.float32(thresh)
+    # Use float64 for numerical precision compatibility
+    bandwidth_f64 = np.float64(bandwidth)
+    decay_f64 = np.float64(decay)
+    thresh_f64 = np.float64(thresh)
 
     # Pass 1: count valid entries per row (parallel)
     row_kept_counts = np.zeros(n_rows, dtype=np.int64)
@@ -399,15 +399,15 @@ def _numba_build_csr_from_neighbors_scalar_bw(
         for j in range(len(row_distances[i])):
             if j < len(row_neighbors[i]) and row_neighbors[i][j] >= 0:
                 # Compute weight
-                scaled = np.float32(row_distances[i][j]) / bandwidth_f32
-                powered = scaled**decay_f32
+                scaled = np.float64(row_distances[i][j]) / bandwidth_f64
+                powered = scaled**decay_f64
                 affinity = np.exp(-powered)
 
                 # Handle edge cases
                 if np.isnan(affinity) or np.isinf(affinity):
-                    affinity = np.float32(1.0)
+                    affinity = np.float64(1.0)
 
-                if affinity >= thresh_f32:
+                if affinity >= thresh_f64:
                     count += 1
 
         row_kept_counts[i] = count
@@ -422,7 +422,7 @@ def _numba_build_csr_from_neighbors_scalar_bw(
 
     # Allocate output arrays
     indices = np.empty(nnz, dtype=np.int32)
-    data = np.empty(nnz, dtype=np.float32)
+    data = np.empty(nnz, dtype=np.float64)
 
     # Pass 2: fill arrays (parallel by row)
     for i in prange(n_rows):
@@ -432,14 +432,14 @@ def _numba_build_csr_from_neighbors_scalar_bw(
         for j in range(len(row_distances[i])):
             if j < len(row_neighbors[i]) and row_neighbors[i][j] >= 0:
                 # Recompute weight (same as counting pass)
-                scaled = np.float32(row_distances[i][j]) / bandwidth_f32
-                powered = scaled**decay_f32
+                scaled = np.float64(row_distances[i][j]) / bandwidth_f64
+                powered = scaled**decay_f64
                 affinity = np.exp(-powered)
 
                 if np.isnan(affinity) or np.isinf(affinity):
-                    affinity = np.float32(1.0)
+                    affinity = np.float64(1.0)
 
-                if affinity >= thresh_f32:
+                if affinity >= thresh_f64:
                     indices[write_pos] = row_neighbors[i][j]
                     data[write_pos] = affinity
                     write_pos += 1
@@ -478,7 +478,7 @@ def _build_csr_from_neighbors(row_neighbors, row_distances, bandwidth, decay, th
         # Convert lists to arrays for numba
         max_neighbors = max(len(neighbors) for neighbors in row_neighbors)
         neighbors_array = np.full((n_rows, max_neighbors), -1, dtype=np.int32)
-        distances_array = np.full((n_rows, max_neighbors), np.inf, dtype=np.float32)
+        distances_array = np.full((n_rows, max_neighbors), np.inf, dtype=np.float64)
 
         for i in range(n_rows):
             n_neighbors = len(row_neighbors[i])
@@ -495,7 +495,7 @@ def _build_csr_from_neighbors(row_neighbors, row_distances, bandwidth, decay, th
         row_kept_counts = np.empty(n_rows, dtype=np.int64)
 
         for i in range(n_rows):
-            distances_i = np.array(row_distances[i], dtype=np.float32)
+            distances_i = np.array(row_distances[i], dtype=np.float64)
             if isinstance(bandwidth, numbers.Number):
                 bw = bandwidth
             else:
@@ -519,7 +519,7 @@ def _build_csr_from_neighbors(row_neighbors, row_distances, bandwidth, decay, th
 
         # Allocate output arrays
         indices = np.empty(nnz, dtype=np.int32)
-        data = np.empty(nnz, dtype=np.float32)
+        data = np.empty(nnz, dtype=np.float64)
 
         # Pass 2: fill arrays
         for i in range(n_rows):
@@ -529,7 +529,7 @@ def _build_csr_from_neighbors(row_neighbors, row_distances, bandwidth, decay, th
 
             mask = row_masks[i]
             neighbors_i = np.array(row_neighbors[i])[mask]
-            distances_i = np.array(row_distances[i], dtype=np.float32)[mask]
+            distances_i = np.array(row_distances[i], dtype=np.float64)[mask]
 
             if isinstance(bandwidth, numbers.Number):
                 bw = bandwidth
