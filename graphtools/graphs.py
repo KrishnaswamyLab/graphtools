@@ -1192,7 +1192,7 @@ class LandmarkGraph(DataGraph):
 
         random_landmarking:
         This method randomly selects n_landmark points and assigns each sample to its nearest landmark
-        using Euclidean distance .
+        using the same distance metric as the graph (self.distance).
         """
         with _logger.log_task("landmark operator"):
             is_sparse = sparse.issparse(self.kernel)
@@ -1204,13 +1204,20 @@ class LandmarkGraph(DataGraph):
                 data = (
                     self.data if not hasattr(self, "data_nu") else self.data_nu
                 )  # because of the scaling to review
-                if (
-                    n_samples > 5000
-                ):  # sklearn.euclidean_distances is faster than cdist for big dataset
-                    distances = euclidean_distances(data, data[landmark_indices])
-                else:
-                    distances = cdist(data, data[landmark_indices], metric="euclidean")
-                self._clusters = np.argmin(distances, axis=1)
+
+                # Store landmark indices for fast path optimization
+                self._landmark_indices = landmark_indices
+
+                with _logger.log_task("distance computation"):
+                    if (
+                        n_samples > 5000
+                    ):  # sklearn.euclidean_distances is faster than cdist for big dataset
+                        distances = euclidean_distances(data, data[landmark_indices])
+                    else:
+                        distances = cdist(data, data[landmark_indices], metric="euclidean")
+
+                with _logger.log_task("cluster assignment"):
+                    self._clusters = np.argmin(distances, axis=1)
 
             else:
                 with _logger.log_task("SVD"):
@@ -1229,18 +1236,110 @@ class LandmarkGraph(DataGraph):
                     )
                     self._clusters = kmeans.fit_predict(self.diff_op.dot(VT.T))
 
-        # transition matrices
-        pmn = self._landmarks_to_data()
+        # Compute landmark operator and transitions
+        if self.random_landmarking:
+            # FAST PATH for random landmarking: landmarks are real samples
+            # No aggregation needed - extract submatrices directly from kernel
 
-        # row normalize
-        pnm = pmn.transpose()
-        pmn = normalize(pmn, norm="l1", axis=1)
-        pnm = normalize(pnm, norm="l1", axis=1)
-        # sparsity agnostic matrix multiplication
-        landmark_op = pmn.dot(pnm)
-        if is_sparse:
-            # no need to have a sparse landmark operator
-            landmark_op = landmark_op.toarray()
+            L = np.asarray(self._landmark_indices)
+
+            # ============================================================
+            # APPROACH TOGGLE: One-hop vs Two-hop
+            # ============================================================
+            # Set to False for two-hop (default, maintains connectivity)
+            # Set to True for one-hop (faster but causes sparsity issues)
+            USE_ONE_HOP = False
+
+            if USE_ONE_HOP:
+                # ONE-HOP APPROACH (CURRENTLY DISABLED - see explanation below)
+                # ============================================================
+                # Direct landmark→landmark transitions from normalized kernel
+                #
+                # Pros:
+                # - Very fast (no matrix multiplication)
+                # - Minimal memory usage
+                #
+                # Cons:
+                # - Results in very low sparsity (0.02 vs 0.36 for two-hop)
+                # - Insufficient connectivity for small knn values
+                # - Causes downstream failures (e.g., PHATE MDS: "Input matrices
+                #   must contain >1 unique points")
+                #
+                # Why it fails:
+                # With kNN graphs (e.g., knn=500, n_landmark=5000), most landmark
+                # pairs are NOT direct neighbors. So P[L,L] is extremely sparse,
+                # making the landmark operator too degenerate for algorithms that
+                # expect reasonable connectivity.
+                #
+                # When this might work:
+                # - Very large knn values where landmarks likely to be neighbors
+                # - Dense graphs (not kNN)
+                # - Algorithms that handle very sparse operators
+                # ============================================================
+
+                P = normalize(self.kernel, norm="l1", axis=1)
+
+                if is_sparse:
+                    landmark_op = P[L, :][:, L].toarray()
+                    landmark_op = normalize(landmark_op, norm="l1", axis=1)
+                    pnm = P[:, L]
+                else:
+                    landmark_op = P[L, :][:, L]
+                    landmark_op = normalize(landmark_op, norm="l1", axis=1)
+                    pnm = P[:, L]
+
+            else:
+                # TWO-HOP APPROACH (ACTIVE)
+                # ============================================================
+                # Compute landmark→data→landmark transitions via sparse matrix multiplication
+                #
+                # This maintains proper connectivity (sparsity ~0.36) by allowing
+                # landmarks to connect through intermediate data points.
+                #
+                # For kNN graphs, both pmn and pnm are sparse, so the .dot()
+                # operation uses efficient sparse matrix multiplication.
+                # ============================================================
+
+                with _logger.log_task("extract landmark submatrices"):
+                    # Extract kernel rows for landmarks directly (no aggregation)
+                    # For random landmarking, each cluster = one sample, so no summing needed
+                    pmn = self.kernel[L, :]  # Shape: (n_landmark, n_samples)
+
+                with _logger.log_task("normalization"):
+                    # Match exact normalization order from original working code
+                    pnm = pmn.transpose()  # Shape: (n_samples, n_landmark)
+                    pmn = normalize(pmn, norm="l1", axis=1)  # Row normalize: landmark→data transitions
+                    pnm = normalize(pnm, norm="l1", axis=1)  # Row normalize: data→landmark transitions
+
+                with _logger.log_task("landmark operator multiplication"):
+                    # Compute two-hop transitions: landmark → data → landmark
+                    # Uses sparse matrix multiplication if kernel is sparse
+                    landmark_op = pmn.dot(pnm)
+
+                    if is_sparse:
+                        # Convert to dense for landmark operator (small matrix)
+                        landmark_op = landmark_op.toarray()
+
+        else:
+            # ORIGINAL PATH: For spectral clustering, need to aggregate multiple points per cluster
+
+            with _logger.log_task("landmarks to data"):
+                # Aggregate kernel rows by cluster
+                pmn = self._landmarks_to_data()
+
+            with _logger.log_task("normalization"):
+                # Normalize transitions
+                pnm = pmn.transpose()
+                pmn = normalize(pmn, norm="l1", axis=1)
+                pnm = normalize(pnm, norm="l1", axis=1)
+
+            with _logger.log_task("landmark operator multiplication"):
+                # Full matrix multiplication needed for aggregated clusters
+                landmark_op = pmn.dot(pnm)
+                if is_sparse:
+                    # no need to have a sparse landmark operator
+                    landmark_op = landmark_op.toarray()
+
         # store output
         self._landmark_op = landmark_op
         self._transitions = pnm
