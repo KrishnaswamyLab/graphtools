@@ -1300,18 +1300,16 @@ class LandmarkGraph(DataGraph):
                 # operation uses efficient sparse matrix multiplication.
                 # ============================================================
 
-                with _logger.log_task("extract landmark submatrices"):
-                    # Extract kernel rows for landmarks directly (no aggregation)
-                    # For random landmarking, each cluster = one sample, so no summing needed
-                    pmn = self.kernel[L, :]  # Shape: (n_landmark, n_samples)
+                # Extract kernel rows for landmarks directly (no aggregation)
+                # For random landmarking, each cluster = one sample, so no summing needed
+                pmn = self.kernel[L, :]  # Shape: (n_landmark, n_samples)
 
-                with _logger.log_task("normalization"):
-                    # Match exact normalization order from original working code
-                    pnm = pmn.transpose()  # Shape: (n_samples, n_landmark)
-                    pmn = normalize(pmn, norm="l1", axis=1)  # Row normalize: landmark→data transitions
-                    pnm = normalize(pnm, norm="l1", axis=1)  # Row normalize: data→landmark transitions
+                # Match exact normalization order from original working code
+                pnm = pmn.transpose()  # Shape: (n_samples, n_landmark)
+                pmn = normalize(pmn, norm="l1", axis=1)  # Row normalize: landmark→data transitions
+                pnm = normalize(pnm, norm="l1", axis=1)  # Row normalize: data→landmark transitions
 
-                with _logger.log_task("landmark operator multiplication"):
+                with _logger.log_task("landmark to landmark operator"):
                     # Compute two-hop transitions: landmark → data → landmark
                     # Uses sparse matrix multiplication if kernel is sparse
                     landmark_op = pmn.dot(pnm)
