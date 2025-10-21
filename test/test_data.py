@@ -5,15 +5,14 @@ from load_tests import assert_warns_message
 from load_tests import build_graph
 from load_tests import data
 from load_tests import graphtools
-from load_tests import nose2
 from load_tests import np
 from load_tests import pd
 from load_tests import pdist
 from load_tests import sp
 from load_tests import squareform
-from nose.tools import assert_raises_regex
 
 import numbers
+import pytest
 import warnings
 
 try:
@@ -99,9 +98,9 @@ def test_negative_rank_threshold():
 
 
 def test_True_n_pca_large_threshold():
-    with assert_raises_regex(
+    with pytest.raises(
         ValueError,
-        r"Supplied threshold ([0-9\.]*) was greater than maximum singular value ([0-9\.]*) for the data matrix",
+        match=r"Supplied threshold ([0-9\.]*) was greater than maximum singular value ([0-9\.]*) for the data matrix",
     ):
         build_graph(data, n_pca=True, rank_threshold=np.linalg.norm(data) ** 2)
 
@@ -388,10 +387,10 @@ def test_inverse_transform_sparse_svd():
 
     # Flexible regex pattern that works across Python versions
     sparse_error_pattern = r"(Sparse data|A sparse matrix) was passed, but dense data is required\. Use (?:'.*?'|X\.toarray\(\)) to convert to a dense numpy array\."
-    with assert_raises_regex(TypeError, sparse_error_pattern):
+    with pytest.raises(TypeError, match=sparse_error_pattern):
         G.inverse_transform(sp.csr_matrix(G.data)[:, 0])
 
-    with assert_raises_regex(TypeError, sparse_error_pattern):
+    with pytest.raises(TypeError, match=sparse_error_pattern):
         G.inverse_transform(sp.csr_matrix(G.data)[:, :15])
 
     with assert_raises_message(

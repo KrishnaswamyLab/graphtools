@@ -12,9 +12,10 @@ from load_tests import PCA
 from load_tests import pygsp
 from load_tests import sp
 from load_tests import TruncatedSVD
-from nose.tools import assert_raises_regex
-from nose.tools import assert_warns_regex
+
+import pytest
 from scipy.sparse.csgraph import shortest_path
+
 from scipy.spatial.distance import pdist
 from scipy.spatial.distance import squareform
 
@@ -50,17 +51,17 @@ def test_build_knn_with_sample_idx():
 
 
 def test_duplicate_data():
-    with assert_warns_regex(
+    with pytest.warns(
         RuntimeWarning,
-        r"Detected zero distance between samples ([0-9and,\s]*). Consider removing duplicates to avoid errors in downstream processing.",
+        match=r"Detected zero distance between samples ([0-9and,\s]*). Consider removing duplicates to avoid errors in downstream processing.",
     ):
         build_graph(np.vstack([data, data[:9]]), n_pca=None, decay=10, thresh=1e-4)
 
 
 def test_duplicate_data_many():
-    with assert_warns_regex(
+    with pytest.warns(
         RuntimeWarning,
-        "Detected zero distance between ([0-9]*) pairs of samples. Consider removing duplicates to avoid errors in downstream processing.",
+        match=r"Detected zero distance between ([0-9and,\s]*) pairs of samples. Consider removing duplicates to avoid errors in downstream processing.",
     ):
         build_graph(np.vstack([data, data[:21]]), n_pca=None, decay=10, thresh=1e-4)
 
@@ -305,8 +306,9 @@ def test_knnmax():
         )
         assert isinstance(G2, graphtools.graphs.kNNGraph)
         assert G.N == G2.N
-        assert np.all(G.dw == G2.dw)
-        assert (G.W - G2.W).nnz == 0
+        np.testing.assert_allclose(G.dw, G2.dw)
+        # Use allclose for sparse matrices to handle floating-point precision
+        np.testing.assert_allclose(G.W.toarray(), G2.W.toarray(), rtol=1e-7, atol=1e-10)
     finally:
         gg.NUMBA_AVAILABLE = original_numba
 

@@ -42,7 +42,7 @@ def test_estimator():
     assert E.graph is None
 
 
-@parameterized(
+@parameterized.expand(
     [
         ("precomputed", 1 - np.eye(10), "distance"),
         ("precomputed", np.eye(10), "affinity"),

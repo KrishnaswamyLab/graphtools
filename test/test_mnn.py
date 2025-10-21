@@ -8,7 +8,6 @@ from load_tests import data
 from load_tests import digits
 from load_tests import generate_swiss_roll
 from load_tests import graphtools
-from load_tests import nose2
 from load_tests import np
 from load_tests import pd
 from load_tests import pygsp

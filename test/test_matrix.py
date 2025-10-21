@@ -9,7 +9,7 @@ import graphtools.utils
 import numpy as np
 
 
-@parameterized(
+@parameterized.expand(
     [
         (np.array,),
         (sparse.csr_matrix,),
@@ -26,13 +26,13 @@ def test_nonzero_discrete(matrix_class):
     assert not graphtools.matrix.nonzero_discrete(X, [1, 3])
 
 
-@parameterized([(0,), (1e-4,)])
+@parameterized.expand([(0,), (1e-4,)])
 def test_nonzero_discrete_knngraph(thresh):
     G = graphtools.Graph(data, n_pca=10, knn=5, decay=None, thresh=thresh)
     assert graphtools.matrix.nonzero_discrete(G.K, [0.5, 1])
 
 
-@parameterized([(0,), (1e-4,)])
+@parameterized.expand([(0,), (1e-4,)])
 def test_nonzero_discrete_decay_graph(thresh):
     G = graphtools.Graph(data, n_pca=10, knn=5, decay=15, thresh=thresh)
     assert not graphtools.matrix.nonzero_discrete(G.K, [0.5, 1])
