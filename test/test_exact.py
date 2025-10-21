@@ -5,7 +5,6 @@ from load_tests import assert_warns_message
 from load_tests import build_graph
 from load_tests import data
 from load_tests import graphtools
-from load_tests import nose2
 from load_tests import np
 from load_tests import PCA
 from load_tests import pdist
@@ -13,7 +12,8 @@ from load_tests import pygsp
 from load_tests import sp
 from load_tests import squareform
 from load_tests import TruncatedSVD
-from nose.tools import assert_warns_regex
+
+import pytest
 from scipy.sparse.csgraph import shortest_path
 
 #####################################################
@@ -98,17 +98,17 @@ def test_precomputed_nonzero_diagonal():
 
 
 def test_duplicate_data():
-    with assert_warns_regex(
+    with pytest.warns(
         RuntimeWarning,
-        r"Detected zero distance between samples ([0-9and,\s]*). Consider removing duplicates to avoid errors in downstream processing.",
+        match=r"Detected zero distance between samples ([0-9and,\s]*). Consider removing duplicates to avoid errors in downstream processing.",
     ):
         build_graph(np.vstack([data, data[:10]]), n_pca=20, decay=10, thresh=0)
 
 
 def test_many_duplicate_data():
-    with assert_warns_regex(
+    with pytest.warns(
         RuntimeWarning,
-        "Detected zero distance between ([0-9]*) pairs of samples. Consider removing duplicates to avoid errors in downstream processing.",
+        match=r"Detected zero distance between ([0-9and,\s]*) pairs of samples. Consider removing duplicates to avoid errors in downstream processing.",
     ):
         build_graph(np.vstack([data, data]), n_pca=20, decay=10, thresh=0)
 

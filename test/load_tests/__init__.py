@@ -1,5 +1,3 @@
-from nose.tools import assert_raises_regex
-from nose.tools import assert_warns_regex
 from scipy.spatial.distance import cdist
 from scipy.spatial.distance import pdist
 from scipy.spatial.distance import squareform
@@ -8,10 +6,10 @@ from sklearn.decomposition import PCA
 from sklearn.decomposition import TruncatedSVD
 
 import graphtools
-import nose2
 import numpy as np
 import pandas as pd
 import pygsp
+import pytest
 import re
 import scipy.sparse as sp
 import warnings
@@ -19,12 +17,24 @@ import warnings
 
 def assert_warns_message(expected_warning, expected_message, *args, **kwargs):
     expected_regex = re.escape(expected_message)
-    return assert_warns_regex(expected_warning, expected_regex, *args, **kwargs)
+    if args:
+        # If function arguments are provided, call the function within the context
+        with pytest.warns(expected_warning, match=expected_regex):
+            return args[0](*args[1:], **kwargs)
+    else:
+        # Return the context manager to be used with 'with' statement
+        return pytest.warns(expected_warning, match=expected_regex)
 
 
 def assert_raises_message(expected_warning, expected_message, *args, **kwargs):
     expected_regex = re.escape(expected_message)
-    return assert_raises_regex(expected_warning, expected_regex, *args, **kwargs)
+    if args:
+        # If function arguments are provided, call the function within the context
+        with pytest.raises(expected_warning, match=expected_regex):
+            return args[0](*args[1:], **kwargs)
+    else:
+        # Return the context manager to be used with 'with' statement
+        return pytest.raises(expected_warning, match=expected_regex)
 
 
 def reset_warnings():

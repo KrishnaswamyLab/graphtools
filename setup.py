@@ -14,8 +14,8 @@ install_requires = [
 ]
 
 test_requires = [
-    "nose",
-    "nose2",
+    "pytest",
+    "pytest-cov",
     "pandas",
     "coverage",
     "coveralls",
@@ -64,7 +64,6 @@ setup(
         "fast": fast_requires,
         "all": all_requires,
     },
-    test_suite="nose2.collector.collector",
     long_description=readme,
     url="https://github.com/KrishnaswamyLab/graphtools",
     download_url="https://github.com/KrishnaswamyLab/graphtools/archive/v{}.tar.gz".format(

@@ -60,7 +60,7 @@ jobs:
 
     - name: Run tests
       run: |
-        nose2 -vvv
+        pytest
 
     - name: Coveralls
       env:
