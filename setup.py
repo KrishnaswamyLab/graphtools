@@ -52,6 +52,8 @@ setup(
     description="graphtools",
     author="Scott Gigante, Daniel Burkhardt, and Jay Stanley, Yale University",
     author_email="scott.gigante@yale.edu",
+    maintainer="João Felipe Rocha (Yale University) and Matthew Scicluna (Université de Montréal)",
+    maintainer_email="joaofelipe.rocha@yale.edu, matthew.scicluna@umontreal.ca",
     packages=[
         "graphtools",
     ],
