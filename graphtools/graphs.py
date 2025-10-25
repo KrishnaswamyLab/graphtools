@@ -1205,11 +1205,11 @@ class LandmarkGraph(DataGraph):
                     self.data if not hasattr(self, "data_nu") else self.data_nu
                 )  # because of the scaling to review
                 if (
-                    n_samples > 5000
+                    n_samples > 5000 and self.distance == "euclidean"
                 ):  # sklearn.euclidean_distances is faster than cdist for big dataset
                     distances = euclidean_distances(data, data[landmark_indices])
                 else:
-                    distances = cdist(data, data[landmark_indices], metric="euclidean")
+                    distances = cdist(data, data[landmark_indices], metric=self.distance)
                 self._clusters = np.argmin(distances, axis=1)
 
             else:
