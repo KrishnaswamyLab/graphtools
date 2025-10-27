@@ -284,21 +284,26 @@ def test_landmark_with_non_euclidean_distances():
     #     "but all distance metrics gave identical results"
     # )
 
-    # Test that the landmark operators are different shapes/values when different distances
-    # are used (this is a more sensitive test than just cluster assignments)
-    euclidean_landmark_sum = np.sum(euclidean_G.landmark_op)
-    manhattan_landmark_sum = np.sum(G_manhattan.landmark_op)
-    cosine_landmark_sum = np.sum(G_cosine.landmark_op)
+    # Compare landmark operators using Frobenius norm
+    euclidean_landmark_op = euclidean_G.landmark_op
+    manhattan_landmark_op = G_manhattan.landmark_op
+    cosine_landmark_op = G_cosine.landmark_op
 
-    print(
-        f"Landmark operator sums: euclidean={euclidean_landmark_sum:.6f}, "
-        f"manhattan={manhattan_landmark_sum:.6f}, cosine={cosine_landmark_sum:.6f}"
+    diff_euclidean_manhattan = np.linalg.norm(
+        euclidean_landmark_op - manhattan_landmark_op, "fro"
+    )
+    diff_euclidean_cosine = np.linalg.norm(
+        euclidean_landmark_op - cosine_landmark_op, "fro"
     )
 
-    # The landmark operators should be different when using different distance metrics
+    print(
+        f"Landmark operator differences: "
+        f"euclidean vs manhattan={diff_euclidean_manhattan:.6f}, "
+        f"euclidean vs cosine={diff_euclidean_cosine:.6f}"
+    )
+
     operators_different = (
-        abs(euclidean_landmark_sum - manhattan_landmark_sum) > 1e-10
-        or abs(euclidean_landmark_sum - cosine_landmark_sum) > 1e-10
+        diff_euclidean_manhattan > 1e-6 or diff_euclidean_cosine > 1e-6
     )
 
     if not operators_different:
@@ -306,7 +311,7 @@ def test_landmark_with_non_euclidean_distances():
 
         warnings.warn(
             "Landmark operators are identical across different distance metrics. "
-            "This strongly suggests the distance parameter is being ignored in build_landmark_op.",
+            "This suggests the distance parameter is being ignored in build_landmark_op.",
             UserWarning,
         )
 
