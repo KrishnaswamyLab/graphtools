@@ -724,6 +724,81 @@ class BaseGraph(with_metaclass(abc.ABCMeta, Base)):
         return self.K
 
     @property
+    def n_connected_components(self):
+        """Number of connected components in the graph (cached)
+
+        A connected component is a maximal set of nodes where there is a path
+        between every pair of nodes in the set. This property uses scipy's
+        connected_components function on the kernel matrix to count components.
+
+        Returns
+        -------
+        n_components : int
+            Number of connected components in the graph
+
+        Examples
+        --------
+        >>> G = graphtools.Graph(data)
+        >>> print(G.n_connected_components)
+        1
+        """
+        try:
+            return self._n_connected_components
+        except AttributeError:
+            from scipy.sparse.csgraph import connected_components
+
+            self._n_connected_components, self._component_labels = connected_components(
+                csgraph=self.kernel, directed=False, return_labels=True
+            )
+            return self._n_connected_components
+
+    @property
+    def component_labels(self):
+        """Component label for each node (cached)
+
+        Returns the connected component index for each node in the graph.
+        Nodes with the same label belong to the same connected component.
+
+        Returns
+        -------
+        labels : np.ndarray, shape=[n_samples]
+            Component index for each node (0 to n_connected_components - 1)
+
+        Examples
+        --------
+        >>> G = graphtools.Graph(data)
+        >>> labels = G.component_labels
+        >>> # Find nodes in component 0
+        >>> component_0_nodes = np.where(labels == 0)[0]
+        """
+        try:
+            return self._component_labels
+        except AttributeError:
+            # Trigger computation via n_connected_components
+            _ = self.n_connected_components
+            return self._component_labels
+
+    @property
+    def is_connected(self):
+        """Check if the graph is connected (cached)
+
+        A graph is connected if there is a path between every pair of nodes,
+        i.e., if it has exactly one connected component.
+
+        Returns
+        -------
+        connected : bool
+            True if graph has exactly 1 connected component, False otherwise
+
+        Examples
+        --------
+        >>> G = graphtools.Graph(data)
+        >>> if not G.is_connected:
+        ...     print(f"Warning: Graph has {G.n_connected_components} components")
+        """
+        return self.n_connected_components == 1
+
+    @property
     def weighted(self):
         return self.decay is not None
 
