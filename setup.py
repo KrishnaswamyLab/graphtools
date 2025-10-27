@@ -36,9 +36,9 @@ numba_requires = ["numba>=0.50.0"]
 fast_requires = numba_requires  # For performance acceleration
 all_requires = test_requires + doc_requires + numba_requires
 
-if sys.version_info[:2] < (3, 5):
-    raise RuntimeError("Python version >=3.5 required.")
-elif sys.version_info[:2] >= (3, 6):
+if sys.version_info[:2] < (3, 8):
+    raise RuntimeError("Python version >=3.8 required.")
+else:
     test_requires += ["black"]
 
 version_py = os.path.join(os.path.dirname(__file__), "graphtools", "version.py")
@@ -87,11 +87,11 @@ setup(
         "Operating System :: MacOS :: MacOS X",
         "Operating System :: Microsoft :: Windows",
         "Operating System :: POSIX :: Linux",
-        "Programming Language :: Python :: 2",
-        "Programming Language :: Python :: 2.7",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.5",
-        "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
         "Topic :: Scientific/Engineering :: Mathematics",
     ],
 )
