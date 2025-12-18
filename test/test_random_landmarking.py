@@ -8,6 +8,7 @@ from load_tests import digits
 from load_tests import generate_swiss_roll
 from load_tests import graphtools
 from load_tests import np
+from load_tests import sp
 
 import pygsp
 import warnings
@@ -403,6 +404,208 @@ def test_random_landmarking_distance_parameter_consistency():
         # Basic functionality should work regardless of distance metric
         assert G.landmark_op.shape == (n_landmark, n_landmark)
         assert len(G.clusters) == small_data.shape[0]
+
+
+def test_random_landmarking_with_precomputed_affinity():
+    """Random landmarking should work with precomputed affinity matrices"""
+    affinity = np.array(
+        [
+            [1.0, 0.8, 0.1, 0.0, 0.0, 0.0],
+            [0.8, 1.0, 0.2, 0.0, 0.0, 0.0],
+            [0.1, 0.2, 1.0, 0.9, 0.4, 0.0],
+            [0.0, 0.0, 0.9, 1.0, 0.5, 0.2],
+            [0.0, 0.0, 0.4, 0.5, 1.0, 0.9],
+            [0.0, 0.0, 0.0, 0.2, 0.9, 1.0],
+        ]
+    )
+    affinity = (affinity + affinity.T) / 2  # ensure symmetry
+    n_landmark = 3
+    random_state = 42
+
+    G = graphtools.Graph(
+        affinity,
+        precomputed="affinity",
+        n_landmark=n_landmark,
+        random_landmarking=True,
+        random_state=random_state,
+        knn=3,
+        thresh=0,
+    )
+
+    # Trigger landmark construction
+    _ = G.landmark_op
+
+    rng = np.random.default_rng(random_state)
+    landmark_indices = rng.choice(affinity.shape[0], n_landmark, replace=False)
+    expected_clusters = np.asarray(
+        G.kernel[:, landmark_indices].argmax(axis=1)
+    ).reshape(-1)
+
+    assert np.array_equal(G.clusters, expected_clusters)
+    assert G.transitions.shape == (affinity.shape[0], n_landmark)
+    assert G.landmark_op.shape == (n_landmark, n_landmark)
+
+
+def test_random_landmarking_with_precomputed_distance():
+    """Random landmarking should work with precomputed distance matrices"""
+    dist = np.array(
+        [
+            [0, 1, 4, 4, 4, 4],
+            [1, 0, 4, 4, 4, 4],
+            [4, 4, 0, 1, 4, 4],
+            [4, 4, 1, 0, 4, 4],
+            [4, 4, 4, 4, 0, 1],
+            [4, 4, 4, 4, 1, 0],
+        ]
+    )
+
+    n_landmark = 3
+    random_state = 42
+
+    G = graphtools.Graph(
+        dist,
+        precomputed="distance",
+        n_landmark=n_landmark,
+        random_landmarking=True,
+        random_state=random_state,
+        bandwidth=1,  # deterministic affinity: exp(-dist)
+        decay=1,
+        thresh=0,
+        knn=3,
+    )
+
+    # Trigger landmark construction
+    _ = G.landmark_op
+
+    rng = np.random.default_rng(random_state)
+    landmark_indices = rng.choice(dist.shape[0], n_landmark, replace=False)
+    expected_clusters = np.asarray(
+        G.kernel[:, landmark_indices].argmax(axis=1)
+    ).reshape(-1)
+
+    assert np.array_equal(G.clusters, expected_clusters)
+    assert G.transitions.shape == (dist.shape[0], n_landmark)
+    assert G.landmark_op.shape == (n_landmark, n_landmark)
+
+
+def test_random_landmarking_with_sparse_precomputed_affinity():
+    """Random landmarking should work with sparse precomputed affinity matrices"""
+    affinity = np.array(
+        [
+            [1.0, 0.8, 0.1, 0.0, 0.0, 0.0],
+            [0.8, 1.0, 0.2, 0.0, 0.0, 0.0],
+            [0.1, 0.2, 1.0, 0.9, 0.4, 0.0],
+            [0.0, 0.0, 0.9, 1.0, 0.5, 0.2],
+            [0.0, 0.0, 0.4, 0.5, 1.0, 0.9],
+            [0.0, 0.0, 0.0, 0.2, 0.9, 1.0],
+        ]
+    )
+    affinity = (affinity + affinity.T) / 2  # ensure symmetry
+    affinity_sparse = sp.csr_matrix(affinity)
+    n_landmark = 3
+    random_state = 42
+
+    G = graphtools.Graph(
+        affinity_sparse,
+        precomputed="affinity",
+        n_landmark=n_landmark,
+        random_landmarking=True,
+        random_state=random_state,
+        knn=3,
+        thresh=0,
+    )
+
+    # Trigger landmark construction
+    _ = G.landmark_op
+
+    rng = np.random.default_rng(random_state)
+    landmark_indices = rng.choice(affinity.shape[0], n_landmark, replace=False)
+    expected_clusters = np.asarray(
+        G.kernel[:, landmark_indices].argmax(axis=1)
+    ).reshape(-1)
+
+    assert np.array_equal(G.clusters, expected_clusters)
+    assert G.transitions.shape == (affinity.shape[0], n_landmark)
+    assert G.landmark_op.shape == (n_landmark, n_landmark)
+
+
+def test_random_landmarking_with_sparse_precomputed_distance():
+    """Random landmarking should work with sparse precomputed distance matrices"""
+    dist = np.array(
+        [
+            [0, 1, 4, 4, 4, 4],
+            [1, 0, 4, 4, 4, 4],
+            [4, 4, 0, 1, 4, 4],
+            [4, 4, 1, 0, 4, 4],
+            [4, 4, 4, 4, 0, 1],
+            [4, 4, 4, 4, 1, 0],
+        ]
+    )
+    dist_sparse = sp.csr_matrix(dist)
+
+    n_landmark = 3
+    random_state = 42
+
+    G = graphtools.Graph(
+        dist_sparse,
+        precomputed="distance",
+        n_landmark=n_landmark,
+        random_landmarking=True,
+        random_state=random_state,
+        bandwidth=1,  # deterministic affinity: exp(-dist)
+        decay=1,
+        thresh=0,
+        knn=3,
+    )
+
+    # Trigger landmark construction
+    _ = G.landmark_op
+
+    rng = np.random.default_rng(random_state)
+    landmark_indices = rng.choice(dist.shape[0], n_landmark, replace=False)
+    expected_clusters = np.asarray(
+        G.kernel[:, landmark_indices].argmax(axis=1)
+    ).reshape(-1)
+
+    assert np.array_equal(G.clusters, expected_clusters)
+    assert G.transitions.shape == (dist.shape[0], n_landmark)
+    assert G.landmark_op.shape == (n_landmark, n_landmark)
+
+
+def test_random_landmarking_zero_affinity_warning():
+    """Test warning when samples have zero affinity to all landmarks"""
+    # Create an affinity matrix where point 5 has no connection to other points
+    affinity = np.array(
+        [
+            [1.0, 0.8, 0.1, 0.0, 0.0, 0.0],
+            [0.8, 1.0, 0.2, 0.0, 0.0, 0.0],
+            [0.1, 0.2, 1.0, 0.9, 0.4, 0.0],
+            [0.0, 0.0, 0.9, 1.0, 0.5, 0.0],
+            [0.0, 0.0, 0.4, 0.5, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],  # isolated point
+        ]
+    )
+    affinity = (affinity + affinity.T) / 2  # ensure symmetry
+    n_landmark = 2
+    random_state = 42  # This seed selects landmarks that don't include point 5
+
+    # Should warn about zero affinity
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        G = graphtools.Graph(
+            affinity,
+            precomputed="affinity",
+            n_landmark=n_landmark,
+            random_landmarking=True,
+            random_state=random_state,
+            knn=3,
+            thresh=0,
+        )
+        _ = G.landmark_op
+
+        assert len(w) == 1
+        assert issubclass(w[0].category, RuntimeWarning)
+        assert "zero affinity to all randomly selected landmarks" in str(w[0].message)
 
 
 #############

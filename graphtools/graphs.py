@@ -1201,16 +1201,45 @@ class LandmarkGraph(DataGraph):
                 n_samples = self.data.shape[0]
                 rng = np.random.default_rng(self.random_state)
                 landmark_indices = rng.choice(n_samples, self.n_landmark, replace=False)
-                data = (
-                    self.data if not hasattr(self, "data_nu") else self.data_nu
-                )  # because of the scaling to review
-                if (
-                    n_samples > 5000 and self.distance == "euclidean"
-                ):  # sklearn.euclidean_distances is faster than cdist for big dataset
-                    distances = euclidean_distances(data, data[landmark_indices])
+                precomputed = getattr(self, "precomputed", None)
+
+                if precomputed is not None:
+                    # Use affinities from the kernel computed from the precomputed matrix to avoid Euclidean fallback
+                    landmark_affinities = self.kernel[:, landmark_indices]
+
+                    if sparse.issparse(landmark_affinities):
+                        landmark_affinities = landmark_affinities.tocsr()
+                        cluster_assignments = np.asarray(
+                            landmark_affinities.argmax(axis=1)
+                        ).reshape(-1)
+                        row_max = matrix.to_array(
+                            landmark_affinities.max(axis=1)
+                        ).reshape(-1)
+                    else:
+                        landmark_affinities = np.asarray(landmark_affinities)
+                        cluster_assignments = np.argmax(landmark_affinities, axis=1)
+                        row_max = np.max(landmark_affinities, axis=1)
+
+                    if np.any(row_max == 0):
+                        warnings.warn(
+                            "Some samples have zero affinity to all randomly selected landmarks; "
+                            "increase n_landmark or ensure the affinity matrix connects all points.",
+                            RuntimeWarning,
+                        )
+                    self._clusters = cluster_assignments
                 else:
-                    distances = cdist(data, data[landmark_indices], metric=self.distance)
-                self._clusters = np.argmin(distances, axis=1)
+                    data = (
+                        self.data if not hasattr(self, "data_nu") else self.data_nu
+                    )  # because of the scaling to review
+                    if (
+                        n_samples > 5000 and self.distance == "euclidean"
+                    ):  # sklearn.euclidean_distances is faster than cdist for big dataset
+                        distances = euclidean_distances(data, data[landmark_indices])
+                    else:
+                        distances = cdist(
+                            data, data[landmark_indices], metric=self.distance
+                        )
+                    self._clusters = np.argmin(distances, axis=1)
 
             else:
                 with _logger.log_task("SVD"):
