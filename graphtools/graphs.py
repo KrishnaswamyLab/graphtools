@@ -1204,7 +1204,7 @@ class LandmarkGraph(DataGraph):
                 precomputed = getattr(self, "precomputed", None)
 
                 if precomputed is not None:
-                    # Use the precomputed affinities/distances directly to avoid Euclidean fallback
+                    # Use affinities from the kernel computed from the precomputed matrix to avoid Euclidean fallback
                     landmark_affinities = self.kernel[:, landmark_indices]
 
                     if sparse.issparse(landmark_affinities):
