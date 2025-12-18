@@ -405,6 +405,46 @@ def test_random_landmarking_distance_parameter_consistency():
         assert len(G.clusters) == small_data.shape[0]
 
 
+def test_random_landmarking_with_precomputed_affinity():
+    """Random landmarking should work with precomputed affinity matrices"""
+    affinity = np.array(
+        [
+            [1.0, 0.8, 0.1, 0.0, 0.0, 0.0],
+            [0.8, 1.0, 0.2, 0.0, 0.0, 0.0],
+            [0.1, 0.2, 1.0, 0.9, 0.4, 0.0],
+            [0.0, 0.0, 0.9, 1.0, 0.5, 0.2],
+            [0.0, 0.0, 0.4, 0.5, 1.0, 0.9],
+            [0.0, 0.0, 0.0, 0.2, 0.9, 1.0],
+        ]
+    )
+    affinity = (affinity + affinity.T) / 2  # ensure symmetry
+    n_landmark = 3
+    random_state = 42
+
+    G = graphtools.Graph(
+        affinity,
+        precomputed="affinity",
+        n_landmark=n_landmark,
+        random_landmarking=True,
+        random_state=random_state,
+        knn=3,
+        thresh=0,
+    )
+
+    # Trigger landmark construction
+    _ = G.landmark_op
+
+    rng = np.random.default_rng(random_state)
+    landmark_indices = rng.choice(affinity.shape[0], n_landmark, replace=False)
+    expected_clusters = np.asarray(
+        G.kernel[:, landmark_indices].argmax(axis=1)
+    ).reshape(-1)
+
+    assert np.array_equal(G.clusters, expected_clusters)
+    assert G.transitions.shape == (affinity.shape[0], n_landmark)
+    assert G.landmark_op.shape == (n_landmark, n_landmark)
+
+
 #############
 # Test API
 #############
