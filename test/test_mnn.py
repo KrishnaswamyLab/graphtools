@@ -463,8 +463,15 @@ def test_mnn_graph_decay():
             use_pygsp=True,
         )
         assert G.N == G2.N
-        np.testing.assert_array_equal(G.dw, G2.dw)
-        np.testing.assert_array_equal((G.W - G2.W).data, 0)
+        # pygsp generates G using dense pandas/NumPy matrices, while graphtools
+        # uses sparse matrices, leading to small numerical differences.
+        np.testing.assert_allclose(G.dw, G2.dw, rtol=1e-14, atol=1e-14)
+        np.testing.assert_allclose(
+            (G.W - G2.W).data,
+            0,
+            rtol=0,
+            atol=1e-14,
+        )
         assert isinstance(G2, graphtools.graphs.MNNGraph)
     finally:
         gg.NUMBA_AVAILABLE = original_numba
